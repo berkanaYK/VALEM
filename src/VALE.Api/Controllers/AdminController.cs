@@ -121,7 +121,7 @@ public sealed class AdminController(
         return Created($"/api/admin/users/{user.Id}", MapUser(user, selectedRoles));
     }
 
-    private static AdminUserDto MapUser(AppUser user, IReadOnlyCollection<string> roles) => new(
+    private static AdminUserDto MapUser(AppUser user, IEnumerable<string> roles) => new(
         user.Id,
         user.FullName,
         user.Email ?? string.Empty,
