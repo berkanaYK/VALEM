@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Npgsql;
 using VALE.Api.Configuration;
 using VALE.Api.Data;
 using VALE.Api.Domain;
@@ -13,12 +14,14 @@ using VALE.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var connectionString = builder.Configuration.GetConnectionString("ValeDatabase");
-if (string.IsNullOrWhiteSpace(connectionString))
+var configuredConnectionString = builder.Configuration.GetConnectionString("ValeDatabase");
+if (string.IsNullOrWhiteSpace(configuredConnectionString))
 {
     throw new InvalidOperationException(
-        "ConnectionStrings:ValeDatabase tanımlı değil. scripts/configure-api.ps1 ile güvenli yapılandırmayı tamamlayın.");
+        "ConnectionStrings:ValeDatabase tanımlı değil. Render Environment bölümünde Neon bağlantısını tanımlayın.");
 }
+
+var connectionString = NormalizePostgresConnectionString(configuredConnectionString);
 
 builder.Services.AddOptions<JwtOptions>()
     .Bind(builder.Configuration.GetSection(JwtOptions.SectionName))
@@ -134,6 +137,41 @@ await using (var scope = app.Services.CreateAsyncScope())
 }
 
 await app.RunAsync();
+
+static string NormalizePostgresConnectionString(string value)
+{
+    var trimmed = value.Trim();
+    if (!trimmed.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) &&
+        !trimmed.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+    {
+        return trimmed;
+    }
+
+    var uri = new Uri(trimmed);
+    var userInfo = uri.UserInfo.Split(':', 2);
+    if (userInfo.Length != 2 || string.IsNullOrWhiteSpace(uri.Host))
+    {
+        throw new InvalidOperationException("Neon PostgreSQL bağlantı adresi geçersiz.");
+    }
+
+    var database = Uri.UnescapeDataString(uri.AbsolutePath.TrimStart('/'));
+    if (string.IsNullOrWhiteSpace(database))
+    {
+        throw new InvalidOperationException("Neon PostgreSQL bağlantı adresinde veritabanı adı bulunamadı.");
+    }
+
+    return new NpgsqlConnectionStringBuilder
+    {
+        Host = uri.Host,
+        Port = uri.IsDefaultPort || uri.Port <= 0 ? 5432 : uri.Port,
+        Username = Uri.UnescapeDataString(userInfo[0]),
+        Password = Uri.UnescapeDataString(userInfo[1]),
+        Database = database,
+        SslMode = SslMode.Require,
+        Timeout = 15,
+        CommandTimeout = 30
+    }.ConnectionString;
+}
 
 public partial class Program
 {
