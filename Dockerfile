@@ -8,7 +8,7 @@ RUN dotnet restore src/VALE.Api/VALE.Api.csproj
 
 COPY src/VALE.Contracts/ src/VALE.Contracts/
 COPY src/VALE.Api/ src/VALE.Api/
-RUN dotnet publish src/VALE.Api/VALE.Api.csproj -c Release -o /app/publish --no-restore
+RUN dotnet publish src/VALE.Api/VALE.Api.csproj -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
