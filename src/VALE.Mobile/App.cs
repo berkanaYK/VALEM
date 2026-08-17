@@ -1,4 +1,5 @@
 using Microsoft.Maui.Controls;
+using VALE.Contracts;
 
 namespace VALE.Mobile;
 
@@ -6,17 +7,26 @@ public sealed class App : Application
 {
     public App()
     {
-        UserAppTheme = AppTheme.Dark;
+        Resources = new ResourceDictionary();
+        ThemeService.ApplyStored(this);
     }
 
     protected override Window CreateWindow(IActivationState? activationState)
-    {
-        var navigation = new NavigationPage(new MainPage())
-        {
-            BarBackgroundColor = Color.FromArgb("#0B1220"),
-            BarTextColor = Colors.White
-        };
+        => new(new NavigationPage(new MainPage()));
 
-        return new Window(navigation);
+    public static void ShowAuthenticated(ApiClient api, UserDto user)
+    {
+        if (Current?.Windows.FirstOrDefault() is { } window)
+        {
+            window.Page = new MainTabsPage(api, user);
+        }
+    }
+
+    public static void ShowLogin()
+    {
+        if (Current?.Windows.FirstOrDefault() is { } window)
+        {
+            window.Page = new NavigationPage(new MainPage());
+        }
     }
 }
