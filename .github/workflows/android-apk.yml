@@ -17,7 +17,7 @@ on:
       - '.github/workflows/android-apk.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-apk:
@@ -56,10 +56,29 @@ jobs:
           -p:AndroidPackageFormats=apk
           -p:RunAOTCompilation=false
 
+      - name: Prepare VALE.apk
+        shell: pwsh
+        run: |
+          $apk = Get-ChildItem -Path src/VALE.Mobile/bin/Release/net10.0-android -Filter *-Signed.apk -Recurse | Select-Object -First 1
+          if (-not $apk) {
+            $apk = Get-ChildItem -Path src/VALE.Mobile/bin/Release/net10.0-android -Filter *.apk -Recurse | Select-Object -First 1
+          }
+          if (-not $apk) { throw "APK bulunamadı." }
+          Copy-Item $apk.FullName "$env:GITHUB_WORKSPACE\VALE.apk"
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: VALE-Android-APK
-          path: src/VALE.Mobile/bin/Release/net10.0-android/**/*.apk
+          path: VALE.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish GitHub Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "android-$env:GITHUB_RUN_NUMBER"
+          gh release create $tag VALE.apk --title "VALE Android $env:GITHUB_RUN_NUMBER" --notes "VALE Android APK otomatik derlemesi."
