@@ -21,8 +21,25 @@ public sealed class ApiClient : IDisposable
             throw new InvalidOperationException("Geçerli bir http/https API adresi girin.");
 
         var normalized = uri.ToString().EndsWith('/') ? uri.ToString() : uri + "/";
+        var newBaseAddress = new Uri(normalized);
         Preferences.Default.Set(ApiUrlPreference, normalized);
-        _httpClient.BaseAddress = new Uri(normalized);
+
+        if (_httpClient.BaseAddress is null)
+        {
+            _httpClient.BaseAddress = newBaseAddress;
+        }
+        else if (_httpClient.BaseAddress != newBaseAddress)
+        {
+            var oldClient = _httpClient;
+            _accessToken = null;
+            _httpClient = new HttpClient
+            {
+                BaseAddress = newBaseAddress,
+                Timeout = TimeSpan.FromSeconds(30)
+            };
+            oldClient.Dispose();
+        }
+
         ApplyToken();
     }
 
