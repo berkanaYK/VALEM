@@ -9,8 +9,8 @@
     <Nullable>enable</Nullable>
     <ApplicationTitle>VALE</ApplicationTitle>
     <ApplicationId>com.berkanayk.vale</ApplicationId>
-    <ApplicationDisplayVersion>2.0.0</ApplicationDisplayVersion>
-    <ApplicationVersion>3</ApplicationVersion>
+    <ApplicationDisplayVersion>2.0.1</ApplicationDisplayVersion>
+    <ApplicationVersion>4</ApplicationVersion>
     <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
   </PropertyGroup>
   <ItemGroup>
@@ -18,8 +18,8 @@
     <ProjectReference Include="..\VALE.Contracts\VALE.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#EAF1FF" />
-    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#F6F8FC" BaseSize="256,256" />
+    <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#0F2F76" />
+    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#F4F6FB" BaseSize="256,256" />
     <MauiImage Include="Resources\Images\*" />
   </ItemGroup>
 </Project>
