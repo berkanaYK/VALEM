@@ -8,10 +8,11 @@ namespace VALE.Mobile;
 public sealed class ApiClient : IDisposable
 {
     private const string ApiUrlPreference = "vale_api_base_url";
+    private const string ProductionBaseUrl = "https://vale-api-5fvb.onrender.com/";
     private HttpClient _httpClient = new() { Timeout = TimeSpan.FromSeconds(30) };
     private string? _accessToken;
 
-    public string SavedBaseUrl => Preferences.Default.Get(ApiUrlPreference, string.Empty);
+    public string SavedBaseUrl => Preferences.Default.Get(ApiUrlPreference, ProductionBaseUrl);
 
     public void Configure(string baseUrl)
     {
