@@ -1,19 +1,22 @@
-name: Build VALE API
+name: Build and Test VALE API
 
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+      - 'agent/**'
     paths:
       - 'src/VALE.Api/**'
       - 'src/VALE.Contracts/**'
+      - 'tests/**'
       - 'Dockerfile'
       - '.github/workflows/api-ci.yml'
   pull_request:
     paths:
       - 'src/VALE.Api/**'
       - 'src/VALE.Contracts/**'
+      - 'tests/**'
       - 'Dockerfile'
       - '.github/workflows/api-ci.yml'
 
@@ -21,9 +24,24 @@ permissions:
   contents: read
 
 jobs:
-  api-build:
+  api-build-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: vale
+          POSTGRES_PASSWORD: vale_test_password
+          POSTGRES_DB: vale
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vale -d vale"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,11 +51,67 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Restore API
-        run: dotnet restore src/VALE.Api/VALE.Api.csproj
+      - name: Restore API and tests
+        run: dotnet restore tests/VALE.Api.Tests/VALE.Api.Tests.csproj -p:NuGetAudit=true -p:NuGetAuditMode=all
 
-      - name: Build API
-        run: dotnet build src/VALE.Api/VALE.Api.csproj -c Release --no-restore
+      - name: Build API and tests
+        run: dotnet build tests/VALE.Api.Tests/VALE.Api.Tests.csproj -c Release --no-restore
+
+      - name: Unit tests
+        run: dotnet test tests/VALE.Api.Tests/VALE.Api.Tests.csproj -c Release --no-build
+
+      - name: Dependency vulnerability scan
+        shell: bash
+        run: |
+          dotnet list src/VALE.Api/VALE.Api.csproj package --vulnerable --include-transitive | tee vulnerable.txt
+          if grep -q "has the following vulnerable packages" vulnerable.txt; then
+            echo "Vulnerable NuGet package detected."
+            exit 1
+          fi
+
+      - name: API smoke and security checks
+        shell: bash
+        env:
+          ASPNETCORE_URLS: http://127.0.0.1:5080
+          ASPNETCORE_ENVIRONMENT: Production
+          ConnectionStrings__ValeDatabase: Host=127.0.0.1;Port=5432;Database=vale;Username=vale;Password=vale_test_password
+          Jwt__Key: ci-only-security-key-please-change-1234567890
+          Jwt__Issuer: VALE.Api
+          Jwt__Audience: VALE.Client
+          Seed__AdminEmail: admin@vale.test
+          Seed__AdminPassword: StrongTest!123
+          Seed__AdminFullName: CI Admin
+          Email__Enabled: "false"
+        run: |
+          dotnet run --project src/VALE.Api/VALE.Api.csproj -c Release --no-build --no-launch-profile > api.log 2>&1 &
+          API_PID=$!
+          trap 'kill $API_PID || true; cat api.log' EXIT
+          ready=0
+          for i in {1..45}; do
+            if curl -fsS --max-time 3 http://127.0.0.1:5080/health/ready > ready.json; then ready=1; break; fi
+            sleep 1
+          done
+          test "$ready" = "1"
+          curl -fsS http://127.0.0.1:5080/api/status | grep 'VALE.Api'
+          headers=$(curl -sSI http://127.0.0.1:5080/health)
+          echo "$headers" | grep -qi 'x-content-type-options: nosniff'
+          echo "$headers" | grep -qi 'x-frame-options: DENY'
+
+          unauth_status=$(curl -sS -o unauth.json -w '%{http_code}' http://127.0.0.1:5080/api/dashboard)
+          test "$unauth_status" = "401"
+
+          login=$(curl -fsS -H 'Content-Type: application/json' -d '{"email":"admin@vale.test","password":"StrongTest!123"}' http://127.0.0.1:5080/api/auth/login)
+          token=$(echo "$login" | jq -r '.accessToken')
+          test -n "$token" && test "$token" != "null"
+          curl -fsS -H "Authorization: Bearer $token" http://127.0.0.1:5080/api/dashboard > /dev/null
+          curl -fsS -H "Authorization: Bearer $token" http://127.0.0.1:5080/api/reports/summary > /dev/null
+
+          reg_status=$(curl -sS -o register.json -w '%{http_code}' -H 'Content-Type: application/json' -d '{"fullName":"Pending User","email":"pending@vale.test","password":"StrongTest!456"}' http://127.0.0.1:5080/api/auth/register)
+          test "$reg_status" = "201"
+          pending_login=$(curl -sS -o pending-login.json -w '%{http_code}' -H 'Content-Type: application/json' -d '{"email":"pending@vale.test","password":"StrongTest!456"}' http://127.0.0.1:5080/api/auth/login)
+          test "$pending_login" = "401"
+          forgot_status=$(curl -sS -o forgot.json -w '%{http_code}' -H 'Content-Type: application/json' -d '{"email":"admin@vale.test"}' http://127.0.0.1:5080/api/auth/forgot-password)
+          test "$forgot_status" = "503"
 
       - name: Build Docker image
         run: docker build -t vale-api:ci .

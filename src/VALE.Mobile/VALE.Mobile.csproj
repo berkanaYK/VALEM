@@ -9,12 +9,17 @@
     <Nullable>enable</Nullable>
     <ApplicationTitle>VALE</ApplicationTitle>
     <ApplicationId>com.berkanayk.vale</ApplicationId>
-    <ApplicationDisplayVersion>1.1.0</ApplicationDisplayVersion>
-    <ApplicationVersion>2</ApplicationVersion>
+    <ApplicationDisplayVersion>2.0.0</ApplicationDisplayVersion>
+    <ApplicationVersion>3</ApplicationVersion>
     <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" Version="10.0.20" />
     <ProjectReference Include="..\VALE.Contracts\VALE.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#EAF1FF" />
+    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#F6F8FC" BaseSize="256,256" />
+    <MauiImage Include="Resources\Images\*" />
   </ItemGroup>
 </Project>

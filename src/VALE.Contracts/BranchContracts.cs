@@ -11,7 +11,7 @@ public sealed record BranchDto(
     bool IsActive);
 
 public sealed record CreateBranchRequest(
-    [property: Required, MinLength(2), MaxLength(20)] string Code,
-    [property: Required, MinLength(2), MaxLength(120)] string Name,
-    [property: Required, MinLength(2), MaxLength(80)] string City,
-    [property: MaxLength(300)] string? Address);
+    [param: Required, MinLength(2), MaxLength(20)] string Code,
+    [param: Required, MinLength(2), MaxLength(120)] string Name,
+    [param: Required, MinLength(2), MaxLength(80)] string City,
+    [param: MaxLength(300)] string? Address);

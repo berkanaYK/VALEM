@@ -16,6 +16,10 @@ on:
       - 'src/VALE.Contracts/**'
       - '.github/workflows/android-apk.yml'
 
+concurrency:
+  group: android-apk-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
