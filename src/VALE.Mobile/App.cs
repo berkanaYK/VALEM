@@ -4,6 +4,19 @@ namespace VALE.Mobile;
 
 public sealed class App : Application
 {
+    public App()
+    {
+        UserAppTheme = AppTheme.Dark;
+    }
+
     protected override Window CreateWindow(IActivationState? activationState)
-        => new(new NavigationPage(new MainPage()));
+    {
+        var navigation = new NavigationPage(new MainPage())
+        {
+            BarBackgroundColor = Color.FromArgb("#0B1220"),
+            BarTextColor = Colors.White
+        };
+
+        return new Window(navigation);
+    }
 }
