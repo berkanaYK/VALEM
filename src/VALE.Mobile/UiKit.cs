@@ -17,7 +17,7 @@ public static class UiKit
             FontSize = size,
             FontAttributes = bold ? FontAttributes.Bold : FontAttributes.None
         };
-        label.SetDynamicResource(Label.TextColorProperty, secondary ? "ValeSecondary" : "ValeText");
+        label.SetDynamicResource(Microsoft.Maui.Controls.Label.TextColorProperty, secondary ? "ValeSecondary" : "ValeText");
         return label;
     }
 
@@ -33,8 +33,8 @@ public static class UiKit
             ClearButtonVisibility = password ? ClearButtonVisibility.Never : ClearButtonVisibility.WhileEditing
         };
         entry.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeSoftCard");
-        entry.SetDynamicResource(Entry.TextColorProperty, "ValeText");
-        entry.SetDynamicResource(Entry.PlaceholderColorProperty, "ValeSecondary");
+        entry.SetDynamicResource(Microsoft.Maui.Controls.Entry.TextColorProperty, "ValeText");
+        entry.SetDynamicResource(Microsoft.Maui.Controls.Entry.PlaceholderColorProperty, "ValeSecondary");
         return entry;
     }
 
