@@ -1,0 +1,84 @@
+<Page
+    x:Class="VALE.Client.Pages.HistoryPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Loaded="HistoryPage_Loaded">
+
+    <Grid Padding="24,8,24,24" RowSpacing="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="360" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Style="{StaticResource PageTitleStyle}" Text="İşlem Geçmişi" />
+            <AutoSuggestBox
+                Grid.Column="1"
+                AutomationProperties.Name="Geçmiş işlemlerde ara"
+                PlaceholderText="Plaka, fiş veya telefon ara"
+                QueryIcon="Find"
+                QuerySubmitted="SearchBox_QuerySubmitted"
+                Text="{x:Bind ViewModel.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+        </Grid>
+
+        <InfoBar
+            Grid.Row="1"
+            IsClosable="False"
+            IsOpen="{x:Bind ViewModel.HasError, Mode=OneWay}"
+            Message="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}"
+            Severity="Error" />
+
+        <ListView
+            Grid.Row="2"
+            AutomationProperties.Name="Tüm vale işlem geçmişi"
+            ItemsSource="{x:Bind ViewModel.Tickets}"
+            SelectionMode="None">
+            <ListView.Header>
+                <CommandBar DefaultLabelPosition="Right">
+                    <AppBarButton Command="{x:Bind ViewModel.RefreshCommand}" Icon="Refresh" Label="Yenile" />
+                </CommandBar>
+            </ListView.Header>
+            <ListView.ItemTemplate>
+                <DataTemplate>
+                    <Grid MinHeight="66" Padding="8" ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="140" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="170" />
+                            <ColumnDefinition Width="140" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock FontSize="18" FontWeight="SemiBold" Text="{Binding LicensePlate}" />
+                            <TextBlock
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="{Binding TicketNumber}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding VehicleDescription}" />
+                            <TextBlock
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="{Binding CustomerName}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding PaidAmount}" />
+                            <TextBlock
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="{Binding ExitAt}" />
+                        </StackPanel>
+                        <TextBlock
+                            Grid.Column="3"
+                            VerticalAlignment="Center"
+                            FontWeight="SemiBold"
+                            Text="{Binding Status, Converter={StaticResource TicketStatusToTextConverter}}" />
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+    </Grid>
+</Page>
+

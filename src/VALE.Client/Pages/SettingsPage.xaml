@@ -1,0 +1,50 @@
+<Page
+    x:Class="VALE.Client.Pages.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel
+            MaxWidth="760"
+            Padding="24,8,24,32"
+            HorizontalAlignment="Left"
+            Spacing="20">
+            <TextBlock Style="{StaticResource PageTitleStyle}" Text="Ayarlar" />
+
+            <StackPanel Spacing="8">
+                <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Hesap" />
+                <Border Style="{StaticResource CardBorderStyle}">
+                    <StackPanel Spacing="6">
+                        <TextBlock FontWeight="SemiBold" Text="{x:Bind ViewModel.UserName}" />
+                        <TextBlock Text="{x:Bind ViewModel.UserEmail}" />
+                        <TextBlock
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="{x:Bind ViewModel.BranchName}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <StackPanel Spacing="8">
+                <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Görünüm" />
+                <CommandBar DefaultLabelPosition="Right">
+                    <AppBarButton Command="{x:Bind ViewModel.UseSystemThemeCommand}" Icon="Sync" Label="Sistem" />
+                    <AppBarButton Command="{x:Bind ViewModel.UseLightThemeCommand}" Label="Açık" />
+                    <AppBarButton Command="{x:Bind ViewModel.UseDarkThemeCommand}" Label="Koyu" />
+                </CommandBar>
+            </StackPanel>
+
+            <StackPanel Spacing="8">
+                <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Bağlantı" />
+                <TextBox
+                    AutomationProperties.Name="VALE API adresi"
+                    Header="API adresi"
+                    IsReadOnly="True"
+                    Text="{x:Bind ViewModel.ApiBaseUrl}" />
+                <TextBlock
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Text="Adres değişikliği için uygulama klasöründeki appsettings.json dosyasını düzenleyin."
+                    TextWrapping="Wrap" />
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

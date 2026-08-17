@@ -1,0 +1,68 @@
+<Page
+    x:Class="VALE.Client.Pages.LoginPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Grid Padding="24">
+        <Border
+            Width="420"
+            MaxWidth="420"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Style="{StaticResource CardBorderStyle}">
+            <StackPanel Spacing="16">
+                <StackPanel Spacing="4">
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        FontSize="36"
+                        FontWeight="Bold"
+                        Text="VALE" />
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Text="Çok şubeli araç teslim yönetimi" />
+                </StackPanel>
+
+                <InfoBar
+                    IsClosable="False"
+                    IsOpen="{x:Bind ViewModel.HasError, Mode=OneWay}"
+                    Message="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}"
+                    Severity="Error" />
+
+                <TextBox
+                    AutomationProperties.Name="E-posta adresi"
+                    Header="E-posta"
+                    InputScope="EmailSmtpAddress"
+                    PlaceholderText="yonetici@firma.com"
+                    Text="{x:Bind ViewModel.Email, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                <PasswordBox
+                    x:Name="PasswordInput"
+                    AutomationProperties.Name="Parola"
+                    Header="Parola"
+                    PasswordChanged="PasswordInput_PasswordChanged"
+                    PlaceholderText="Parolanızı girin" />
+
+                <Button
+                    AutomationProperties.Name="VALE sistemine giriş yap"
+                    Command="{x:Bind ViewModel.LoginCommand}"
+                    IsEnabled="{x:Bind ViewModel.IsNotBusy, Mode=OneWay}"
+                    Style="{StaticResource PrimaryActionButtonStyle}">
+                    <Grid HorizontalAlignment="Center" ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ProgressRing
+                            Width="18"
+                            Height="18"
+                            IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}" />
+                        <TextBlock Grid.Column="1" Text="Giriş yap" />
+                    </Grid>
+                </Button>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Page>
+

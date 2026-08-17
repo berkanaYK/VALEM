@@ -1,0 +1,100 @@
+<Page
+    x:Class="VALE.Client.Pages.TicketsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Loaded="TicketsPage_Loaded">
+
+    <Grid Padding="24,8,24,24" RowSpacing="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="360" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Style="{StaticResource PageTitleStyle}" Text="Aktif Araçlar" />
+            <AutoSuggestBox
+                Grid.Column="1"
+                AutomationProperties.Name="Plaka, fiş veya telefon ile ara"
+                PlaceholderText="Plaka, fiş veya telefon ara"
+                QueryIcon="Find"
+                QuerySubmitted="SearchBox_QuerySubmitted"
+                Text="{x:Bind ViewModel.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+        </Grid>
+
+        <InfoBar
+            Grid.Row="1"
+            IsClosable="False"
+            IsOpen="{x:Bind ViewModel.HasError, Mode=OneWay}"
+            Message="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}"
+            Severity="Error" />
+
+        <CommandBar Grid.Row="2" DefaultLabelPosition="Right">
+            <AppBarButton Click="RefreshButton_Click" Icon="Refresh" Label="Yenile" />
+            <AppBarSeparator />
+            <AppBarButton
+                Click="ParkButton_Click"
+                Icon="MapDrive"
+                IsEnabled="{x:Bind ViewModel.CanUpdateStatus, Mode=OneWay}"
+                Label="Park edildi" />
+            <AppBarButton
+                Click="RequestButton_Click"
+                Icon="Go"
+                IsEnabled="{x:Bind ViewModel.CanUpdateStatus, Mode=OneWay}"
+                Label="Aracı iste" />
+            <AppBarButton
+                Click="CheckoutButton_Click"
+                Icon="Accept"
+                IsEnabled="{x:Bind ViewModel.CanCheckout, Mode=OneWay}"
+                Label="Teslim et" />
+        </CommandBar>
+
+        <ListView
+            Grid.Row="3"
+            AutomationProperties.Name="Aktif araç listesi"
+            ItemsSource="{x:Bind ViewModel.Tickets}"
+            SelectedItem="{x:Bind ViewModel.SelectedTicket, Mode=TwoWay}"
+            SelectionMode="Single">
+            <ListView.ItemTemplate>
+                <DataTemplate>
+                    <Grid MinHeight="64" Padding="8" ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="140" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="150" />
+                            <ColumnDefinition Width="140" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock FontSize="18" FontWeight="SemiBold" Text="{Binding LicensePlate}" />
+                            <TextBlock
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="{Binding TicketNumber}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding VehicleDescription}" />
+                            <TextBlock
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="{Binding CustomerName}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding ParkingSpot}" />
+                            <TextBlock
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="{Binding KeyTag}" />
+                        </StackPanel>
+                        <TextBlock
+                            Grid.Column="3"
+                            VerticalAlignment="Center"
+                            FontWeight="SemiBold"
+                            Text="{Binding Status, Converter={StaticResource TicketStatusToTextConverter}}" />
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+    </Grid>
+</Page>

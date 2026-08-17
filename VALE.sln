@@ -1,0 +1,37 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 18
+VisualStudioVersion = 18.0.10000.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VALE.Contracts", "src\VALE.Contracts\VALE.Contracts.csproj", "{8D1F8F26-96B0-4D56-A065-1B51C2DBBA6F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VALE.Api", "src\VALE.Api\VALE.Api.csproj", "{9AB47117-0F12-489F-8CC6-123B2C7FC91D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VALE.Client", "src\VALE.Client\VALE.Client.csproj", "{E5079DB5-0AA3-4E57-98F5-B58C0FF5B048}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VALE.Api.Tests", "tests\VALE.Api.Tests\VALE.Api.Tests.csproj", "{78D1541B-F38D-4BDC-A1C0-8E6EE0C5C44D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8D1F8F26-96B0-4D56-A065-1B51C2DBBA6F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{8D1F8F26-96B0-4D56-A065-1B51C2DBBA6F}.Debug|x64.Build.0 = Debug|Any CPU
+		{8D1F8F26-96B0-4D56-A065-1B51C2DBBA6F}.Release|x64.ActiveCfg = Release|Any CPU
+		{8D1F8F26-96B0-4D56-A065-1B51C2DBBA6F}.Release|x64.Build.0 = Release|Any CPU
+		{9AB47117-0F12-489F-8CC6-123B2C7FC91D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{9AB47117-0F12-489F-8CC6-123B2C7FC91D}.Debug|x64.Build.0 = Debug|Any CPU
+		{9AB47117-0F12-489F-8CC6-123B2C7FC91D}.Release|x64.ActiveCfg = Release|Any CPU
+		{9AB47117-0F12-489F-8CC6-123B2C7FC91D}.Release|x64.Build.0 = Release|Any CPU
+		{E5079DB5-0AA3-4E57-98F5-B58C0FF5B048}.Debug|x64.ActiveCfg = Debug|x64
+		{E5079DB5-0AA3-4E57-98F5-B58C0FF5B048}.Debug|x64.Build.0 = Debug|x64
+		{E5079DB5-0AA3-4E57-98F5-B58C0FF5B048}.Release|x64.ActiveCfg = Release|x64
+		{E5079DB5-0AA3-4E57-98F5-B58C0FF5B048}.Release|x64.Build.0 = Release|x64
+		{78D1541B-F38D-4BDC-A1C0-8E6EE0C5C44D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{78D1541B-F38D-4BDC-A1C0-8E6EE0C5C44D}.Debug|x64.Build.0 = Debug|Any CPU
+		{78D1541B-F38D-4BDC-A1C0-8E6EE0C5C44D}.Release|x64.ActiveCfg = Release|Any CPU
+		{78D1541B-F38D-4BDC-A1C0-8E6EE0C5C44D}.Release|x64.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
+
