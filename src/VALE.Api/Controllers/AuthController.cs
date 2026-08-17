@@ -67,7 +67,7 @@ public sealed class AuthController(
         return Ok(MapUser(user, roles));
     }
 
-    private static UserDto MapUser(AppUser user, IReadOnlyCollection<string> roles) => new(
+    private static UserDto MapUser(AppUser user, IEnumerable<string> roles) => new(
         user.Id,
         user.FullName,
         user.Email ?? string.Empty,
