@@ -7,10 +7,11 @@
     <SingleProject>true</SingleProject>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <UseNativeHttpHandler>false</UseNativeHttpHandler>
     <ApplicationTitle>VALE</ApplicationTitle>
     <ApplicationId>com.berkanayk.vale</ApplicationId>
-    <ApplicationDisplayVersion>2.0.1</ApplicationDisplayVersion>
-    <ApplicationVersion>4</ApplicationVersion>
+    <ApplicationDisplayVersion>2.0.2</ApplicationDisplayVersion>
+    <ApplicationVersion>5</ApplicationVersion>
     <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
   </PropertyGroup>
   <ItemGroup>
