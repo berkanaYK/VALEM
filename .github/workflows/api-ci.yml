@@ -1,0 +1,43 @@
+name: Build VALE API
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/VALE.Api/**'
+      - 'src/VALE.Contracts/**'
+      - 'Dockerfile'
+      - '.github/workflows/api-ci.yml'
+  pull_request:
+    paths:
+      - 'src/VALE.Api/**'
+      - 'src/VALE.Contracts/**'
+      - 'Dockerfile'
+      - '.github/workflows/api-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  api-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore API
+        run: dotnet restore src/VALE.Api/VALE.Api.csproj
+
+      - name: Build API
+        run: dotnet build src/VALE.Api/VALE.Api.csproj -c Release --no-restore
+
+      - name: Build Docker image
+        run: docker build -t vale-api:ci .
