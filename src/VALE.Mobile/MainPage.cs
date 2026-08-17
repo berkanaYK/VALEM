@@ -86,6 +86,44 @@ public sealed class MainPage : ContentPage
         };
         advancedButton.Clicked += async (_, _) => await ShowAdvancedServerSettingsAsync();
 
+        var loginActionGrid = new Grid
+        {
+            ColumnDefinitions =
+            {
+                new ColumnDefinition(GridLength.Star),
+                new ColumnDefinition(GridLength.Auto)
+            },
+            ColumnSpacing = 10
+        };
+        loginActionGrid.Add(_loginButton, 0, 0);
+        loginActionGrid.Add(_loginActivity, 1, 0);
+
+        var loginForm = new VerticalStackLayout
+        {
+            Spacing = 14,
+            Children =
+            {
+                new Label
+                {
+                    Text = "Hesabınıza giriş yapın",
+                    TextColor = Colors.White,
+                    FontSize = 20,
+                    FontAttributes = FontAttributes.Bold
+                },
+                new Label
+                {
+                    Text = "Şubenizdeki araçları tek ekrandan yönetin.",
+                    TextColor = SecondaryTextColor,
+                    FontSize = 13
+                },
+                _emailEntry,
+                _passwordEntry,
+                loginActionGrid,
+                _loginStatus,
+                advancedButton
+            }
+        };
+
         var loginCard = new Border
         {
             BackgroundColor = CardColor,
@@ -93,44 +131,7 @@ public sealed class MainPage : ContentPage
             StrokeThickness = 1,
             StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 22 },
             Padding = new Thickness(20),
-            Content = new VerticalStackLayout
-            {
-                Spacing = 14,
-                Children =
-                {
-                    new Label
-                    {
-                        Text = "Hesabınıza giriş yapın",
-                        TextColor = Colors.White,
-                        FontSize = 20,
-                        FontAttributes = FontAttributes.Bold
-                    },
-                    new Label
-                    {
-                        Text = "Şubenizdeki araçları tek ekrandan yönetin.",
-                        TextColor = SecondaryTextColor,
-                        FontSize = 13
-                    },
-                    _emailEntry,
-                    _passwordEntry,
-                    new Grid
-                    {
-                        ColumnDefinitions =
-                        {
-                            new ColumnDefinition(GridLength.Star),
-                            new ColumnDefinition(GridLength.Auto)
-                        },
-                        ColumnSpacing = 10,
-                        Children =
-                        {
-                            { _loginButton, 0, 0 },
-                            { _loginActivity, 1, 0 }
-                        }
-                    },
-                    _loginStatus,
-                    advancedButton
-                }
-            }
+            Content = loginForm
         };
 
         Content = new ScrollView
@@ -186,10 +187,11 @@ public sealed class MainPage : ContentPage
 
         try
         {
-            SetBusy(true, "Sunucuya bağlanılıyor…");
+            SetLoginBusy(true, "Sunucuya bağlanılıyor…");
             var login = await _api.LoginAsync(_emailEntry.Text ?? string.Empty, _passwordEntry.Text ?? string.Empty);
             _currentUser = login.User;
             BuildHome();
+            _busy = false;
             await RefreshAsync();
         }
         catch (Exception ex)
@@ -200,7 +202,14 @@ public sealed class MainPage : ContentPage
         }
         finally
         {
-            SetBusy(false, "Güvenli bağlantı hazır");
+            if (Content is ScrollView)
+            {
+                SetLoginBusy(false, "Güvenli bağlantı hazır");
+            }
+            else
+            {
+                _busy = false;
+            }
         }
     }
 
@@ -247,16 +256,7 @@ public sealed class MainPage : ContentPage
             TextColor = SecondaryTextColor
         };
 
-        var header = new Grid
-        {
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto)
-            },
-            ColumnSpacing = 12
-        };
-        header.Add(new VerticalStackLayout
+        var welcome = new VerticalStackLayout
         {
             Spacing = 2,
             Children =
@@ -265,7 +265,7 @@ public sealed class MainPage : ContentPage
                 _userLabel,
                 _branchLabel
             }
-        }, 0, 0);
+        };
 
         var addButton = new Button
         {
@@ -278,6 +278,17 @@ public sealed class MainPage : ContentPage
             Padding = new Thickness(18, 8)
         };
         addButton.Clicked += async (_, _) => await AddTicketAsync();
+
+        var header = new Grid
+        {
+            ColumnDefinitions =
+            {
+                new ColumnDefinition(GridLength.Star),
+                new ColumnDefinition(GridLength.Auto)
+            },
+            ColumnSpacing = 12
+        };
+        header.Add(welcome, 0, 0);
         header.Add(addButton, 1, 0);
 
         var metricGrid = new Grid
@@ -404,18 +415,10 @@ public sealed class MainPage : ContentPage
         };
         plate.SetBinding(Label.TextProperty, nameof(TicketSummaryDto.LicensePlate));
 
-        var vehicle = new Label
-        {
-            FontSize = 12,
-            TextColor = SecondaryTextColor
-        };
+        var vehicle = new Label { FontSize = 12, TextColor = SecondaryTextColor };
         vehicle.SetBinding(Label.TextProperty, nameof(TicketSummaryDto.VehicleDescription));
 
-        var ticketNumber = new Label
-        {
-            FontSize = 11,
-            TextColor = SecondaryTextColor
-        };
+        var ticketNumber = new Label { FontSize = 11, TextColor = SecondaryTextColor };
         ticketNumber.SetBinding(Label.TextProperty, new Binding(nameof(TicketSummaryDto.TicketNumber), stringFormat: "Fiş #{0}"));
 
         var statusText = new Label
@@ -434,7 +437,7 @@ public sealed class MainPage : ContentPage
             StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 9 },
             Content = statusText
         };
-        statusBorder.SetBinding(BackgroundColorProperty, new Binding(nameof(TicketSummaryDto.Status), converter: new TicketStatusColorConverter()));
+        statusBorder.SetBinding(VisualElement.BackgroundColorProperty, new Binding(nameof(TicketSummaryDto.Status), converter: new TicketStatusColorConverter()));
 
         var amount = new Label
         {
@@ -550,7 +553,8 @@ public sealed class MainPage : ContentPage
                 NullIfEmpty(parking),
                 null,
                 null));
-            await RefreshAfterMutationAsync();
+            _busy = false;
+            await RefreshAsync();
         }
         catch (Exception ex)
         {
@@ -586,6 +590,8 @@ public sealed class MainPage : ContentPage
         try
         {
             _busy = true;
+            var changed = true;
+
             switch (choice)
             {
                 case "Park edildi":
@@ -595,20 +601,27 @@ public sealed class MainPage : ContentPage
                     await _api.UpdateStatusAsync(ticket.Id, TicketStatus.Requested);
                     break;
                 case "Nakit ile teslim et":
-                    await CompleteCheckoutAsync(ticket, PaymentMethod.Cash);
+                    changed = await CompleteCheckoutAsync(ticket, PaymentMethod.Cash);
                     break;
                 case "Kart ile teslim et":
-                    await CompleteCheckoutAsync(ticket, PaymentMethod.Card);
+                    changed = await CompleteCheckoutAsync(ticket, PaymentMethod.Card);
                     break;
                 case "Havale/EFT ile teslim et":
-                    await CompleteCheckoutAsync(ticket, PaymentMethod.Transfer);
+                    changed = await CompleteCheckoutAsync(ticket, PaymentMethod.Transfer);
                     break;
                 case "Kaydı iptal et":
                     await _api.UpdateStatusAsync(ticket.Id, TicketStatus.Cancelled);
                     break;
+                default:
+                    changed = false;
+                    break;
             }
 
-            await RefreshAfterMutationAsync();
+            if (changed)
+            {
+                _busy = false;
+                await RefreshAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -620,43 +633,33 @@ public sealed class MainPage : ContentPage
         }
     }
 
-    private async Task CompleteCheckoutAsync(TicketSummaryDto ticket, PaymentMethod method)
+    private async Task<bool> CompleteCheckoutAsync(TicketSummaryDto ticket, PaymentMethod method)
     {
         var confirm = await DisplayAlertAsync(
             "Teslim onayı",
             $"{ticket.LicensePlate} aracı {ticket.AmountDue:N2} TL tahsilat ile teslim edilsin mi?",
             "Teslim Et",
             "Vazgeç");
+
         if (!confirm)
         {
-            return;
+            return false;
         }
 
         var result = await _api.CheckoutAsync(ticket.Id, method);
         await DisplayAlertAsync("Teslim tamamlandı", $"Tahsilat: {result.PaidAmount:N2} TL", "Tamam");
+        return true;
     }
 
-    private async Task RefreshAfterMutationAsync()
-    {
-        _busy = false;
-        await RefreshAsync();
-        _busy = true;
-    }
-
-    private void SetBusy(bool busy, string status)
+    private void SetLoginBusy(bool busy, string status)
     {
         _busy = busy;
-        if (_loginButton is not null)
-        {
-            _loginButton.IsEnabled = !busy;
-            _loginButton.Text = busy ? "Bağlanıyor…" : "Giriş Yap";
-        }
-        if (_loginActivity is not null)
-        {
-            _loginActivity.IsVisible = busy;
-            _loginActivity.IsRunning = busy;
-        }
-        if (_loginStatus is not null && (!busy || _loginStatus.TextColor != Color.FromArgb("#FCA5A5")))
+        _loginButton.IsEnabled = !busy;
+        _loginButton.Text = busy ? "Bağlanıyor…" : "Giriş Yap";
+        _loginActivity.IsVisible = busy;
+        _loginActivity.IsRunning = busy;
+
+        if (busy)
         {
             _loginStatus.Text = status;
             _loginStatus.TextColor = SecondaryTextColor;
@@ -709,10 +712,10 @@ public sealed class MainPage : ContentPage
 
     private static string[] GetActions(TicketStatus status) => status switch
     {
-        TicketStatus.Received => ["Park edildi", "Kaydı iptal et"],
-        TicketStatus.Parked => ["Araç isteniyor", "Kaydı iptal et"],
-        TicketStatus.Requested => ["Nakit ile teslim et", "Kart ile teslim et", "Havale/EFT ile teslim et"],
-        _ => []
+        TicketStatus.Received => new[] { "Park edildi", "Kaydı iptal et" },
+        TicketStatus.Parked => new[] { "Araç isteniyor", "Kaydı iptal et" },
+        TicketStatus.Requested => new[] { "Nakit ile teslim et", "Kart ile teslim et", "Havale/EFT ile teslim et" },
+        _ => Array.Empty<string>()
     };
 
     private static string? NullIfEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
