@@ -5,7 +5,7 @@ services:
     plan: free
     branch: main
     dockerfilePath: ./Dockerfile
-    healthCheckPath: /health
+    healthCheckPath: /health/ready
     autoDeployTrigger: commit
     envVars:
       - key: ConnectionStrings__ValeDatabase
@@ -30,5 +30,21 @@ services:
         value: Merkez
       - key: Seed__DefaultBranchCity
         value: Antalya
+      - key: Email__Enabled
+        value: "false"
+      - key: Email__Host
+        sync: false
+      - key: Email__Port
+        value: "587"
+      - key: Email__Username
+        sync: false
+      - key: Email__Password
+        sync: false
+      - key: Email__FromEmail
+        sync: false
+      - key: Email__FromName
+        value: VALE
+      - key: Email__EnableSsl
+        value: "true"
       - key: ASPNETCORE_FORWARDEDHEADERS_ENABLED
         value: "true"
