@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Maui.Networking;
@@ -76,7 +77,7 @@ public sealed class ApiClient : IDisposable
                     return;
                 }
             }
-            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidOperationException)
             {
                 lastError = ex;
             }
@@ -96,7 +97,7 @@ public sealed class ApiClient : IDisposable
         using var request = new HttpRequestMessage(HttpMethod.Get, "health/ready");
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(15));
-        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseContentRead, timeout.Token);
         if (!response.IsSuccessStatusCode)
         {
             throw new InvalidOperationException($"Sunucu hazır değil: {(int)response.StatusCode} {response.ReasonPhrase}");
@@ -212,10 +213,11 @@ public sealed class ApiClient : IDisposable
 
     private async Task<HttpResponseMessage> SendJsonAsync<T>(HttpMethod method, string path, T value, bool authorized, CancellationToken ct)
     {
+        var json = JsonSerializer.Serialize(value, JsonOptions);
         return await SendWithTimeoutAsync(() =>
         {
             var request = CreateRequest(method, path, authorized);
-            request.Content = JsonContent.Create(value, options: JsonOptions);
+            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
             return request;
         }, TimeSpan.FromSeconds(25), ct);
     }
@@ -223,6 +225,7 @@ public sealed class ApiClient : IDisposable
     private HttpRequestMessage CreateRequest(HttpMethod method, string path, bool authorized = false)
     {
         var request = new HttpRequestMessage(method, path);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         if (authorized)
         {
             if (string.IsNullOrWhiteSpace(_accessToken)) throw new InvalidOperationException("Oturum açılmamış. Tekrar giriş yapın.");
@@ -238,7 +241,7 @@ public sealed class ApiClient : IDisposable
         linked.CancelAfter(timeout);
         try
         {
-            return await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linked.Token);
+            return await _httpClient.SendAsync(request, HttpCompletionOption.ResponseContentRead, linked.Token);
         }
         catch (TaskCanceledException) when (!ct.IsCancellationRequested)
         {
@@ -246,7 +249,11 @@ public sealed class ApiClient : IDisposable
         }
         catch (HttpRequestException ex)
         {
-            throw new InvalidOperationException("VALE sunucusuna bağlanılamadı. İnternet veya sunucu bağlantısını kontrol edin.", ex);
+            throw new InvalidOperationException($"VALE sunucusuna bağlanılamadı. {GetDeepestMessage(ex)}", ex);
+        }
+        catch (Exception ex) when (ex.GetType().FullName?.StartsWith("Java.", StringComparison.Ordinal) == true)
+        {
+            throw new InvalidOperationException($"Android ağ katmanı hatası: {GetDeepestMessage(ex)}", ex);
         }
     }
 
@@ -289,11 +296,24 @@ public sealed class ApiClient : IDisposable
         old.Dispose();
     }
 
-    private static HttpClient CreateHttpClient(string baseUrl) => new()
+    private static HttpClient CreateHttpClient(string baseUrl)
     {
-        BaseAddress = new Uri(NormalizeBaseUrl(baseUrl)),
-        Timeout = Timeout.InfiniteTimeSpan
-    };
+        var handler = new SocketsHttpHandler
+        {
+            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
+            ConnectTimeout = TimeSpan.FromSeconds(15),
+            PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+            PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2)
+        };
+
+        return new HttpClient(handler, disposeHandler: true)
+        {
+            BaseAddress = new Uri(NormalizeBaseUrl(baseUrl)),
+            Timeout = Timeout.InfiniteTimeSpan,
+            DefaultRequestVersion = HttpVersion.Version11,
+            DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrLower
+        };
+    }
 
     private static string NormalizeBaseUrl(string baseUrl)
     {
@@ -302,6 +322,19 @@ public sealed class ApiClient : IDisposable
         var builder = new UriBuilder(uri);
         if (!builder.Path.EndsWith('/')) builder.Path += "/";
         return builder.Uri.AbsoluteUri;
+    }
+
+    private static string GetDeepestMessage(Exception exception)
+    {
+        var messages = new List<string>();
+        Exception? current = exception;
+        while (current is not null && messages.Count < 5)
+        {
+            if (!string.IsNullOrWhiteSpace(current.Message) && !messages.Contains(current.Message, StringComparer.Ordinal))
+                messages.Add(current.Message.Trim());
+            current = current.InnerException;
+        }
+        return messages.Count == 0 ? "Bilinmeyen ağ hatası." : string.Join(" → ", messages);
     }
 
     private static JsonSerializerOptions CreateJsonOptions()
