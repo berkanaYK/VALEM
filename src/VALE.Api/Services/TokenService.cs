@@ -14,7 +14,7 @@ public sealed class TokenService(IOptions<JwtOptions> options)
 {
     private readonly JwtOptions _options = options.Value;
 
-    public IssuedToken Create(AppUser user, IReadOnlyCollection<string> roles)
+    public IssuedToken Create(AppUser user, IEnumerable<string> roles)
     {
         var now = DateTimeOffset.UtcNow;
         var expiresAt = now.AddMinutes(_options.ExpiryMinutes);
