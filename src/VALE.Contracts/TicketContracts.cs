@@ -4,16 +4,16 @@ namespace VALE.Contracts;
 
 public sealed record CreateTicketRequest(
     Guid? BranchId,
-    [property: Required, MinLength(3), MaxLength(16)] string LicensePlate,
-    [property: MaxLength(60)] string? Brand,
-    [property: MaxLength(60)] string? Model,
-    [property: MaxLength(40)] string? Color,
-    [property: MaxLength(120)] string? CustomerName,
-    [property: MaxLength(30)] string? CustomerPhone,
-    [property: MaxLength(30)] string? KeyTag,
-    [property: MaxLength(30)] string? ParkingSpot,
-    [property: MaxLength(500)] string? Notes,
-    [property: Range(0.01, 100000)] decimal? HourlyRate);
+    [param: Required, MinLength(3), MaxLength(16)] string LicensePlate,
+    [param: MaxLength(60)] string? Brand,
+    [param: MaxLength(60)] string? Model,
+    [param: MaxLength(40)] string? Color,
+    [param: MaxLength(120)] string? CustomerName,
+    [param: MaxLength(30)] string? CustomerPhone,
+    [param: MaxLength(30)] string? KeyTag,
+    [param: MaxLength(30)] string? ParkingSpot,
+    [param: MaxLength(500)] string? Notes,
+    [param: Range(0.01, 100000)] decimal? HourlyRate);
 
 public sealed record UpdateTicketStatusRequest(TicketStatus Status);
 
@@ -42,4 +42,3 @@ public sealed record TicketSummaryDto(
     decimal AmountDue,
     decimal PaidAmount,
     string? Notes);
-
