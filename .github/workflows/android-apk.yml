@@ -18,7 +18,7 @@ permissions:
   contents: write
 
 jobs:
-  build-apk:
+  build-test-release:
     runs-on: windows-latest
     timeout-minutes: 45
 
@@ -71,12 +71,64 @@ jobs:
         shell: pwsh
         run: dotnet restore src/VALE.Mobile/VALE.Mobile.csproj
 
+      - name: Verify Android transport configuration
+        shell: pwsh
+        run: |
+          [xml]$project = Get-Content 'src/VALE.Mobile/VALE.Mobile.csproj'
+          $propertyGroup = @($project.Project.PropertyGroup) | Select-Object -First 1
+          $managedHandler = [string]$propertyGroup.UseNativeHttpHandler
+          if ($managedHandler -ne 'false') {
+            throw "Release engellendi: UseNativeHttpHandler=false değil. Android Java HTTP handler tekrar devreye girebilir."
+          }
+          $version = [string]$propertyGroup.ApplicationDisplayVersion
+          if ([string]::IsNullOrWhiteSpace($version)) { throw 'ApplicationDisplayVersion bulunamadı.' }
+          "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Managed HTTP handler doğrulandı. VALE $version"
+
+      - name: Production auth POST smoke tests
+        shell: pwsh
+        run: |
+          $endpoint = 'https://vale-api-5fvb.onrender.com'
+          $ready = $false
+          for ($i = 1; $i -le 30; $i++) {
+            try {
+              $health = Invoke-WebRequest "$endpoint/health/ready" -TimeoutSec 12 -SkipHttpErrorCheck
+              if ($health.StatusCode -eq 200) { $ready = $true; break }
+            } catch { }
+            Start-Sleep -Seconds 5
+          }
+          if (-not $ready) { throw 'Production VALE API hazır hale gelmedi.' }
+
+          $loginBody = '{"email":"mobile-smoke-user@vale.invalid","password":"NotARealPassword!123"}'
+          $login = Invoke-WebRequest "$endpoint/api/auth/login" -Method Post -ContentType 'application/json' -Body $loginBody -TimeoutSec 20 -SkipHttpErrorCheck
+          if ($login.StatusCode -ne 401) {
+            throw "Login POST smoke testi başarısız. Beklenen 401, alınan $($login.StatusCode). Body: $($login.Content)"
+          }
+
+          $registerBody = '{"fullName":"X","email":"not-an-email","password":"short"}'
+          $register = Invoke-WebRequest "$endpoint/api/auth/register" -Method Post -ContentType 'application/json' -Body $registerBody -TimeoutSec 20 -SkipHttpErrorCheck
+          if ($register.StatusCode -ne 400) {
+            throw "Register POST smoke testi başarısız. Beklenen 400, alınan $($register.StatusCode). Body: $($register.Content)"
+          }
+
+          Write-Host 'Production login/register JSON POST smoke testleri geçti.'
+
+      - name: Release build test
+        shell: pwsh
+        run: >-
+          dotnet build src/VALE.Mobile/VALE.Mobile.csproj
+          -f net10.0-android
+          -c Release
+          --no-restore
+          -p:RunAOTCompilation=false
+
       - name: Publish APK
         shell: pwsh
         run: >-
           dotnet publish src/VALE.Mobile/VALE.Mobile.csproj
           -f net10.0-android
           -c Release
+          --no-restore
           -p:AndroidPackageFormats=apk
           -p:RunAOTCompilation=false
 
@@ -97,4 +149,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "android-$env:GITHUB_RUN_NUMBER"
-          gh release create $tag "$env:GITHUB_WORKSPACE\VALE.apk" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "VALE Android 2.0.1" --notes "VALE 2.0.1 Android APK. Android ağ durumu izni ve uygulama ikon/splash düzeltmeleri eklendi."
+          gh release create $tag "$env:GITHUB_WORKSPACE\VALE.apk" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "VALE Android $env:APP_VERSION" --notes "VALE $env:APP_VERSION Android APK. Release yalnızca managed Android HTTP transport, production login/register POST smoke testleri ve Release build başarılı olursa oluşturulur."
