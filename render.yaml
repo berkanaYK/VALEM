@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: vale-api
+    runtime: docker
+    plan: free
+    branch: main
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: ConnectionStrings__ValeDatabase
+        sync: false
+      - key: Jwt__Key
+        generateValue: true
+      - key: Jwt__Issuer
+        value: VALE.Api
+      - key: Jwt__Audience
+        value: VALE.Client
+      - key: Jwt__ExpiryMinutes
+        value: "480"
+      - key: Seed__AdminEmail
+        sync: false
+      - key: Seed__AdminPassword
+        sync: false
+      - key: Seed__AdminFullName
+        value: VALE Yönetici
+      - key: Seed__DefaultBranchCode
+        value: MERKEZ
+      - key: Seed__DefaultBranchName
+        value: Merkez
+      - key: Seed__DefaultBranchCity
+        value: Antalya
+      - key: ASPNETCORE_FORWARDEDHEADERS_ENABLED
+        value: "true"
