@@ -15,24 +15,33 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
         Exception exception,
         CancellationToken cancellationToken)
     {
-        if (exception is not ApiException apiException)
+        if (exception is ApiException apiException)
         {
-            return false;
+            logger.LogWarning(
+                "VALE API isteği {StatusCode} ile reddedildi: {Message}",
+                apiException.StatusCode,
+                apiException.Message);
+
+            httpContext.Response.StatusCode = apiException.StatusCode;
+            await Results.Problem(
+                    statusCode: apiException.StatusCode,
+                    title: apiException.Title,
+                    detail: apiException.Message)
+                .ExecuteAsync(httpContext);
+            return true;
         }
 
-        logger.LogWarning(
-            "VALE API isteği {StatusCode} ile reddedildi: {Message}",
-            apiException.StatusCode,
-            apiException.Message);
+        logger.LogError(
+            exception,
+            "VALE API beklenmeyen bir hata üretti. TraceIdentifier: {TraceIdentifier}",
+            httpContext.TraceIdentifier);
 
-        httpContext.Response.StatusCode = apiException.StatusCode;
+        httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
         await Results.Problem(
-                statusCode: apiException.StatusCode,
-                title: apiException.Title,
-                detail: apiException.Message)
+                statusCode: StatusCodes.Status500InternalServerError,
+                title: "Sunucu hatası",
+                detail: "İşlem sırasında beklenmeyen bir sunucu hatası oluştu. Lütfen tekrar deneyin.")
             .ExecuteAsync(httpContext);
-
         return true;
     }
 }
-
