@@ -73,6 +73,7 @@ jobs:
         shell: bash
         env:
           ASPNETCORE_URLS: http://127.0.0.1:5080
+          ASPNETCORE_ENVIRONMENT: Production
           ConnectionStrings__ValeDatabase: Host=127.0.0.1;Port=5432;Database=vale;Username=vale;Password=vale_test_password
           Jwt__Key: ci-only-security-key-please-change-1234567890
           Jwt__Issuer: VALE.Api
@@ -82,12 +83,12 @@ jobs:
           Seed__AdminFullName: CI Admin
           Email__Enabled: "false"
         run: |
-          dotnet run --project src/VALE.Api/VALE.Api.csproj -c Release --no-build > api.log 2>&1 &
+          dotnet run --project src/VALE.Api/VALE.Api.csproj -c Release --no-build --no-launch-profile > api.log 2>&1 &
           API_PID=$!
           trap 'kill $API_PID || true; cat api.log' EXIT
           ready=0
-          for i in {1..30}; do
-            if curl -fsS http://127.0.0.1:5080/health/ready > ready.json; then ready=1; break; fi
+          for i in {1..45}; do
+            if curl -fsS --max-time 3 http://127.0.0.1:5080/health/ready > ready.json; then ready=1; break; fi
             sleep 1
           done
           test "$ready" = "1"
@@ -95,6 +96,9 @@ jobs:
           headers=$(curl -sSI http://127.0.0.1:5080/health)
           echo "$headers" | grep -qi 'x-content-type-options: nosniff'
           echo "$headers" | grep -qi 'x-frame-options: DENY'
+
+          unauth_status=$(curl -sS -o unauth.json -w '%{http_code}' http://127.0.0.1:5080/api/dashboard)
+          test "$unauth_status" = "401"
 
           login=$(curl -fsS -H 'Content-Type: application/json' -d '{"email":"admin@vale.test","password":"StrongTest!123"}' http://127.0.0.1:5080/api/auth/login)
           token=$(echo "$login" | jq -r '.accessToken')
