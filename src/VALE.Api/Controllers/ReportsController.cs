@@ -29,14 +29,16 @@ public sealed class ReportsController(ValeDbContext db, CurrentUserContext curre
         if (requestedTo - requestedFrom > TimeSpan.FromDays(366))
             throw new ApiException(StatusCodes.Status400BadRequest, "Tarih aralığı çok uzun", "Rapor en fazla 366 günlük aralık için alınabilir.");
 
-        // Npgsql timestamp with time zone parametrelerinde UTC DateTimeOffset bekler.
-        // Mobil istemci yerel (+03:00 gibi) offset gönderdiğinde doğrudan sorguya vermek
-        // 500 hatasına neden olabildiği için veritabanı sorgu sınırlarını UTC'ye çeviriyoruz.
         var rangeFrom = requestedFrom.ToUniversalTime();
         var rangeTo = requestedTo.ToUniversalTime();
         var reportOffset = requestedFrom.Offset;
 
         var resolvedBranchId = currentUser.ResolveBranchId(branchId);
+        var branchAllowed = await db.Branches.AsNoTracking().AnyAsync(
+            x => x.Id == resolvedBranchId && x.CompanyId == currentUser.CompanyId && x.IsActive, cancellationToken);
+        if (!branchAllowed)
+            throw new ApiException(StatusCodes.Status403Forbidden, "Şube yetkisi yok", "Bu rapor şubesi firmanıza ait değil veya aktif değil.");
+
         var tickets = await db.ParkingTickets.AsNoTracking()
             .Where(x => x.BranchId == resolvedBranchId &&
                         ((x.EntryAt >= rangeFrom && x.EntryAt <= rangeTo) ||
