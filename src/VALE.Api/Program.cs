@@ -32,6 +32,7 @@ builder.Services.AddOptions<BusinessRulesOptions>()
     .Validate(x => x.DefaultHourlyRate > 0, "Varsayılan saatlik ücret sıfırdan büyük olmalıdır.")
     .ValidateOnStart();
 builder.Services.AddOptions<EmailOptions>().Bind(builder.Configuration.GetSection(EmailOptions.SectionName));
+builder.Services.AddOptions<FirebaseOptions>().Bind(builder.Configuration.GetSection(FirebaseOptions.SectionName));
 
 var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
 if (Encoding.UTF8.GetByteCount(jwt.Key) < 32) throw new InvalidOperationException("Jwt:Key en az 32 bayt olmalıdır.");
@@ -125,6 +126,8 @@ builder.Services.AddScoped<PasswordResetCodeService>();
 builder.Services.AddScoped<OneTimeCodeService>();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<IValeEmailSender, SmtpValeEmailSender>();
+builder.Services.AddSingleton<FirebaseAppProvider>();
+builder.Services.AddScoped<FirebasePushSender>();
 builder.Services.AddSingleton<IFeeCalculator, FeeCalculator>();
 
 var app = builder.Build();
@@ -161,7 +164,18 @@ app.MapGet("/health/ready", async (ValeDbContext db, CancellationToken ct) =>
         return Results.Json(new { status = "not-ready", database = "unavailable" }, statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 }).AllowAnonymous();
-app.MapGet("/api/status", () => Results.Ok(new { service = "VALE.Api", version = "3.1", status = "ok", utc = DateTimeOffset.UtcNow })).AllowAnonymous();
+app.MapGet("/api/status", (IValeEmailSender email, FirebasePushSender push) => Results.Ok(new
+{
+    service = "VALE.Api",
+    version = "3.1.1",
+    status = "ok",
+    capabilities = new
+    {
+        smtp = email.IsConfigured,
+        fcm = push.IsConfigured
+    },
+    utc = DateTimeOffset.UtcNow
+})).AllowAnonymous();
 app.MapControllers();
 
 await using (var scope = app.Services.CreateAsyncScope()) await DatabaseSeeder.InitializeAsync(scope.ServiceProvider);
