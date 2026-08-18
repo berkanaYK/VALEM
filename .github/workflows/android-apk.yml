@@ -43,6 +43,15 @@ jobs:
           git -c "http.extraheader=AUTHORIZATION: basic $basic" fetch --depth=1 origin $env:GITHUB_SHA
           git checkout --detach FETCH_HEAD
 
+      - name: Publish Android release pending status
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $target = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+          gh api --method POST "repos/$env:GITHUB_REPOSITORY/statuses/$env:GITHUB_SHA" -f state='pending' -f context='vale/android-release' -f description='VALE Android 3.0.0 release build başladı.' -f target_url=$target
+
       - name: Ensure .NET 10 SDK
         shell: pwsh
         run: |
