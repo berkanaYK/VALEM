@@ -30,7 +30,7 @@ public sealed class MainPage : ContentPage
         _password.AutomationId = "login-password";
         _password.Completed += async (_, _) => await LoginAsync();
 
-        _login = UiKit.PrimaryButton("Giriş Yap");
+        _login = UiKit.PrimaryButton("Parola ile Giriş");
         _login.AutomationId = "login-submit";
         _login.Clicked += async (_, _) => { if (_busy) _loginCts?.Cancel(); else await LoginAsync(); };
 
@@ -49,7 +49,7 @@ public sealed class MainPage : ContentPage
         connection.FontSize = 12;
         connection.Clicked += async (_, _) => await Navigation.PushAsync(new ConnectionSettingsPage(_api));
 
-        _status = UiKit.Label("Hesabınızla giriş yapın. Sunucu arka planda hazırlanır.", 11.5, false, true);
+        _status = UiKit.Label("Kayıtta seçtiğiniz giriş yöntemini kullanın. Sunucu arka planda hazırlanır.", 11.5, false, true);
         _status.MaxLines = 4;
         _activity = UiKit.Activity();
         _activity.IsVisible = false;
@@ -63,7 +63,7 @@ public sealed class MainPage : ContentPage
             Children =
             {
                 UiKit.Label("Hesabınıza giriş yapın", 24, true),
-                UiKit.Label("Yetkinize göre araç, tahsilat, rapor ve yönetim ekranlarına erişirsiniz.", 13, false, true),
+                UiKit.Label("Parola, e-posta kodu ve Authenticator ayrı giriş seçenekleridir; hepsini aynı anda girmeniz gerekmez.", 13, false, true),
                 UiKit.Label("E-posta", 11, true, true), _email,
                 UiKit.Label("Parola", 11, true, true), _password,
                 forgot, _login, authenticator, emailCode, statusRow,
@@ -134,7 +134,7 @@ public sealed class MainPage : ContentPage
             await _api.TestConnectionAsync();
             MainThread.BeginInvokeOnMainThread(() =>
             {
-                if (!_busy) _status.Text = "Sunucu hazır • giriş yapabilirsiniz.";
+                if (!_busy) _status.Text = "Sunucu hazır • giriş yönteminizi seçebilirsiniz.";
             });
         }
         catch
@@ -151,7 +151,7 @@ public sealed class MainPage : ContentPage
         try
         {
             SetBusy(true);
-            _status.Text = "Giriş yapılıyor…";
+            _status.Text = "Parola ile giriş yapılıyor…";
             LoginResponse login;
             try
             {
@@ -159,16 +159,12 @@ public sealed class MainPage : ContentPage
             }
             catch (TwoFactorRequiredException)
             {
-                var code = await DisplayPromptAsync("İki adımlı doğrulama", "Google/Microsoft Authenticator uygulamanızdaki 6 haneli kodu girin.", "Devam Et", "Vazgeç", keyboard: Keyboard.Numeric, maxLength: 6);
-                if (string.IsNullOrWhiteSpace(code)) return;
-                var normalized = code.Trim();
-                if (normalized.Length != 6 || !normalized.All(char.IsDigit))
-                {
-                    await DisplayAlertAsync("Kod geçersiz", "Authenticator uygulamasındaki 6 haneli sayısal kodu girin.", "Tamam");
-                    return;
-                }
-                _status.Text = "Authenticator kodu doğrulanıyor…";
-                login = await _api.LoginWithTwoFactorAsync(_email.Text ?? string.Empty, _password.Text ?? string.Empty, normalized, _loginCts.Token);
+                _status.Text = "Bu hesap Authenticator ile korunuyor. OTP adımına geçiliyor…";
+                var email = _email.Text ?? string.Empty;
+                var password = _password.Text ?? string.Empty;
+                SetBusy(false);
+                await Navigation.PushAsync(new AuthenticatorLoginPage(_api, email, password));
+                return;
             }
             _status.Text = "Giriş başarılı";
             App.ShowAuthenticated(_api, login.User);
@@ -214,7 +210,7 @@ public sealed class MainPage : ContentPage
         _busy = busy;
         _email.IsEnabled = !busy; _password.IsEnabled = !busy;
         _activity.IsVisible = busy; _activity.IsRunning = busy;
-        _login.Text = busy ? "İptal" : "Giriş Yap";
+        _login.Text = busy ? "İptal" : "Parola ile Giriş";
         _login.SetDynamicResource(VisualElement.BackgroundColorProperty, busy ? "ValeSoftCard" : "ValeAccent");
         if (busy)
             _login.SetDynamicResource(Button.TextColorProperty, "ValeText");
