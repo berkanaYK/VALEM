@@ -19,9 +19,17 @@ public sealed class AdminController(ValeDbContext db, UserManager<AppUser> userM
     public async Task<ActionResult<BranchDto>> CreateBranch(CreateBranchRequest request, CancellationToken cancellationToken)
     {
         var code = request.Code.Trim().ToUpperInvariant();
-        if (await db.Branches.AnyAsync(x => x.Code == code, cancellationToken))
-            throw new ApiException(StatusCodes.Status409Conflict, "Şube kodu kullanımda", "Bu şube kodu daha önce kullanılmış.");
-        var branch = new Branch { Code = code, Name = request.Name.Trim(), City = request.City.Trim(), Address = request.Address?.Trim() ?? string.Empty, IsActive = true };
+        if (await db.Branches.AnyAsync(x => x.CompanyId == currentUser.CompanyId && x.Code == code, cancellationToken))
+            throw new ApiException(StatusCodes.Status409Conflict, "Şube kodu kullanımda", "Bu şube kodu firmanızda daha önce kullanılmış.");
+        var branch = new Branch
+        {
+            CompanyId = currentUser.CompanyId,
+            Code = code,
+            Name = request.Name.Trim(),
+            City = request.City.Trim(),
+            Address = request.Address?.Trim() ?? string.Empty,
+            IsActive = true
+        };
         db.Branches.Add(branch);
         await db.SaveChangesAsync(cancellationToken);
         await audit.RecordAsync(currentUser.UserId, branch.Id, "branch.created", "Branch", branch.Id.ToString(), $"{branch.Code} - {branch.Name} oluşturuldu.", cancellationToken: cancellationToken);
@@ -31,7 +39,8 @@ public sealed class AdminController(ValeDbContext db, UserManager<AppUser> userM
     [HttpGet("users")]
     public async Task<ActionResult<IReadOnlyList<AdminUserDto>>> GetUsers(CancellationToken cancellationToken)
     {
-        var query = userManager.Users.AsNoTracking().Include(x => x.Branch).AsQueryable();
+        var query = userManager.Users.AsNoTracking().Include(x => x.Branch)
+            .Where(x => x.CompanyId == currentUser.CompanyId);
         if (!currentUser.CanAccessAllBranches)
         {
             var branchId = currentUser.ResolveBranchId(null);
@@ -53,14 +62,24 @@ public sealed class AdminController(ValeDbContext db, UserManager<AppUser> userM
     [HttpPost("users")]
     public async Task<ActionResult<AdminUserDto>> CreateUser(CreateUserRequest request, CancellationToken cancellationToken)
     {
-        currentUser.EnsureBranchAccess(request.BranchId);
-        var branch = await db.Branches.SingleOrDefaultAsync(x => x.Id == request.BranchId && x.IsActive, cancellationToken)
+        await currentUser.EnsureBranchAccessAsync(request.BranchId, cancellationToken);
+        var branch = await db.Branches.SingleOrDefaultAsync(x => x.Id == request.BranchId && x.CompanyId == currentUser.CompanyId && x.IsActive, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Şube bulunamadı", "Kullanıcı için seçilen şube aktif değil.");
         var selectedRoles = NormalizeRoles(request.Roles);
         EnsureCanAssign(selectedRoles);
         if (await userManager.FindByEmailAsync(request.Email.Trim()) is not null)
             throw new ApiException(StatusCodes.Status409Conflict, "E-posta kullanımda", "Bu e-posta adresine ait kullanıcı zaten var.");
-        var user = new AppUser { UserName = request.Email.Trim(), Email = request.Email.Trim(), EmailConfirmed = true, FullName = request.FullName.Trim(), BranchId = branch.Id, Branch = branch, IsActive = true };
+        var user = new AppUser
+        {
+            UserName = request.Email.Trim(),
+            Email = request.Email.Trim(),
+            EmailConfirmed = true,
+            FullName = request.FullName.Trim(),
+            CompanyId = currentUser.CompanyId,
+            BranchId = branch.Id,
+            Branch = branch,
+            IsActive = true
+        };
         var createResult = await userManager.CreateAsync(user, request.Password);
         if (!createResult.Succeeded) throw new ApiException(StatusCodes.Status400BadRequest, "Kullanıcı oluşturulamadı", string.Join(" ", createResult.Errors.Select(x => x.Description)));
         var roleResult = await userManager.AddToRolesAsync(user, selectedRoles);
@@ -77,19 +96,20 @@ public sealed class AdminController(ValeDbContext db, UserManager<AppUser> userM
     public async Task<ActionResult<AdminUserDetailDto>> UpdateUser(Guid userId, UpdateAdminUserRequest request, CancellationToken cancellationToken)
     {
         var user = await FindManageableUserAsync(userId, cancellationToken);
-        currentUser.EnsureBranchAccess(request.BranchId);
-        var branch = await db.Branches.SingleOrDefaultAsync(x => x.Id == request.BranchId && x.IsActive, cancellationToken)
+        await currentUser.EnsureBranchAccessAsync(request.BranchId, cancellationToken);
+        var branch = await db.Branches.SingleOrDefaultAsync(x => x.Id == request.BranchId && x.CompanyId == currentUser.CompanyId && x.IsActive, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Şube bulunamadı", "Seçilen şube aktif değil.");
         var selectedRoles = NormalizeRoles(request.Roles);
         EnsureCanAssign(selectedRoles);
         var employeeCode = Clean(request.EmployeeCode)?.ToUpperInvariant();
-        if (employeeCode is not null && await userManager.Users.AnyAsync(x => x.Id != user.Id && x.EmployeeCode == employeeCode, cancellationToken))
-            throw new ApiException(StatusCodes.Status409Conflict, "Personel kodu kullanımda", "Bu personel kodu başka bir kullanıcıya ait.");
+        if (employeeCode is not null && await userManager.Users.AnyAsync(x => x.Id != user.Id && x.CompanyId == currentUser.CompanyId && x.EmployeeCode == employeeCode, cancellationToken))
+            throw new ApiException(StatusCodes.Status409Conflict, "Personel kodu kullanımda", "Bu personel kodu aynı firmada başka bir kullanıcıya ait.");
 
         user.FullName = request.FullName.Trim();
         user.PhoneNumber = Clean(request.PhoneNumber);
         user.EmployeeCode = employeeCode;
         user.JobTitle = Clean(request.JobTitle);
+        user.CompanyId = currentUser.CompanyId;
         user.BranchId = branch.Id;
         user.Branch = branch;
         user.IsActive = request.IsActive;
@@ -132,8 +152,8 @@ public sealed class AdminController(ValeDbContext db, UserManager<AppUser> userM
     private async Task<AppUser> FindManageableUserAsync(Guid userId, CancellationToken cancellationToken, bool allowSelf = false)
     {
         if (!allowSelf && userId == currentUser.UserId) throw new ApiException(StatusCodes.Status400BadRequest, "İşlem reddedildi", "Kendi hesabınızın rol veya aktiflik durumunu bu ekrandan değiştiremezsiniz.");
-        var user = await userManager.Users.Include(x => x.Branch).SingleOrDefaultAsync(x => x.Id == userId, cancellationToken)
-            ?? throw new ApiException(StatusCodes.Status404NotFound, "Kullanıcı bulunamadı", "Kullanıcı hesabı bulunamadı.");
+        var user = await userManager.Users.Include(x => x.Branch).SingleOrDefaultAsync(x => x.Id == userId && x.CompanyId == currentUser.CompanyId, cancellationToken)
+            ?? throw new ApiException(StatusCodes.Status404NotFound, "Kullanıcı bulunamadı", "Kullanıcı hesabı firmanızda bulunamadı.");
         if (!currentUser.CanAccessAllBranches)
         {
             if (user.BranchId is not { } targetBranch || targetBranch != currentUser.ResolveBranchId(null))
