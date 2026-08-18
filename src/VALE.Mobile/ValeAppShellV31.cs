@@ -125,7 +125,8 @@ public sealed class CompanyManagementPage : ContentPage
             _list.Clear();
             var branches = await _api.GetBranchesAsync();
             foreach (var branch in branches)
-                _list.Add(UiKit.Card(new VerticalStackLayout
+            {
+                var stack = new VerticalStackLayout
                 {
                     Spacing = 4,
                     Children =
@@ -134,7 +135,21 @@ public sealed class CompanyManagementPage : ContentPage
                         UiKit.Label($"Kod: {branch.Code} • {branch.City}", 12, false, true),
                         UiKit.Label(string.IsNullOrWhiteSpace(branch.Address) ? "Adres girilmemiş" : branch.Address, 11, false, true)
                     }
-                }));
+                };
+                if (!string.IsNullOrWhiteSpace(branch.InviteCode))
+                {
+                    var invite = UiKit.Label($"Davet kodu: {branch.InviteCode}", 12, true);
+                    stack.Add(invite);
+                    var copy = UiKit.TextButton("Davet kodunu kopyala");
+                    copy.Clicked += async (_, _) =>
+                    {
+                        await Clipboard.Default.SetTextAsync(branch.InviteCode);
+                        await DisplayAlertAsync("Davet kodu", "Davet kodu panoya kopyalandı.", "Tamam");
+                    };
+                    stack.Add(copy);
+                }
+                _list.Add(UiKit.Card(stack));
+            }
             if (branches.Count == 0) _list.Add(UiKit.Label("Aktif şube bulunamadı.", 13, false, true));
         }
         catch (Exception ex) { await DisplayAlertAsync("Şubeler", ex.Message, "Tamam"); }
@@ -152,7 +167,9 @@ public sealed class CompanyManagementPage : ContentPage
         var address = await DisplayPromptAsync("Yeni şube", "Adres (isteğe bağlı)", "Oluştur", "Vazgeç", maxLength: 300);
         try
         {
-            await _api.CreateBranchAsync(new CreateBranchRequest(code.Trim(), name.Trim(), city.Trim(), string.IsNullOrWhiteSpace(address) ? null : address.Trim()));
+            var created = await _api.CreateBranchAsync(new CreateBranchRequest(code.Trim(), name.Trim(), city.Trim(), string.IsNullOrWhiteSpace(address) ? null : address.Trim()));
+            if (!string.IsNullOrWhiteSpace(created.InviteCode))
+                await DisplayAlertAsync("Şube oluşturuldu", $"Personel davet kodu: {created.InviteCode}", "Tamam");
             await RefreshAsync();
         }
         catch (Exception ex) { await DisplayAlertAsync("Şube oluşturulamadı", ex.Message, "Tamam"); }
