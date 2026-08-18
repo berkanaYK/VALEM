@@ -5,15 +5,16 @@
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel
-            MaxWidth="760"
-            Padding="24,8,24,32"
+            MaxWidth="920"
+            Padding="{StaticResource PagePadding}"
             HorizontalAlignment="Left"
-            Spacing="16">
-            <StackPanel Spacing="2">
-                <TextBlock Style="{StaticResource PageTitleStyle}" Text="Araç Kabul" />
+            Spacing="18">
+
+            <StackPanel Spacing="4">
+                <TextBlock Style="{StaticResource PageTitleStyle}" Text="Araç kabul" />
                 <TextBlock
-                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    Text="Aracı teslim alın ve park kaydını başlatın." />
+                    Style="{StaticResource PageSubtitleStyle}"
+                    Text="Aracı hızlıca tanımlayın, fotoğraf ekleyin ve vale operasyon kaydını tek ekrandan başlatın." />
             </StackPanel>
 
             <InfoBar
@@ -27,73 +28,145 @@
                 Message="{x:Bind ViewModel.SuccessMessage, Mode=OneWay}"
                 Severity="Success" />
 
-            <TextBox
-                AutomationProperties.Name="Araç plakası"
-                CharacterCasing="Upper"
-                Header="Plaka *"
-                PlaceholderText="07 ABC 123"
-                Text="{x:Bind ViewModel.LicensePlate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+            <Border Style="{StaticResource CardBorderStyle}">
+                <StackPanel Spacing="14">
+                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Araç bilgileri" />
+                    <TextBox
+                        AutomationProperties.Name="Araç plakası"
+                        CharacterCasing="Upper"
+                        Header="Plaka *"
+                        MinHeight="44"
+                        PlaceholderText="07 ABC 123"
+                        Text="{x:Bind ViewModel.LicensePlate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
-            <Grid ColumnSpacing="12">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <TextBox
-                    Header="Marka"
-                    PlaceholderText="Örn. Toyota"
-                    Text="{x:Bind ViewModel.Brand, Mode=TwoWay}" />
-                <TextBox
-                    Grid.Column="1"
-                    Header="Model"
-                    PlaceholderText="Örn. Corolla"
-                    Text="{x:Bind ViewModel.Model, Mode=TwoWay}" />
-            </Grid>
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <ComboBox
+                            Header="Marka"
+                            ItemsSource="{x:Bind ViewModel.Brands}"
+                            PlaceholderText="Marka seçin"
+                            SelectedItem="{x:Bind ViewModel.SelectedBrand, Mode=TwoWay}" />
+                        <ComboBox
+                            Grid.Column="1"
+                            Header="Model"
+                            ItemsSource="{x:Bind ViewModel.Models}"
+                            PlaceholderText="Model seçin"
+                            SelectedItem="{x:Bind ViewModel.SelectedModel, Mode=TwoWay}" />
+                    </Grid>
 
-            <Grid ColumnSpacing="12">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <TextBox Header="Renk" Text="{x:Bind ViewModel.Color, Mode=TwoWay}" />
-                <NumberBox
-                    Grid.Column="1"
-                    Header="Saatlik ücret (TL)"
-                    Minimum="0.01"
-                    SmallChange="10"
-                    SpinButtonPlacementMode="Compact"
-                    Value="{x:Bind ViewModel.HourlyRate, Mode=TwoWay}" />
-            </Grid>
+                    <Grid Visibility="{x:Bind ViewModel.IsManualVehicle, Mode=OneWay}" ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox Header="Marka (elle)" Text="{x:Bind ViewModel.ManualBrand, Mode=TwoWay}" />
+                        <TextBox Grid.Column="1" Header="Model (elle)" Text="{x:Bind ViewModel.ManualModel, Mode=TwoWay}" />
+                    </Grid>
 
-            <TextBlock Margin="0,8,0,0" Style="{StaticResource SectionTitleStyle}" Text="Müşteri bilgileri" />
-            <Grid ColumnSpacing="12">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <TextBox Header="Ad soyad" Text="{x:Bind ViewModel.CustomerName, Mode=TwoWay}" />
-                <TextBox
-                    Grid.Column="1"
-                    Header="Telefon"
-                    InputScope="TelephoneNumber"
-                    Text="{x:Bind ViewModel.CustomerPhone, Mode=TwoWay}" />
-            </Grid>
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <NumberBox
+                            Header="Model yılı"
+                            Maximum="2100"
+                            Minimum="1900"
+                            SpinButtonPlacementMode="Compact"
+                            Value="{x:Bind ViewModel.Year, Mode=TwoWay}" />
+                        <TextBox
+                            Grid.Column="1"
+                            Header="Renk"
+                            PlaceholderText="Örn. Siyah"
+                            Text="{x:Bind ViewModel.Color, Mode=TwoWay}" />
+                        <NumberBox
+                            Grid.Column="2"
+                            Header="Saatlik ücret (TL)"
+                            Minimum="0.01"
+                            SmallChange="10"
+                            SpinButtonPlacementMode="Compact"
+                            Value="{x:Bind ViewModel.HourlyRate, Mode=TwoWay}" />
+                    </Grid>
 
-            <TextBlock Margin="0,8,0,0" Style="{StaticResource SectionTitleStyle}" Text="Park bilgileri" />
-            <Grid ColumnSpacing="12">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <TextBox Header="Anahtar etiketi" Text="{x:Bind ViewModel.KeyTag, Mode=TwoWay}" />
-                <TextBox Grid.Column="1" Header="Park yeri" Text="{x:Bind ViewModel.ParkingSpot, Mode=TwoWay}" />
-            </Grid>
-            <TextBox
-                AcceptsReturn="True"
-                Header="Not"
-                Height="96"
-                Text="{x:Bind ViewModel.Notes, Mode=TwoWay}"
-                TextWrapping="Wrap" />
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <ComboBox
+                            Header="Yakıt tipi"
+                            ItemsSource="{x:Bind ViewModel.FuelTypes}"
+                            PlaceholderText="Yakıt seçin"
+                            SelectedItem="{x:Bind ViewModel.FuelType, Mode=TwoWay}" />
+                        <ComboBox
+                            Grid.Column="1"
+                            Header="Şanzıman"
+                            ItemsSource="{x:Bind ViewModel.Transmissions}"
+                            PlaceholderText="Şanzıman seçin"
+                            SelectedItem="{x:Bind ViewModel.Transmission, Mode=TwoWay}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource CardBorderStyle}">
+                <StackPanel Spacing="12">
+                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Araç fotoğrafı" />
+                    <TextBlock
+                        Style="{StaticResource PageSubtitleStyle}"
+                        Text="Teslim anındaki aracı belgelemek için JPG, JPEG veya PNG fotoğraf ekleyebilirsiniz. En fazla 4 MB." />
+                    <Border Style="{StaticResource SoftCardBorderStyle}">
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center" Spacing="2">
+                                <TextBlock FontWeight="SemiBold" Text="{x:Bind ViewModel.PhotoFileName, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Fotoğraf araç kaydıyla birlikte saklanır." />
+                            </StackPanel>
+                            <Button Grid.Column="1" Click="PickPhoto_Click" Content="Fotoğraf seç" />
+                            <Button Grid.Column="2" Click="RemovePhoto_Click" Content="Kaldır" />
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource CardBorderStyle}">
+                <StackPanel Spacing="14">
+                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Müşteri ve operasyon" />
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox Header="Müşteri ad soyad" Text="{x:Bind ViewModel.CustomerName, Mode=TwoWay}" />
+                        <TextBox
+                            Grid.Column="1"
+                            Header="Telefon"
+                            InputScope="TelephoneNumber"
+                            Text="{x:Bind ViewModel.CustomerPhone, Mode=TwoWay}" />
+                    </Grid>
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox Header="Anahtar etiketi" Text="{x:Bind ViewModel.KeyTag, Mode=TwoWay}" />
+                        <TextBox Grid.Column="1" Header="Park yeri" Text="{x:Bind ViewModel.ParkingSpot, Mode=TwoWay}" />
+                    </Grid>
+                    <TextBox
+                        AcceptsReturn="True"
+                        Header="Notlar / mevcut hasarlar"
+                        MinHeight="110"
+                        Text="{x:Bind ViewModel.Notes, Mode=TwoWay}"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
 
             <Button
                 AutomationProperties.Name="Araç teslim kaydını oluştur"
@@ -102,10 +175,9 @@
                 Style="{StaticResource PrimaryActionButtonStyle}">
                 <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="8">
                     <ProgressRing Width="18" Height="18" IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}" />
-                    <TextBlock Text="Aracı teslim al" />
+                    <TextBlock FontWeight="SemiBold" Text="Aracı teslim al" />
                 </StackPanel>
             </Button>
         </StackPanel>
     </ScrollViewer>
 </Page>
-
