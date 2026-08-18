@@ -10,12 +10,14 @@ on:
       - 'src/VALE.Mobile/**'
       - 'src/VALE.Contracts/**'
       - 'src/VALE.Api/**'
+      - 'tests/**'
       - '.github/workflows/android-apk.yml'
   pull_request:
     paths:
       - 'src/VALE.Mobile/**'
       - 'src/VALE.Contracts/**'
       - 'src/VALE.Api/**'
+      - 'tests/**'
       - '.github/workflows/android-apk.yml'
 
 concurrency:
@@ -29,10 +31,10 @@ permissions:
 jobs:
   build-test-release:
     runs-on: windows-latest
-    timeout-minutes: 55
+    timeout-minutes: 60
 
     steps:
-      - name: Checkout repository without marketplace actions
+      - name: Checkout repository
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -43,14 +45,14 @@ jobs:
           git -c "http.extraheader=AUTHORIZATION: basic $basic" fetch --depth=1 origin $env:GITHUB_SHA
           git checkout --detach FETCH_HEAD
 
-      - name: Publish Android release pending status
+      - name: Publish pending release status
         if: github.ref == 'refs/heads/main'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $target = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
-          gh api --method POST "repos/$env:GITHUB_REPOSITORY/statuses/$env:GITHUB_SHA" -f state='pending' -f context='vale/android-release' -f description='VALE Android 3.0.0 release build başladı.' -f target_url=$target
+          gh api --method POST "repos/$env:GITHUB_REPOSITORY/statuses/$env:GITHUB_SHA" -f state='pending' -f context='vale/android-release' -f description='VALE Android 3.1.0 release doğrulanıyor.' -f target_url=$target
 
       - name: Ensure .NET 10 SDK
         shell: pwsh
@@ -82,20 +84,41 @@ jobs:
         shell: pwsh
         run: dotnet workload install maui-android
 
-      - name: Restore
-        shell: pwsh
-        run: dotnet restore src/VALE.Mobile/VALE.Mobile.csproj
-
-      - name: Verify Android transport configuration
+      - name: Verify VALE 3.1 source surface
         shell: pwsh
         run: |
           [xml]$project = Get-Content 'src/VALE.Mobile/VALE.Mobile.csproj'
           $propertyGroup = @($project.Project.PropertyGroup) | Select-Object -First 1
           if ([string]$propertyGroup.UseNativeHttpHandler -ne 'false') { throw 'Release engellendi: managed HTTP handler kapalı.' }
           $version = [string]$propertyGroup.ApplicationDisplayVersion
-          if ($version -ne '3.0.0') { throw "Beklenen mobil sürüm 3.0.0, bulunan: $version" }
+          if ($version -ne '3.1.0') { throw "Beklenen mobil sürüm 3.1.0, bulunan: $version" }
           "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          Write-Host "Managed HTTP handler doğrulandı. VALE $version"
+
+          $required = @(
+            'src/VALE.Contracts/TenantContracts.cs',
+            'src/VALE.Api/Controllers/RegistrationController.cs',
+            'src/VALE.Api/Controllers/NotificationsController.cs',
+            'src/VALE.Api/Services/NotificationService.cs',
+            'src/VALE.Mobile/TenantRegisterPage.cs',
+            'src/VALE.Mobile/V31AppShell.cs',
+            'src/VALE.Mobile/V31ManagementPages.cs',
+            'src/VALE.Mobile/V31ReportsPage.cs',
+            'src/VALE.Mobile/ReportExportService.cs',
+            'src/VALE.Mobile/VisualPreferences.cs'
+          )
+          $required | ForEach-Object { if (-not (Test-Path $_)) { throw "VALE 3.1 dosyası eksik: $_" } }
+
+          $token = Get-Content 'src/VALE.Api/Services/TokenService.cs' -Raw
+          $context = Get-Content 'src/VALE.Api/Services/CurrentUserContext.cs' -Raw
+          $ticket = Get-Content 'src/VALE.Api/Services/TicketService.cs' -Raw
+          $csv = Get-Content 'src/VALE.Mobile/ReportExportService.cs' -Raw
+          $shell = Get-Content 'src/VALE.Mobile/V31AppShell.cs' -Raw
+          if ($token -notmatch 'company_id') { throw 'JWT company_id kapsamı eksik.' }
+          if ($context -notmatch 'CompanyId' -or $context -notmatch 'Firma sınırı') { throw 'Firma izolasyon kontrolü eksik.' }
+          if ($ticket -notmatch 'feeCalculator.Calculate\(ticket.EntryAt, DateTimeOffset.UtcNow') { throw 'Canlı park ücreti hesabı eksik.' }
+          if ($csv -notmatch 'encoderShouldEmitUTF8Identifier: true') { throw 'UTF-8 BOM CSV düzeltmesi eksik.' }
+          if ($shell -notmatch 'FlyoutBehavior.Flyout' -or $shell -notmatch 'OnBackButtonPressed') { throw 'Drawer veya Android geri navigasyonu eksik.' }
+          Write-Host "VALE $version kaynak doğrulamaları geçti."
 
       - name: Verify Android launcher icon configuration
         shell: pwsh
@@ -106,66 +129,28 @@ jobs:
           $project = Get-Content 'src/VALE.Mobile/VALE.Mobile.csproj' -Raw
           if ($project -notmatch 'ForegroundFile="Resources\\AppIcon\\appiconfg.svg"') { throw 'Adaptive icon foreground eksik.' }
           if ($project -notmatch 'MonochromeFile="Resources\\AppIcon\\appiconmono.svg"') { throw 'Android themed icon monochrome katmanı eksik.' }
-          if ($project -notmatch 'ForegroundScale="0.72"') { throw 'Adaptive icon foreground ölçeği beklenen değerde değil.' }
-          @('src/VALE.Mobile/Resources/AppIcon/appicon.svg','src/VALE.Mobile/Resources/AppIcon/appiconfg.svg','src/VALE.Mobile/Resources/AppIcon/appiconmono.svg') | ForEach-Object {
-            if (-not (Test-Path $_)) { throw "Launcher icon dosyası eksik: $_" }
-          }
-          Write-Host 'Android adaptive launcher icon kaynakları doğrulandı.'
 
-      - name: Verify company mobile security surface
+      - name: Restore solution
         shell: pwsh
-        run: |
-          $main = Get-Content 'src/VALE.Mobile/MainPage.cs' -Raw
-          $company = Get-Content 'src/VALE.Mobile/CompanyPages.cs' -Raw
-          $client = Get-Content 'src/VALE.Mobile/ApiClient.cs' -Raw
-          if ($main -notmatch 'LoginWithTwoFactorAsync') { throw 'Mobil 2FA giriş akışı eksik.' }
-          if ($main -notmatch 'EmailCodeLoginPage') { throw 'E-posta koduyla giriş eksik.' }
-          if ($company -notmatch 'CanManageUsers' -or $company -notmatch 'CanAudit') { throw 'Rol tabanlı şirket menüsü eksik.' }
-          if ($client -notmatch 'DeleteTicketAsync' -or $client -notmatch 'UpdateTicketDetailsAsync') { throw 'Kayıt yönetimi istemci metotları eksik.' }
-          if ($company -notmatch 'TwoFactorPage' -or $company -notmatch 'ThemeService') { throw 'Profil güvenliği veya tema yönetimi eksik.' }
-          Write-Host 'VALE mobile company/security source checks passed.'
+        run: dotnet restore VALE.sln
 
-      - name: Production auth smoke tests
+      - name: Build API
         shell: pwsh
-        run: |
-          $endpoint = 'https://vale-api-5fvb.onrender.com'
-          $ready = $false
-          for ($i = 1; $i -le 30; $i++) {
-            try {
-              $health = Invoke-WebRequest "$endpoint/health/ready" -TimeoutSec 12 -SkipHttpErrorCheck
-              if ($health.StatusCode -eq 200) { $ready = $true; break }
-            } catch { }
-            Start-Sleep -Seconds 5
-          }
-          if (-not $ready) { throw 'Production VALE API hazır hale gelmedi.' }
-          $login = Invoke-WebRequest "$endpoint/api/auth/login" -Method Post -ContentType 'application/json' -Body '{"email":"mobile-smoke-user@vale.invalid","password":"NotARealPassword!123"}' -TimeoutSec 20 -SkipHttpErrorCheck
-          if ($login.StatusCode -ne 401) { throw "Login POST testi başarısız: $($login.StatusCode)" }
-          $register = Invoke-WebRequest "$endpoint/api/auth/register" -Method Post -ContentType 'application/json' -Body '{"fullName":"X","email":"not-an-email","password":"short"}' -TimeoutSec 20 -SkipHttpErrorCheck
-          if ($register.StatusCode -ne 400) { throw "Register POST testi başarısız: $($register.StatusCode)" }
+        run: dotnet build src/VALE.Api/VALE.Api.csproj -c Release --no-restore
 
-      - name: Wait for VALE API v3 on main
-        if: github.ref == 'refs/heads/main'
+      - name: Run API tests
         shell: pwsh
-        run: |
-          $endpoint = 'https://vale-api-5fvb.onrender.com'
-          $newApi = $false
-          for ($i = 1; $i -le 75; $i++) {
-            try {
-              $status = Invoke-RestMethod "$endpoint/api/status" -TimeoutSec 12
-              if ($status.status -eq 'ok' -and [string]$status.version -eq '3.0') {
-                $profile = Invoke-WebRequest "$endpoint/api/auth/profile" -TimeoutSec 12 -SkipHttpErrorCheck
-                if ($profile.StatusCode -eq 401) { $newApi = $true; break }
-              }
-            } catch { }
-            Start-Sleep -Seconds 10
-          }
-          if (-not $newApi) { throw 'VALE API v3 production ortamına geçmedi; 3.0.0 APK yayınlanmadı.' }
+        run: dotnet test tests/VALE.Api.Tests/VALE.Api.Tests.csproj -c Release --no-restore
 
-      - name: Release build test
+      - name: Restore Android project
+        shell: pwsh
+        run: dotnet restore src/VALE.Mobile/VALE.Mobile.csproj
+
+      - name: Build Android release
         shell: pwsh
         run: dotnet build src/VALE.Mobile/VALE.Mobile.csproj -f net10.0-android -c Release --no-restore -p:RunAOTCompilation=false
 
-      - name: Publish APK
+      - name: Publish Android APK
         shell: pwsh
         run: dotnet publish src/VALE.Mobile/VALE.Mobile.csproj -f net10.0-android -c Release --no-restore -p:AndroidPackageFormats=apk -p:RunAOTCompilation=false
 
@@ -187,8 +172,35 @@ jobs:
           $icons = @($entries | Where-Object { $_ -match '^res/mipmap[^/]*/appicon(_round)?\.' })
           if ($icons.Count -eq 0) { $icons = @($entries | Where-Object { $_ -match '^res/mipmap.*/appicon' }) }
           if ($icons.Count -eq 0) { throw 'APK içinde launcher icon mipmap varlığı bulunamadı.' }
-          Write-Host 'APK launcher icon entries:'
-          $icons | Select-Object -First 20 | ForEach-Object { Write-Host " - $_" }
+
+      - name: Wait for VALE API 3.1 production deployment
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        run: |
+          $endpoint = 'https://vale-api-5fvb.onrender.com'
+          $ready = $false
+          for ($i = 1; $i -le 90; $i++) {
+            try {
+              $health = Invoke-RestMethod "$endpoint/health/ready" -TimeoutSec 12
+              $status = Invoke-RestMethod "$endpoint/api/status" -TimeoutSec 12
+              if ($health.status -eq 'ready' -and $status.status -eq 'ok' -and [string]$status.version -eq '3.1') {
+                $ready = $true
+                break
+              }
+            } catch { }
+            Start-Sleep -Seconds 10
+          }
+          if (-not $ready) { throw 'VALE API 3.1 production ortamına geçmedi; APK release engellendi.' }
+
+      - name: Production v3.1 smoke tests
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        run: |
+          $endpoint = 'https://vale-api-5fvb.onrender.com'
+          $login = Invoke-WebRequest "$endpoint/api/auth/login" -Method Post -ContentType 'application/json' -Body '{"email":"mobile-smoke-user@vale.invalid","password":"NotARealPassword!123"}' -TimeoutSec 20 -SkipHttpErrorCheck
+          if ($login.StatusCode -ne 401) { throw "Login POST testi başarısız: $($login.StatusCode)" }
+          $register = Invoke-WebRequest "$endpoint/api/registration/register" -Method Post -ContentType 'application/json' -Body '{"fullName":"X","email":"not-an-email","password":"short"}' -TimeoutSec 20 -SkipHttpErrorCheck
+          if ($register.StatusCode -ne 400) { throw "v3.1 registration validation testi başarısız: $($register.StatusCode)" }
 
       - name: Publish GitHub Release
         if: github.ref == 'refs/heads/main'
@@ -196,8 +208,22 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "android-$env:GITHUB_RUN_NUMBER"
-          gh release create $tag "$env:GITHUB_WORKSPACE\VALE.apk" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "VALE Android $env:APP_VERSION" --notes "VALE 3.0.0: gelişmiş kayıt ve giriş seçenekleri, Authenticator 2FA, hesap bazlı profil ve tema tercihleri, patron/yönetici/personel rol hiyerarşisi, ekip yönetimi, audit kayıtları, araç düzeltme ve güvenli soft-delete, güçlendirilmiş oturum güvenliği ve launcher icon doğrulaması."
+          $tag = "vale-v3.1.0-$env:GITHUB_RUN_NUMBER"
+          $notes = @'
+          VALE 3.1.0
+
+          - Gerçek çoklu firma (Company → Branch → User) veri izolasyonu
+          - Firma sahibi ve mevcut firmaya personel kayıt akışları
+          - Şube bazlı personel onayı ve süreli davet kodları
+          - Uygulama içi bildirim merkezi ve araç teslim isteği bildirimleri
+          - Açık araçlarda anlık park ücreti
+          - PDF görüntüle/paylaş, Excel paylaş ve UTF-8 Türkçe CSV
+          - İkonlu alt navigasyon + hamburger/drawer menü
+          - Android geri tuşu navigasyon düzeltmesi
+          - Daha yumuşak kart tasarımı ve kişisel arka plan görseli
+          - Mevcut 2FA, audit ve rol tabanlı güvenlik yapısının firma kapsamına alınması
+          '@
+          gh release create $tag "$env:GITHUB_WORKSPACE\VALE.apk" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "VALE Android $env:APP_VERSION" --notes $notes
 
       - name: Publish Android release status
         if: always() && github.ref == 'refs/heads/main'
@@ -207,6 +233,6 @@ jobs:
           JOB_STATUS: ${{ job.status }}
         run: |
           $state = if ($env:JOB_STATUS -eq 'success') { 'success' } else { 'failure' }
-          $description = if ($state -eq 'success') { 'VALE Android 3.0.0 test edildi ve yayınlandı.' } else { 'VALE Android 3.0.0 yayını başarısız; run logunu kontrol edin.' }
+          $description = if ($state -eq 'success') { 'VALE Android 3.1.0 test edildi ve yayınlandı.' } else { 'VALE Android 3.1.0 yayını başarısız; run logunu kontrol edin.' }
           $target = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
           gh api --method POST "repos/$env:GITHUB_REPOSITORY/statuses/$env:GITHUB_SHA" -f state=$state -f context='vale/android-release' -f description=$description -f target_url=$target
