@@ -34,12 +34,13 @@ public sealed class CheckInViewModel : ViewModelBase
         _api = api;
         _session = session;
         _branchContext = branchContext;
+        Brands = VALE.Contracts.VehicleCatalog.Brands.Select(x => x.Name).Concat(["Diğer"]).ToList();
         CreateCommand = new AsyncRelayCommand(CreateAsync);
     }
 
-    public IReadOnlyList<string> Brands => VehicleCatalog.Brands;
-    public IReadOnlyList<string> FuelTypes => VehicleCatalog.FuelTypes;
-    public IReadOnlyList<string> Transmissions => VehicleCatalog.Transmissions;
+    public IReadOnlyList<string> Brands { get; }
+    public IReadOnlyList<string> FuelTypes => VALE.Contracts.VehicleCatalog.FuelTypes;
+    public IReadOnlyList<string> Transmissions => VALE.Contracts.VehicleCatalog.Transmissions;
     public ObservableCollection<string> Models { get; } = [];
 
     public string LicensePlate { get => _licensePlate; set => SetProperty(ref _licensePlate, value); }
@@ -51,7 +52,7 @@ public sealed class CheckInViewModel : ViewModelBase
         {
             if (!SetProperty(ref _selectedBrand, value)) return;
             Models.Clear();
-            foreach (var item in VehicleCatalog.ModelsFor(value)) Models.Add(item);
+            foreach (var item in VALE.Contracts.VehicleCatalog.ModelsFor(value)) Models.Add(item);
             SelectedModel = null;
             OnPropertyChanged(nameof(IsManualVehicle));
         }
