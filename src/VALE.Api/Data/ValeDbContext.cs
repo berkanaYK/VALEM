@@ -8,24 +8,67 @@ namespace VALE.Api.Data;
 public sealed class ValeDbContext(DbContextOptions<ValeDbContext> options)
     : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>(options)
 {
+    public DbSet<Company> Companies => Set<Company>();
     public DbSet<Branch> Branches => Set<Branch>();
+    public DbSet<RegistrationRequest> RegistrationRequests => Set<RegistrationRequest>();
+    public DbSet<ValeNotification> Notifications => Set<ValeNotification>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Vehicle> Vehicles => Set<Vehicle>();
     public DbSet<ParkingTicket> ParkingTickets => Set<ParkingTicket>();
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
 
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        await ApplyTenantDefaultsAsync(cancellationToken);
+        return await base.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task ApplyTenantDefaultsAsync(CancellationToken cancellationToken)
+    {
+        var users = ChangeTracker.Entries<AppUser>()
+            .Where(x => x.State is EntityState.Added or EntityState.Modified)
+            .Select(x => x.Entity)
+            .Where(x => x.CompanyId is null && x.BranchId.HasValue)
+            .ToList();
+
+        foreach (var user in users)
+        {
+            if (user.Branch is { CompanyId: var companyId } && companyId != Guid.Empty)
+            {
+                user.CompanyId = companyId;
+                continue;
+            }
+
+            var branchId = user.BranchId!.Value;
+            user.CompanyId = await Branches.AsNoTracking()
+                .Where(x => x.Id == branchId)
+                .Select(x => (Guid?)x.CompanyId)
+                .SingleOrDefaultAsync(cancellationToken);
+        }
+    }
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
 
-        builder.Entity<Branch>(entity =>
+        builder.Entity<Company>(entity =>
         {
             entity.HasIndex(x => x.Code).IsUnique();
+            entity.Property(x => x.Code).HasMaxLength(40);
+            entity.Property(x => x.Name).HasMaxLength(160);
+        });
+
+        builder.Entity<Branch>(entity =>
+        {
+            entity.HasIndex(x => new { x.CompanyId, x.Code }).IsUnique();
+            entity.HasIndex(x => x.InviteCode).IsUnique();
             entity.Property(x => x.Code).HasMaxLength(20);
             entity.Property(x => x.Name).HasMaxLength(120);
             entity.Property(x => x.City).HasMaxLength(80);
             entity.Property(x => x.Address).HasMaxLength(300);
+            entity.Property(x => x.InviteCode).HasMaxLength(40);
+            entity.HasOne(x => x.Company).WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<AppUser>(entity =>
@@ -37,12 +80,37 @@ public sealed class ValeDbContext(DbContextOptions<ValeDbContext> options)
             entity.Property(x => x.AccentTheme).HasMaxLength(20);
             entity.Property(x => x.ProfileColor).HasMaxLength(20);
             entity.HasIndex(x => x.EmployeeCode).IsUnique();
+            entity.HasIndex(x => x.CompanyId);
+            entity.HasOne(x => x.Company).WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.SetNull);
             entity.HasOne(x => x.Branch).WithMany().HasForeignKey(x => x.BranchId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<RegistrationRequest>(entity =>
+        {
+            entity.HasIndex(x => new { x.CompanyId, x.Status, x.CreatedAt });
+            entity.HasIndex(x => x.ApplicantUserId).IsUnique();
+            entity.Property(x => x.RequestedRole).HasMaxLength(40);
+            entity.Property(x => x.Status).HasMaxLength(20);
+            entity.Property(x => x.Note).HasMaxLength(500);
+            entity.HasOne(x => x.Company).WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Branch).WithMany().HasForeignKey(x => x.BranchId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.ApplicantUser).WithMany().HasForeignKey(x => x.ApplicantUserId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.ReviewedByUser).WithMany().HasForeignKey(x => x.ReviewedByUserId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<ValeNotification>(entity =>
+        {
+            entity.HasIndex(x => new { x.UserId, x.IsRead, x.CreatedAt });
+            entity.HasIndex(x => new { x.CompanyId, x.CreatedAt });
+            entity.Property(x => x.Title).HasMaxLength(140);
+            entity.Property(x => x.Body).HasMaxLength(600);
+            entity.Property(x => x.Type).HasMaxLength(40);
+            entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<Customer>(entity =>
         {
-            entity.HasIndex(x => x.NormalizedPhone);
+            entity.HasIndex(x => new { x.CompanyId, x.NormalizedPhone });
             entity.Property(x => x.Name).HasMaxLength(120);
             entity.Property(x => x.Phone).HasMaxLength(30);
             entity.Property(x => x.NormalizedPhone).HasMaxLength(30);
@@ -50,7 +118,7 @@ public sealed class ValeDbContext(DbContextOptions<ValeDbContext> options)
 
         builder.Entity<Vehicle>(entity =>
         {
-            entity.HasIndex(x => x.NormalizedPlate).IsUnique();
+            entity.HasIndex(x => new { x.CompanyId, x.NormalizedPlate }).IsUnique();
             entity.Property(x => x.LicensePlate).HasMaxLength(16);
             entity.Property(x => x.NormalizedPlate).HasMaxLength(16);
             entity.Property(x => x.Brand).HasMaxLength(60);

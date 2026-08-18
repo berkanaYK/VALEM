@@ -16,13 +16,15 @@ public sealed class BranchesController(ValeDbContext db, CurrentUserContext curr
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<BranchDto>>> GetAll(CancellationToken cancellationToken)
     {
-        var query = db.Branches.AsNoTracking().Where(x => x.IsActive);
+        var query = db.Branches.AsNoTracking().Where(x => x.CompanyId == currentUser.CompanyId && x.IsActive);
         if (!currentUser.CanAccessAllBranches)
         {
             var branchId = currentUser.ResolveBranchId(null);
             query = query.Where(x => x.Id == branchId);
         }
-        var branches = await query.OrderBy(x => x.Name).Select(x => new BranchDto(x.Id, x.Code, x.Name, x.City, x.Address, x.IsActive)).ToListAsync(cancellationToken);
+        var branches = await query.OrderBy(x => x.Name)
+            .Select(x => new BranchDto(x.Id, x.Code, x.Name, x.City, x.Address, x.IsActive, currentUser.CanAccessAllBranches ? x.InviteCode : null))
+            .ToListAsync(cancellationToken);
         return Ok(branches);
     }
 }

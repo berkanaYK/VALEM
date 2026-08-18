@@ -22,10 +22,16 @@ public sealed class AuditController(ValeDbContext db, CurrentUserContext current
         CancellationToken cancellationToken = default)
     {
         limit = Math.Clamp(limit, 1, 250);
-        var query = db.AuditEntries.AsNoTracking().Include(x => x.User).Include(x => x.Branch).AsQueryable();
+        var query = db.AuditEntries.AsNoTracking().Include(x => x.User).Include(x => x.Branch)
+            .Where(x => (x.Branch != null && x.Branch.CompanyId == currentUser.CompanyId) || (x.User != null && x.User.CompanyId == currentUser.CompanyId));
         if (currentUser.CanAccessAllBranches)
         {
-            if (branchId.HasValue) query = query.Where(x => x.BranchId == branchId.Value);
+            if (branchId.HasValue)
+            {
+                var allowed = await db.Branches.AnyAsync(x => x.Id == branchId.Value && x.CompanyId == currentUser.CompanyId, cancellationToken);
+                if (!allowed) throw new ApiException(StatusCodes.Status403Forbidden, "Şube yetkisi yok", "Bu şube firmanıza ait değil.");
+                query = query.Where(x => x.BranchId == branchId.Value);
+            }
         }
         else
         {
