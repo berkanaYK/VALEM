@@ -161,7 +161,7 @@ app.MapGet("/health/ready", async (ValeDbContext db, CancellationToken ct) =>
         return Results.Json(new { status = "not-ready", database = "unavailable" }, statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 }).AllowAnonymous();
-app.MapGet("/api/status", () => Results.Ok(new { service = "VALE.Api", version = "3.0", status = "ok", utc = DateTimeOffset.UtcNow })).AllowAnonymous();
+app.MapGet("/api/status", () => Results.Ok(new { service = "VALE.Api", version = "3.1", status = "ok", utc = DateTimeOffset.UtcNow })).AllowAnonymous();
 app.MapControllers();
 
 await using (var scope = app.Services.CreateAsyncScope()) await DatabaseSeeder.InitializeAsync(scope.ServiceProvider);
