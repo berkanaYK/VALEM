@@ -1,7 +1,9 @@
+using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using VALE.Api.Data;
 using VALE.Api.Domain;
@@ -17,7 +19,8 @@ public sealed class TenantRegistrationController(
     UserManager<AppUser> userManager,
     CurrentUserContext currentUser,
     AuditService audit,
-    FirebasePushSender pushSender) : ControllerBase
+    FirebasePushSender pushSender,
+    IValeEmailSender emailSender) : ControllerBase
 {
     [HttpPost("owner")]
     [AllowAnonymous]
@@ -25,6 +28,8 @@ public sealed class TenantRegistrationController(
     public async Task<ActionResult<RegisterResponse>> RegisterOwner(OwnerRegisterRequest request, CancellationToken cancellationToken)
     {
         var email = request.Email.Trim();
+        var loginMethod = NormalizeLoginMethod(request.LoginMethod);
+        ValidatePasswordForMethod(loginMethod, request.Password);
         var companyCode = Normalize(request.CompanyCode);
         var branchCode = Normalize(request.FirstBranchCode);
         if (await userManager.FindByEmailAsync(email) is not null)
@@ -58,17 +63,17 @@ public sealed class TenantRegistrationController(
         {
             UserName = email,
             Email = email,
-            EmailConfirmed = true,
+            EmailConfirmed = false,
             FullName = request.FullName.Trim(),
             PhoneNumber = Clean(request.PhoneNumber),
             CompanyId = company.Id,
             Company = company,
             BranchId = branch.Id,
             Branch = branch,
-            IsActive = true,
+            IsActive = false,
             JobTitle = "Firma Sahibi"
         };
-        var create = await userManager.CreateAsync(user, request.Password);
+        var create = await CreateUserAsync(user, request.Password, loginMethod);
         if (!create.Succeeded)
             throw new ApiException(StatusCodes.Status400BadRequest, "Hesap oluşturulamadı", string.Join(" ", create.Errors.Select(x => x.Description)));
         var role = await userManager.AddToRoleAsync(user, Roles.Owner);
@@ -82,13 +87,19 @@ public sealed class TenantRegistrationController(
             BranchId = branch.Id,
             UserId = user.Id,
             Title = "VALE firmanız hazır",
-            Body = $"{company.Name} ve {branch.Name} şubesi oluşturuldu. Personel davetlerini Firma / Şubeler alanından yönetebilirsiniz.",
+            Body = $"{company.Name} ve {branch.Name} şubesi oluşturuldu. E-posta doğrulamasından sonra hesabınız girişe açılacak.",
             Type = "CompanyCreated"
         });
         await db.SaveChangesAsync(cancellationToken);
-        await audit.RecordAsync(user.Id, branch.Id, "company.created", "Company", company.Id.ToString(), $"{company.Name} ({company.Code}) oluşturuldu.", cancellationToken: cancellationToken);
+        await audit.RecordAsync(user.Id, branch.Id, "company.created", "Company", company.Id.ToString(), $"{company.Name} ({company.Code}) oluşturuldu. Giriş yöntemi: {loginMethod}.", cancellationToken: cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return Created("/api/registration/owner", new RegisterResponse("Firma ve yönetici hesabınız oluşturuldu. Şimdi giriş yapabilirsiniz.", false));
+
+        var sent = await TrySendConfirmationAsync(user, cancellationToken);
+        var methodHint = LoginMethodHint(loginMethod);
+        var message = sent
+            ? $"Firma ve yönetici hesabınız oluşturuldu. {email} adresine 'Bu e-posta sizin mi?' doğrulama bağlantısı gönderdik. Linki onayladıktan sonra {methodHint}"
+            : $"Firma ve hesabınız oluşturuldu ancak doğrulama e-postası gönderilemedi. Daha sonra doğrulama e-postasını yeniden isteyin. {methodHint}";
+        return Created("/api/registration/owner", new RegisterResponse(message, false));
     }
 
     [HttpPost("staff")]
@@ -97,6 +108,8 @@ public sealed class TenantRegistrationController(
     public async Task<ActionResult<RegisterResponse>> RegisterStaff(StaffRegisterRequest request, CancellationToken cancellationToken)
     {
         var email = request.Email.Trim();
+        var loginMethod = NormalizeLoginMethod(request.LoginMethod);
+        ValidatePasswordForMethod(loginMethod, request.Password);
         if (await userManager.FindByEmailAsync(email) is not null)
             throw new ApiException(StatusCodes.Status409Conflict, "E-posta kullanımda", "Bu e-posta adresiyle bir hesap zaten bulunuyor.");
 
@@ -127,7 +140,7 @@ public sealed class TenantRegistrationController(
         {
             UserName = email,
             Email = email,
-            EmailConfirmed = true,
+            EmailConfirmed = false,
             FullName = request.FullName.Trim(),
             PhoneNumber = Clean(request.PhoneNumber),
             EmployeeCode = employeeCode,
@@ -137,7 +150,7 @@ public sealed class TenantRegistrationController(
             Branch = branch,
             IsActive = false
         };
-        var create = await userManager.CreateAsync(user, request.Password);
+        var create = await CreateUserAsync(user, request.Password, loginMethod);
         if (!create.Succeeded)
             throw new ApiException(StatusCodes.Status400BadRequest, "Hesap oluşturulamadı", string.Join(" ", create.Errors.Select(x => x.Description)));
         var role = await userManager.AddToRoleAsync(user, Roles.Valet);
@@ -174,8 +187,12 @@ public sealed class TenantRegistrationController(
                 cancellationToken);
         }
 
-        await audit.RecordAsync(user.Id, branch.Id, "account.registration.requested", "RegistrationRequest", registration.Id.ToString(), "Personel katılım başvurusu oluşturuldu.", cancellationToken: cancellationToken);
-        return Created("/api/registration/staff", new RegisterResponse($"Başvurunuz {branch.Company.Name} / {branch.Name} yöneticilerine gönderildi. Onaydan sonra giriş yapabilirsiniz.", true));
+        await audit.RecordAsync(user.Id, branch.Id, "account.registration.requested", "RegistrationRequest", registration.Id.ToString(), $"Personel katılım başvurusu oluşturuldu. Giriş yöntemi: {loginMethod}.", cancellationToken: cancellationToken);
+        var sent = await TrySendConfirmationAsync(user, cancellationToken);
+        var verificationText = sent
+            ? $"{email} adresine e-posta sahipliği doğrulama bağlantısı gönderdik."
+            : "Doğrulama e-postası şu anda gönderilemedi; daha sonra yeniden isteyin.";
+        return Created("/api/registration/staff", new RegisterResponse($"Başvurunuz {branch.Company.Name} / {branch.Name} yöneticilerine gönderildi. {verificationText} Giriş için hem e-posta doğrulaması hem yönetici onayı tamamlanmalıdır. {LoginMethodHint(loginMethod)}", true));
     }
 
     [HttpGet("pending")]
@@ -211,7 +228,7 @@ public sealed class TenantRegistrationController(
         registration.ReviewedByUserId = currentUser.UserId;
         registration.ReviewedAt = DateTimeOffset.UtcNow;
         registration.Note = Clean(request.Note);
-        registration.ApplicantUser.IsActive = request.Approve;
+        registration.ApplicantUser.IsActive = request.Approve && registration.ApplicantUser.EmailConfirmed;
         var update = await userManager.UpdateAsync(registration.ApplicantUser);
         if (!update.Succeeded)
             throw new ApiException(StatusCodes.Status400BadRequest, "Hesap güncellenemedi", string.Join(" ", update.Errors.Select(x => x.Description)));
@@ -224,13 +241,41 @@ public sealed class TenantRegistrationController(
             UserId = registration.ApplicantUserId,
             Title = request.Approve ? "Başvurunuz onaylandı" : "Başvurunuz reddedildi",
             Body = request.Approve
-                ? $"{registration.Company.Name} / {registration.Branch.Name} hesabınız aktif. Artık giriş yapabilirsiniz."
+                ? registration.ApplicantUser.EmailConfirmed
+                    ? $"{registration.Company.Name} / {registration.Branch.Name} hesabınız aktif. Artık giriş yapabilirsiniz."
+                    : $"{registration.Company.Name} / {registration.Branch.Name} başvurunuz onaylandı. Hesabın girişe açılması için e-posta doğrulama bağlantısını da onaylayın."
                 : $"{registration.Company.Name} / {registration.Branch.Name} başvurunuz onaylanmadı.{(string.IsNullOrWhiteSpace(request.Note) ? string.Empty : " Not: " + request.Note.Trim())}",
             Type = request.Approve ? "RegistrationApproved" : "RegistrationRejected"
         });
         await db.SaveChangesAsync(cancellationToken);
         await audit.RecordAsync(currentUser.UserId, registration.BranchId, request.Approve ? "account.registration.approved" : "account.registration.rejected", "RegistrationRequest", registration.Id.ToString(), request.Note ?? string.Empty, cancellationToken: cancellationToken);
         return Ok(Map(registration));
+    }
+
+    private async Task<IdentityResult> CreateUserAsync(AppUser user, string? password, string loginMethod)
+    {
+        if (loginMethod == LoginMethods.EmailCode)
+            return await userManager.CreateAsync(user);
+        return await userManager.CreateAsync(user, password!);
+    }
+
+    private async Task<bool> TrySendConfirmationAsync(AppUser user, CancellationToken cancellationToken)
+    {
+        if (!emailSender.IsConfigured || string.IsNullOrWhiteSpace(user.Email)) return false;
+        try
+        {
+            var rawToken = await userManager.GenerateEmailConfirmationTokenAsync(user);
+            var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(rawToken));
+            var scheme = Request.Headers["X-Forwarded-Proto"].FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(scheme)) scheme = Request.Scheme;
+            var url = $"{scheme}://{Request.Host}/api/auth/confirm-email?userId={user.Id:D}&token={Uri.EscapeDataString(encodedToken)}";
+            await emailSender.SendEmailConfirmationLinkAsync(user.Email, user.FullName, url, cancellationToken);
+            return true;
+        }
+        catch (ApiException)
+        {
+            return false;
+        }
     }
 
     private async Task<IReadOnlyList<Guid>> AddApprovalNotificationsAsync(AppUser applicant, Branch branch, CancellationToken cancellationToken)
@@ -257,6 +302,26 @@ public sealed class TenantRegistrationController(
         }
         return managerIds;
     }
+
+    private static string NormalizeLoginMethod(string? value)
+    {
+        var method = LoginMethods.All.FirstOrDefault(x => x.Equals(value?.Trim(), StringComparison.OrdinalIgnoreCase));
+        return method ?? throw new ApiException(StatusCodes.Status400BadRequest, "Giriş yöntemi geçersiz", "Parola, e-posta kodu veya Authenticator seçeneklerinden birini kullanın.");
+    }
+
+    private static void ValidatePasswordForMethod(string loginMethod, string? password)
+    {
+        if (loginMethod == LoginMethods.EmailCode) return;
+        if (string.IsNullOrWhiteSpace(password) || password.Length < 10)
+            throw new ApiException(StatusCodes.Status400BadRequest, "Parola gerekli", "Parola veya Authenticator girişini seçtiyseniz en az 10 karakterlik güçlü bir parola oluşturun.");
+    }
+
+    private static string LoginMethodHint(string loginMethod) => loginMethod switch
+    {
+        LoginMethods.EmailCode => "Giriş ekranında 'E-posta Koduyla Giriş' seçeneğini kullanabilirsiniz.",
+        LoginMethods.Authenticator => "İlk girişinizi parolanızla yaptıktan sonra Authenticator Güvenliği ekranından QR kurulumunu tamamlayın; sonraki girişlerde Authenticator seçeneğini kullanın.",
+        _ => "E-posta + parolanızla giriş yapabilirsiniz."
+    };
 
     private static RegistrationRequestDto Map(RegistrationRequest x) => new(
         x.Id, x.ApplicantUserId, x.ApplicantUser.FullName, x.ApplicantUser.Email ?? string.Empty,
