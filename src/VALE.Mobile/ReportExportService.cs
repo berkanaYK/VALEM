@@ -15,9 +15,9 @@ public static class ReportExportService
         foreach (var row in report.Daily)
             sb.AppendLine($"{row.Day:dd.MM.yyyy};{row.Vehicles};{row.Delivered};{row.Revenue:0.00}");
         sb.AppendLine();
-        sb.AppendLine($"Toplam Araç;{report.Vehicles}");
-        sb.AppendLine($"Toplam Teslim;{report.Delivered}");
-        sb.AppendLine($"İptal;{report.Cancelled}");
+        sb.AppendLine($"Toplam Araç;{report.TotalVehicles}");
+        sb.AppendLine($"Toplam Teslim;{report.DeliveredVehicles}");
+        sb.AppendLine($"İptal;{report.CancelledVehicles}");
         sb.AppendLine($"Ciro;{report.Revenue:0.00}");
         await File.WriteAllTextAsync(path, sb.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
         return path;
@@ -62,9 +62,9 @@ public static class ReportExportService
         var sheetData = new XElement(ns + "sheetData");
         var rowNumber = 1;
         AddRow(sheetData, rowNumber++, "VALE Rapor", $"{report.From:dd.MM.yyyy} - {report.To:dd.MM.yyyy}");
-        AddRow(sheetData, rowNumber++, "Toplam Araç", report.Vehicles.ToString(), "Toplam Teslim", report.Delivered.ToString());
-        AddRow(sheetData, rowNumber++, "İptal", report.Cancelled.ToString(), "Ciro", report.Revenue.ToString("0.00") + " TL");
-        AddRow(sheetData, rowNumber++, "Ortalama Tutar", report.AverageAmount.ToString("0.00") + " TL", "Ortalama Süre", report.AverageParkingMinutes.ToString("0") + " dk");
+        AddRow(sheetData, rowNumber++, "Toplam Araç", report.TotalVehicles.ToString(), "Toplam Teslim", report.DeliveredVehicles.ToString());
+        AddRow(sheetData, rowNumber++, "İptal", report.CancelledVehicles.ToString(), "Ciro", report.Revenue.ToString("0.00") + " TL");
+        AddRow(sheetData, rowNumber++, "Ortalama Tutar", report.AverageRevenuePerDelivery.ToString("0.00") + " TL", "Ortalama Süre", report.AverageParkingMinutes.ToString("0") + " dk");
         rowNumber++;
         AddRow(sheetData, rowNumber++, "Tarih", "Araç", "Teslim", "Ciro (TL)");
         foreach (var point in report.Daily)
@@ -84,11 +84,11 @@ public static class ReportExportService
         {
             "VALE RAPORU",
             $"Donem: {Ascii($"{report.From:dd.MM.yyyy} - {report.To:dd.MM.yyyy}")}",
-            $"Toplam Arac: {report.Vehicles}",
-            $"Teslim: {report.Delivered}",
-            $"Iptal: {report.Cancelled}",
+            $"Toplam Arac: {report.TotalVehicles}",
+            $"Teslim: {report.DeliveredVehicles}",
+            $"Iptal: {report.CancelledVehicles}",
             $"Ciro: {report.Revenue:0.00} TL",
-            $"Ortalama Tutar: {report.AverageAmount:0.00} TL",
+            $"Ortalama Tutar: {report.AverageRevenuePerDelivery:0.00} TL",
             $"Ortalama Park Suresi: {report.AverageParkingMinutes:0} dk",
             "",
             "TARIH       ARAC   TESLIM   CIRO"
