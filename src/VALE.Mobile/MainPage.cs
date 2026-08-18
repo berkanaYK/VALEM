@@ -61,11 +61,29 @@ public sealed class MainPage : ContentPage
                 UiKit.Label("E-posta", 11, true, true), _email,
                 UiKit.Label("Parola", 11, true, true), _password,
                 forgot, _login, emailCode, statusRow,
-                new BoxView { HeightRequest = 1, BackgroundColor = ThemeService.Palette.Border, Margin = new Thickness(0, 4) },
+                UiKit.Divider(),
                 register, connection
             }
         }, new Thickness(18), 24);
         loginCard.MaximumWidthRequest = 520;
+
+        var title = new Label
+        {
+            Text = "VALE",
+            FontSize = 38,
+            FontAttributes = FontAttributes.Bold,
+            HorizontalTextAlignment = TextAlignment.Center,
+            CharacterSpacing = 2.4
+        };
+        title.SetDynamicResource(Label.TextColorProperty, "ValeText");
+
+        var footer = new Label
+        {
+            Text = "Araç operasyonu • Tahsilat • Raporlama • Ekip yönetimi",
+            FontSize = 10.5,
+            HorizontalTextAlignment = TextAlignment.Center
+        };
+        footer.SetDynamicResource(Label.TextColorProperty, "ValeSecondary");
 
         Content = new ScrollView
         {
@@ -76,10 +94,10 @@ public sealed class MainPage : ContentPage
                 Children =
                 {
                     new Image { Source = "vale_logo.svg", HeightRequest = 82, WidthRequest = 82, HorizontalOptions = LayoutOptions.Center },
-                    new Label { Text = "VALE", FontSize = 38, FontAttributes = FontAttributes.Bold, HorizontalTextAlignment = TextAlignment.Center, TextColor = ThemeService.Palette.Text, CharacterSpacing = 2.4 },
+                    title,
                     UiKit.Label("Vale operasyon ve yönetim platformu", 13.5, false, true),
                     loginCard,
-                    new Label { Text = "Araç operasyonu • Tahsilat • Raporlama • Ekip yönetimi", FontSize = 10.5, HorizontalTextAlignment = TextAlignment.Center, TextColor = ThemeService.Palette.Secondary }
+                    footer
                 }
             }
         };
@@ -104,7 +122,13 @@ public sealed class MainPage : ContentPage
             {
                 var code = await DisplayPromptAsync("İki adımlı doğrulama", "Authenticator uygulamanızdaki 6 haneli kodu girin.", "Devam Et", "Vazgeç", keyboard: Keyboard.Numeric, maxLength: 6);
                 if (string.IsNullOrWhiteSpace(code)) return;
-                login = await _api.LoginWithTwoFactorAsync(_email.Text ?? string.Empty, _password.Text ?? string.Empty, code, _loginCts.Token);
+                var normalized = code.Trim();
+                if (normalized.Length != 6 || !normalized.All(char.IsDigit))
+                {
+                    await DisplayAlertAsync("Kod geçersiz", "Authenticator uygulamasındaki 6 haneli sayısal kodu girin.", "Tamam");
+                    return;
+                }
+                login = await _api.LoginWithTwoFactorAsync(_email.Text ?? string.Empty, _password.Text ?? string.Empty, normalized, _loginCts.Token);
             }
             _status.Text = "Giriş başarılı";
             App.ShowAuthenticated(_api, login.User);
@@ -128,7 +152,10 @@ public sealed class MainPage : ContentPage
         _email.IsEnabled = !busy; _password.IsEnabled = !busy;
         _activity.IsVisible = busy; _activity.IsRunning = busy;
         _login.Text = busy ? "İptal" : "Giriş Yap";
-        _login.BackgroundColor = busy ? ThemeService.Palette.SoftCard : ThemeService.Palette.Accent;
-        _login.TextColor = busy ? ThemeService.Palette.Text : Colors.White;
+        _login.SetDynamicResource(VisualElement.BackgroundColorProperty, busy ? "ValeSoftCard" : "ValeAccent");
+        if (busy)
+            _login.SetDynamicResource(Button.TextColorProperty, "ValeText");
+        else
+            _login.TextColor = Colors.White;
     }
 }
