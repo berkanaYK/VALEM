@@ -22,7 +22,9 @@ public sealed class BranchesController(ValeDbContext db, CurrentUserContext curr
             var branchId = currentUser.ResolveBranchId(null);
             query = query.Where(x => x.Id == branchId);
         }
-        var branches = await query.OrderBy(x => x.Name).Select(x => new BranchDto(x.Id, x.Code, x.Name, x.City, x.Address, x.IsActive)).ToListAsync(cancellationToken);
+        var branches = await query.OrderBy(x => x.Name)
+            .Select(x => new BranchDto(x.Id, x.Code, x.Name, x.City, x.Address, x.IsActive, currentUser.CanAccessAllBranches ? x.InviteCode : null))
+            .ToListAsync(cancellationToken);
         return Ok(branches);
     }
 }
