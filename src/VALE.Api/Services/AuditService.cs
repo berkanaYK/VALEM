@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using VALE.Api.Data;
 using VALE.Api.Domain;
 
@@ -15,9 +16,16 @@ public sealed class AuditService(ValeDbContext db, IHttpContextAccessor httpCont
         bool success = true,
         CancellationToken cancellationToken = default)
     {
+        Guid? companyId = null;
+        if (branchId.HasValue)
+            companyId = await db.Branches.AsNoTracking().Where(x => x.Id == branchId.Value).Select(x => (Guid?)x.CompanyId).FirstOrDefaultAsync(cancellationToken);
+        if (!companyId.HasValue && userId.HasValue)
+            companyId = await db.Users.AsNoTracking().Where(x => x.Id == userId.Value).Select(x => x.CompanyId).FirstOrDefaultAsync(cancellationToken);
+
         var ip = httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString();
         db.AuditEntries.Add(new AuditEntry
         {
+            CompanyId = companyId,
             UserId = userId,
             BranchId = branchId,
             Action = Limit(action, 80),
