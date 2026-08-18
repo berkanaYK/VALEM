@@ -28,22 +28,44 @@ public sealed class CurrentUserContext(IHttpContextAccessor httpContextAccessor,
 
     public Guid ResolveBranchId(Guid? requestedBranchId)
     {
+        Guid branchId;
         if (CanAccessAllBranches)
         {
-            return requestedBranchId ?? BranchId
+            branchId = requestedBranchId ?? BranchId
                 ?? throw new ApiException(StatusCodes.Status400BadRequest, "Şube gerekli", "İşlem için bir şube seçin.");
         }
+        else
+        {
+            if (BranchId is not { } assignedBranchId)
+                throw new ApiException(StatusCodes.Status403Forbidden, "Şube yetkisi yok", "Hesabınıza bir şube atanmamış.");
+            if (requestedBranchId.HasValue && requestedBranchId.Value != assignedBranchId)
+                throw new ApiException(StatusCodes.Status403Forbidden, "Şube yetkisi yok", "Bu şubenin kayıtlarına erişim yetkiniz bulunmuyor.");
+            branchId = assignedBranchId;
+        }
 
-        if (BranchId is not { } assignedBranchId)
-            throw new ApiException(StatusCodes.Status403Forbidden, "Şube yetkisi yok", "Hesabınıza bir şube atanmamış.");
-        if (requestedBranchId.HasValue && requestedBranchId.Value != assignedBranchId)
-            throw new ApiException(StatusCodes.Status403Forbidden, "Şube yetkisi yok", "Bu şubenin kayıtlarına erişim yetkiniz bulunmuyor.");
-        return assignedBranchId;
+        var belongsToCompany = db.Branches.AsNoTracking().Any(x => x.Id == branchId && x.CompanyId == CompanyId && x.IsActive);
+        if (!belongsToCompany)
+            throw new ApiException(StatusCodes.Status403Forbidden, "Firma sınırı", "Bu şube hesabınızın bağlı olduğu firmaya ait değil.");
+        return branchId;
     }
 
     public async Task<Guid> ResolveBranchIdAsync(Guid? requestedBranchId, CancellationToken cancellationToken = default)
     {
-        var branchId = ResolveBranchId(requestedBranchId);
+        Guid branchId;
+        if (CanAccessAllBranches)
+        {
+            branchId = requestedBranchId ?? BranchId
+                ?? throw new ApiException(StatusCodes.Status400BadRequest, "Şube gerekli", "İşlem için bir şube seçin.");
+        }
+        else
+        {
+            if (BranchId is not { } assignedBranchId)
+                throw new ApiException(StatusCodes.Status403Forbidden, "Şube yetkisi yok", "Hesabınıza bir şube atanmamış.");
+            if (requestedBranchId.HasValue && requestedBranchId.Value != assignedBranchId)
+                throw new ApiException(StatusCodes.Status403Forbidden, "Şube yetkisi yok", "Bu şubenin kayıtlarına erişim yetkiniz bulunmuyor.");
+            branchId = assignedBranchId;
+        }
+
         var belongsToCompany = await db.Branches.AsNoTracking().AnyAsync(
             x => x.Id == branchId && x.CompanyId == CompanyId && x.IsActive,
             cancellationToken);
@@ -71,7 +93,10 @@ public sealed class CurrentUserContext(IHttpContextAccessor httpContextAccessor,
 
     public void EnsureBranchAccess(Guid branchId)
     {
-        if (CanAccessAllBranches) return;
-        _ = ResolveBranchId(branchId);
+        var belongsToCompany = db.Branches.AsNoTracking().Any(x => x.Id == branchId && x.CompanyId == CompanyId);
+        if (!belongsToCompany)
+            throw new ApiException(StatusCodes.Status403Forbidden, "Firma sınırı", "Bu şube hesabınızın bağlı olduğu firmaya ait değil.");
+        if (!CanAccessAllBranches && BranchId != branchId)
+            throw new ApiException(StatusCodes.Status403Forbidden, "Şube yetkisi yok", "Bu şubenin kayıtlarına erişim yetkiniz bulunmuyor.");
     }
 }
