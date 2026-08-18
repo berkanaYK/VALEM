@@ -50,7 +50,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $target = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
-          gh api --method POST "repos/$env:GITHUB_REPOSITORY/statuses/$env:GITHUB_SHA" -f state='pending' -f context='vale/android-release' -f description='VALE Android 3.1.1 SMTP + FCM release build başladı.' -f target_url=$target
+          gh api --method POST "repos/$env:GITHUB_REPOSITORY/statuses/$env:GITHUB_SHA" -f state='pending' -f context='vale/android-release' -f description='VALE Android 3.1.2 login + Authenticator release build başladı.' -f target_url=$target
 
       - name: Ensure .NET 10 SDK
         shell: pwsh
@@ -110,6 +110,34 @@ jobs:
         shell: pwsh
         run: dotnet restore src/VALE.Mobile/VALE.Mobile.csproj
 
+      - name: Dependency vulnerability audit
+        shell: pwsh
+        run: |
+          $audit = dotnet list src/VALE.Mobile/VALE.Mobile.csproj package --vulnerable --include-transitive 2>&1 | Out-String
+          Write-Host $audit
+          if ($audit -match 'has the following vulnerable packages' -or $audit -match 'Critical' -or $audit -match 'High') {
+            throw 'Mobil bağımlılık güvenlik denetiminde bilinen zafiyet bulundu.'
+          }
+
+      - name: Repository secret exposure scan
+        shell: pwsh
+        run: |
+          $tracked = git ls-files
+          if ($tracked -match '(^|/)google-services\.json$' -or $tracked -match 'service[-_]?account.*\.json$') {
+            throw 'Firebase credential/config dosyası repoya commit edilmiş.'
+          }
+          $privateKeyPattern = ('BEGIN ' + 'PRIVATE KEY')
+          $googleApiPattern = ('AI' + 'za[0-9A-Za-z_-]{30,}')
+          $matches = git grep -n -I -E -- "$privateKeyPattern|$googleApiPattern" -- . 2>$null
+          $grepExit = $LASTEXITCODE
+          if ($grepExit -eq 0 -and $matches) {
+            Write-Host $matches
+            throw 'Repository içinde private key veya Google API key benzeri secret bulundu.'
+          }
+          if ($grepExit -gt 1) { throw "Secret scan git grep hatası: $grepExit" }
+          $global:LASTEXITCODE = 0
+          Write-Host 'Secret exposure scan passed.'
+
       - name: Verify Android transport and push configuration
         shell: pwsh
         run: |
@@ -117,17 +145,18 @@ jobs:
           $propertyGroup = @($project.Project.PropertyGroup) | Select-Object -First 1
           if ([string]$propertyGroup.UseNativeHttpHandler -ne 'false') { throw 'Release engellendi: managed HTTP handler kapalı.' }
           $version = [string]$propertyGroup.ApplicationDisplayVersion
-          if ($version -ne '3.1.1') { throw "Beklenen mobil sürüm 3.1.1, bulunan: $version" }
+          if ($version -ne '3.1.2') { throw "Beklenen mobil sürüm 3.1.2, bulunan: $version" }
           $projectRaw = Get-Content 'src/VALE.Mobile/VALE.Mobile.csproj' -Raw
           if ($projectRaw -notmatch 'Xamarin.Firebase.Messaging') { throw 'Firebase Messaging Android paketi eksik.' }
+          if ($projectRaw -notmatch 'QRCoder') { throw 'Authenticator QR üretim paketi eksik.' }
           if ($projectRaw -notmatch 'GoogleServicesJson') { throw 'google-services.json build item tanımı eksik.' }
           $manifest = Get-Content 'src/VALE.Mobile/Platforms/Android/AndroidManifest.xml' -Raw
           if ($manifest -notmatch 'POST_NOTIFICATIONS') { throw 'Android POST_NOTIFICATIONS izni eksik.' }
           if (-not (Test-Path 'src/VALE.Mobile/Platforms/Android/ValeFirebaseMessagingService.cs')) { throw 'FirebaseMessagingService eksik.' }
           "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          Write-Host "Managed HTTP handler + FCM kaynakları doğrulandı. VALE $version"
+          Write-Host "Managed HTTP handler + FCM + Authenticator QR kaynakları doğrulandı. VALE $version"
 
-      - name: Verify Android launcher icon configuration
+      - name: Verify Android launcher and bottom navigation icons
         shell: pwsh
         run: |
           $manifest = Get-Content 'src/VALE.Mobile/Platforms/Android/AndroidManifest.xml' -Raw
@@ -137,22 +166,25 @@ jobs:
           if ($project -notmatch 'ForegroundFile="Resources\\AppIcon\\appiconfg.svg"') { throw 'Adaptive icon foreground eksik.' }
           if ($project -notmatch 'MonochromeFile="Resources\\AppIcon\\appiconmono.svg"') { throw 'Android themed icon monochrome katmanı eksik.' }
           if ($project -notmatch 'ForegroundScale="0.72"') { throw 'Adaptive icon foreground ölçeği beklenen değerde değil.' }
-          @('src/VALE.Mobile/Resources/AppIcon/appicon.svg','src/VALE.Mobile/Resources/AppIcon/appiconfg.svg','src/VALE.Mobile/Resources/AppIcon/appiconmono.svg') | ForEach-Object {
-            if (-not (Test-Path $_)) { throw "Launcher icon dosyası eksik: $_" }
+          @('src/VALE.Mobile/Resources/AppIcon/appicon.svg','src/VALE.Mobile/Resources/AppIcon/appiconfg.svg','src/VALE.Mobile/Resources/AppIcon/appiconmono.svg','src/VALE.Mobile/Resources/Images/tab_home.svg','src/VALE.Mobile/Resources/Images/tab_car.svg','src/VALE.Mobile/Resources/Images/tab_report.svg','src/VALE.Mobile/Resources/Images/tab_bell.svg','src/VALE.Mobile/Resources/Images/tab_more.svg') | ForEach-Object {
+            if (-not (Test-Path $_)) { throw "Icon dosyası eksik: $_" }
           }
-          Write-Host 'Android adaptive launcher icon kaynakları doğrulandı.'
+          Write-Host 'Launcher + 5 büyük alt navigasyon ikonu doğrulandı.'
 
       - name: Verify company mobile security surface
         shell: pwsh
         run: |
           $main = Get-Content 'src/VALE.Mobile/MainPage.cs' -Raw
+          $authenticator = Get-Content 'src/VALE.Mobile/AuthenticatorPages.cs' -Raw
           $company = Get-Content 'src/VALE.Mobile/CompanyPages.cs' -Raw
           $client = Get-Content 'src/VALE.Mobile/ApiClient.cs' -Raw
           $tenant = Get-Content 'src/VALE.Mobile/TenantRegisterPage.cs' -Raw
           $shell = Get-Content 'src/VALE.Mobile/ValeAppShellV31.cs' -Raw
           $notifications = Get-Content 'src/VALE.Mobile/NotificationsPage.cs' -Raw
           $pushManager = Get-Content 'src/VALE.Mobile/PushTokenManager.cs' -Raw
-          if ($main -notmatch 'LoginWithTwoFactorAsync') { throw 'Mobil 2FA giriş akışı eksik.' }
+          if ($main -notmatch 'LoginWithTwoFactorAsync' -or $main -notmatch 'AuthenticatorLoginPage') { throw 'Mobil Authenticator giriş akışı eksik.' }
+          if ($main -match 'await _api\.EnsureServerReadyAsync\(progress') { throw 'Login öncesi 75 saniyelik bloklayan health preflight geri gelmiş.' }
+          if ($authenticator -notmatch 'AuthenticatorUri' -or $authenticator -notmatch 'QRCodeGenerator' -or $authenticator -notmatch 'LoginWithTwoFactorAsync') { throw 'QR/TOTP Authenticator akışı eksik.' }
           if ($main -notmatch 'EmailCodeLoginPage') { throw 'E-posta koduyla giriş eksik.' }
           if ($main -notmatch 'Permissions.PostNotifications') { throw 'Bildirim izin istemi eksik.' }
           if ($company -notmatch 'CanManageUsers' -or $company -notmatch 'CanAudit') { throw 'Rol tabanlı şirket menüsü eksik.' }
@@ -160,13 +192,12 @@ jobs:
           if ($client -notmatch 'RegisterOwnerAsync' -or $client -notmatch 'RegisterStaffAsync') { throw 'Firma/personel kayıt istemcisi eksik.' }
           if ($client -notmatch 'RegisterPushTokenAsync' -or $client -notmatch 'SendPushTestAsync') { throw 'FCM cihaz kayıt/test istemcisi eksik.' }
           if ($tenant -notmatch 'Firma sahibi / yönetici' -or $tenant -notmatch 'Personel / mevcut firmaya katıl') { throw 'Multi-tenant kayıt ekranı eksik.' }
-          if ($shell -notmatch 'NotificationsPage' -or $shell -notmatch 'CompanyManagementPage') { throw 'v3.1 ana navigasyon yüzeyi eksik.' }
+          if ($shell -notmatch 'AuthenticatorSecurityPage' -or $shell -notmatch 'tab_home.svg' -or $shell -notmatch 'tab_more.svg') { throw 'Authenticator menüsü veya yeni alt navigasyon eksik.' }
           if ($notifications -notmatch 'GetPendingRegistrationsAsync' -or $notifications -notmatch 'SendPushTestAsync') { throw 'Personel onay veya push test ekranı eksik.' }
           if ($pushManager -notmatch 'RegisterPushTokenAsync' -or $pushManager -notmatch 'UnregisterPushTokenAsync') { throw 'Push token yaşam döngüsü eksik.' }
-          if ($company -notmatch 'TwoFactorPage' -or $company -notmatch 'ThemeService') { throw 'Profil güvenliği veya tema yönetimi eksik.' }
-          Write-Host 'VALE 3.1.1 mobile tenant/company/security/push source checks passed.'
+          Write-Host 'VALE 3.1.2 login/Authenticator/UI/security source checks passed.'
 
-      - name: Production auth smoke tests
+      - name: Production auth and security smoke tests
         shell: pwsh
         run: |
           $endpoint = 'https://vale-api-5fvb.onrender.com'
@@ -179,12 +210,26 @@ jobs:
             Start-Sleep -Seconds 5
           }
           if (-not $ready) { throw 'Production VALE API hazır hale gelmedi.' }
+          $expectedHeaders = @{
+            'X-Content-Type-Options' = 'nosniff'
+            'X-Frame-Options' = 'DENY'
+            'Referrer-Policy' = 'no-referrer'
+          }
+          foreach ($key in $expectedHeaders.Keys) {
+            $actual = [string]$health.Headers[$key]
+            if ($actual -notmatch [regex]::Escape($expectedHeaders[$key])) { throw "Eksik/güvensiz security header: $key=$actual" }
+          }
+          $dashboard = Invoke-WebRequest "$endpoint/api/dashboard" -TimeoutSec 20 -SkipHttpErrorCheck
+          if ($dashboard.StatusCode -ne 401) { throw "Yetkisiz dashboard erişimi engellenmedi: $($dashboard.StatusCode)" }
           $login = Invoke-WebRequest "$endpoint/api/auth/login" -Method Post -ContentType 'application/json' -Body '{"email":"mobile-smoke-user@vale.invalid","password":"NotARealPassword!123"}' -TimeoutSec 20 -SkipHttpErrorCheck
           if ($login.StatusCode -ne 401) { throw "Login POST testi başarısız: $($login.StatusCode)" }
+          $badTotp = Invoke-WebRequest "$endpoint/api/auth/login/2fa" -Method Post -ContentType 'application/json' -Body '{"email":"mobile-smoke-user@vale.invalid","password":"NotARealPassword!123","code":"123"}' -TimeoutSec 20 -SkipHttpErrorCheck
+          if ($badTotp.StatusCode -ne 400) { throw "Geçersiz TOTP formatı reddedilmedi: $($badTotp.StatusCode)" }
           $register = Invoke-WebRequest "$endpoint/api/auth/register" -Method Post -ContentType 'application/json' -Body '{"fullName":"X","email":"not-an-email","password":"short"}' -TimeoutSec 20 -SkipHttpErrorCheck
           if ($register.StatusCode -ne 400) { throw "Register POST testi başarısız: $($register.StatusCode)" }
+          Write-Host 'Production auth/security smoke tests passed.'
 
-      - name: Wait for VALE API v3.1.1 capabilities on main
+      - name: Wait for VALE API 3.1.2 SMTP and FCM capabilities on main
         if: github.ref == 'refs/heads/main'
         shell: pwsh
         run: |
@@ -193,14 +238,31 @@ jobs:
           for ($i = 1; $i -le 75; $i++) {
             try {
               $status = Invoke-RestMethod "$endpoint/api/status" -TimeoutSec 12
-              if ($status.status -eq 'ok' -and [string]$status.version -eq '3.1.1' -and $status.capabilities.smtp -eq $true -and $status.capabilities.fcm -eq $true) {
+              if ([string]$status.version -eq '3.1.2' -and $status.status -eq 'ok' -and $status.capabilities.smtp -eq $true -and $status.capabilities.fcm -eq $true) {
                 $profile = Invoke-WebRequest "$endpoint/api/auth/profile" -TimeoutSec 12 -SkipHttpErrorCheck
                 if ($profile.StatusCode -eq 401) { $newApi = $true; break }
               }
             } catch { }
             Start-Sleep -Seconds 10
           }
-          if (-not $newApi) { throw 'VALE API v3.1.1 SMTP+FCM production ortamında hazır değil; APK yayınlanmadı.' }
+          if (-not $newApi) { throw 'VALE API 3.1.2 SMTP+FCM production ortamında hazır değil; APK yayınlanmadı.' }
+
+      - name: Production SMTP TLS authentication probe
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        run: |
+          $endpoint = 'https://vale-api-5fvb.onrender.com'
+          $response = Invoke-WebRequest "$endpoint/health/email" -TimeoutSec 30 -SkipHttpErrorCheck
+          if ($response.StatusCode -ne 200) { throw "SMTP TLS/authentication probe başarısız: HTTP $($response.StatusCode)" }
+          $probe = $response.Content | ConvertFrom-Json
+          if ($probe.status -ne 'ready' -or $probe.smtp -ne $true -or $probe.stage -ne 'authenticated-envelope') {
+            throw "SMTP doğrulaması beklenen aşamaya ulaşmadı: $($probe.stage)"
+          }
+          $loginCode = Invoke-WebRequest "$endpoint/api/auth/email-code/request" -Method Post -ContentType 'application/json' -Body '{"email":"vale-ci-unregistered@invalid.example"}' -TimeoutSec 20 -SkipHttpErrorCheck
+          if ($loginCode.StatusCode -ne 202) { throw "E-posta kodu endpoint testi başarısız: $($loginCode.StatusCode)" }
+          $resetCode = Invoke-WebRequest "$endpoint/api/auth/forgot-password" -Method Post -ContentType 'application/json' -Body '{"email":"vale-ci-unregistered@invalid.example"}' -TimeoutSec 20 -SkipHttpErrorCheck
+          if ($resetCode.StatusCode -ne 202) { throw "Şifre sıfırlama endpoint testi başarısız: $($resetCode.StatusCode)" }
+          Write-Host 'SMTP STARTTLS + credential authentication + sender envelope ve mail endpoint testleri geçti.'
 
       - name: Release build test
         shell: pwsh
@@ -251,7 +313,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "android-$env:GITHUB_RUN_NUMBER"
-          gh release create $tag "$env:GITHUB_WORKSPACE\VALE.apk" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "VALE Android $env:APP_VERSION" --notes "VALE 3.1.1: gerçek Firebase Cloud Messaging push bildirimleri, cihaz token yönetimi ve push testi; production SMTP ile e-posta koduyla giriş ve şifre sıfırlama; mevcut multi-tenant VALE 3.1 özellikleri korunmuştur."
+          gh release create $tag "$env:GITHUB_WORKSPACE\VALE.apk" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "VALE Android $env:APP_VERSION" --notes "VALE 3.1.2: girişte bloklayan uzun sunucu hazırlık preflight'ı kaldırıldı ve arka plan warm-up + doğrudan login getirildi; alt navigasyona büyük gerçek ikonlar eklendi; Google/Microsoft Authenticator uyumlu QR TOTP kurulumu ve ayrı OTP giriş ekranı eklendi; SMTP STARTTLS/credential probe, FCM, dependency vulnerability, secret exposure, auth ve security-header testleri release kapısına eklendi."
 
       - name: Publish Android release status
         if: always() && github.ref == 'refs/heads/main'
@@ -261,6 +323,6 @@ jobs:
           JOB_STATUS: ${{ job.status }}
         run: |
           $state = if ($env:JOB_STATUS -eq 'success') { 'success' } else { 'failure' }
-          $description = if ($state -eq 'success') { 'VALE Android 3.1.1 SMTP+FCM test edildi ve yayınlandı.' } else { 'VALE Android 3.1.1 yayını engellendi/başarısız; run logunu kontrol edin.' }
+          $description = if ($state -eq 'success') { 'VALE Android 3.1.2 login+Authenticator+security test edildi ve yayınlandı.' } else { 'VALE Android 3.1.2 yayını engellendi/başarısız; run logunu kontrol edin.' }
           $target = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
           gh api --method POST "repos/$env:GITHUB_REPOSITORY/statuses/$env:GITHUB_SHA" -f state=$state -f context='vale/android-release' -f description=$description -f target_url=$target

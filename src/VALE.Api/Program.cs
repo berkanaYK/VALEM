@@ -111,6 +111,7 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("password-reset", context => Fixed(context, 5, TimeSpan.FromMinutes(15)));
     options.AddPolicy("email-code", context => Fixed(context, 5, TimeSpan.FromMinutes(10)));
     options.AddPolicy("2fa", context => Fixed(context, 10, TimeSpan.FromMinutes(5)));
+    options.AddPolicy("diagnostic", context => Fixed(context, 3, TimeSpan.FromMinutes(5)));
 });
 
 builder.Services.AddProblemDetails();
@@ -164,10 +165,22 @@ app.MapGet("/health/ready", async (ValeDbContext db, CancellationToken ct) =>
         return Results.Json(new { status = "not-ready", database = "unavailable" }, statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 }).AllowAnonymous();
+
+app.MapGet("/health/email", async (IValeEmailSender email, CancellationToken ct) =>
+{
+    if (!email.IsConfigured)
+        return Results.Json(new { status = "not-ready", smtp = false, stage = "not-configured" }, statusCode: StatusCodes.Status503ServiceUnavailable);
+
+    var probe = await email.ProbeAsync(ct);
+    return probe.Success
+        ? Results.Ok(new { status = "ready", smtp = true, stage = probe.Stage, utc = DateTimeOffset.UtcNow })
+        : Results.Json(new { status = "not-ready", smtp = false, stage = probe.Stage }, statusCode: StatusCodes.Status503ServiceUnavailable);
+}).AllowAnonymous().RequireRateLimiting("diagnostic");
+
 app.MapGet("/api/status", (IValeEmailSender email, FirebasePushSender push) => Results.Ok(new
 {
     service = "VALE.Api",
-    version = "3.1.1",
+    version = "3.1.2",
     status = "ok",
     capabilities = new
     {

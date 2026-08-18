@@ -29,16 +29,17 @@ public sealed class ValeAppShellV31 : Shell
         };
 
         var tabs = new TabBar { Title = "VALE" };
-        tabs.Items.Add(CreateTab("🏠 Ana", new CompanyDashboardPage(api, user)));
-        tabs.Items.Add(CreateTab("🚗 Araçlar", new CompanyTicketsPage(api, user)));
-        tabs.Items.Add(CreateTab("📊 Raporlar", CompanyAccess.CanReport(user)
+        tabs.Items.Add(CreateTab("Ana", "tab_home.svg", new CompanyDashboardPage(api, user)));
+        tabs.Items.Add(CreateTab("Araçlar", "tab_car.svg", new CompanyTicketsPage(api, user)));
+        tabs.Items.Add(CreateTab("Raporlar", "tab_report.svg", CompanyAccess.CanReport(user)
             ? new ReportsV31Page(api)
             : new RestrictedPage("Raporlar", "Bu hesap için rapor görüntüleme yetkisi tanımlı değil.")));
-        tabs.Items.Add(CreateTab("🔔 Bildirim", new NotificationsPage(api, user)));
-        tabs.Items.Add(CreateTab("☰ Daha", new MoreHubPage(api, user)));
+        tabs.Items.Add(CreateTab("Bildirim", "tab_bell.svg", new NotificationsPage(api, user)));
+        tabs.Items.Add(CreateTab("Daha", "tab_more.svg", new MoreHubPage(api, user)));
         Items.Add(tabs);
 
         Items.Add(CreateFlyout("👤 Profil", new CompanyProfilePage(api, user)));
+        Items.Add(CreateFlyout("🔐 Authenticator", new AuthenticatorSecurityPage(api)));
         if (CompanyAccess.CanManageUsers(user)) Items.Add(CreateFlyout("👥 Ekip", new TeamManagementPage(api, user)));
         if (CompanyAccess.CanManageBranches(user)) Items.Add(CreateFlyout("🏢 Firma & Şubeler", new CompanyManagementPage(api)));
         if (CompanyAccess.CanAudit(user)) Items.Add(CreateFlyout("🧾 Denetim Kayıtları", new AuditPage(api)));
@@ -47,11 +48,11 @@ public sealed class ValeAppShellV31 : Shell
         Items.Add(CreateFlyout("🚪 Çıkış", new LogoutPage(api)));
     }
 
-    private static Tab CreateTab(string title, Page page)
+    private static Tab CreateTab(string title, string icon, Page page)
     {
         page.Title = title;
-        var tab = new Tab { Title = title };
-        tab.Items.Add(new ShellContent { Title = title, Content = page });
+        var tab = new Tab { Title = title, Icon = icon };
+        tab.Items.Add(new ShellContent { Title = title, Icon = icon, Content = page });
         return tab;
     }
 
@@ -193,7 +194,7 @@ public sealed class ValeHelpPage : ContentPage
                     UiKit.Label("VALE Yardım", 27, true),
                     UiKit.Card(new VerticalStackLayout { Spacing = 6, Children = { UiKit.Label("Personel katılımı", 16, true), UiKit.Label("Firma yöneticinizden firma + şube kodunu veya davet kodunu alın. Başvurunuz yalnızca ilgili firmanın yöneticilerine düşer.", 12.5, false, true) } }),
                     UiKit.Card(new VerticalStackLayout { Spacing = 6, Children = { UiKit.Label("Araç ücreti", 16, true), UiKit.Label("Aktif aracın tahmini ücreti araç detayında anlık gösterilir; kesin tahsilat teslim anında hesaplanır.", 12.5, false, true) } }),
-                    UiKit.Card(new VerticalStackLayout { Spacing = 6, Children = { UiKit.Label("Bildirim ve güvenlik", 16, true), UiKit.Label("Authenticator 2FA, e-posta ile giriş ve gerçek Firebase push bildirimleri yapılandırılmış sunucuda kullanılabilir.", 12.5, false, true) } })
+                    UiKit.Card(new VerticalStackLayout { Spacing = 6, Children = { UiKit.Label("Bildirim ve güvenlik", 16, true), UiKit.Label("Google/Microsoft Authenticator TOTP, e-posta ile giriş ve gerçek Firebase push bildirimleri kullanılabilir.", 12.5, false, true) } })
                 }
             }
         };

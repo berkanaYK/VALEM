@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- VALE Company v3.1.1 release. -->
+  <!-- VALE Company v3.1.2 release. -->
   <PropertyGroup>
     <TargetFramework>net10.0-android</TargetFramework>
     <OutputType>Exe</OutputType>
@@ -11,12 +11,13 @@
     <UseNativeHttpHandler>false</UseNativeHttpHandler>
     <ApplicationTitle>VALE</ApplicationTitle>
     <ApplicationId>com.berkanayk.vale</ApplicationId>
-    <ApplicationDisplayVersion>3.1.1</ApplicationDisplayVersion>
-    <ApplicationVersion>11</ApplicationVersion>
+    <ApplicationDisplayVersion>3.1.2</ApplicationDisplayVersion>
+    <ApplicationVersion>12</ApplicationVersion>
     <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" Version="10.0.20" />
+    <PackageReference Include="QRCoder" Version="1.8.0" />
     <PackageReference Include="Xamarin.Firebase.Messaging" Version="125.1.1" />
     <ProjectReference Include="..\VALE.Contracts\VALE.Contracts.csproj" />
   </ItemGroup>
@@ -27,6 +28,7 @@
               ForegroundScale="0.72" />
     <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#F4F6FB" BaseSize="256,256" />
     <MauiImage Include="Resources\Images\*" />
+    <MauiImage Update="Resources\Images\tab_*.svg" BaseSize="32,32" />
     <GoogleServicesJson Include="Platforms\Android\google-services.json" Condition="Exists('Platforms\Android\google-services.json')" />
   </ItemGroup>
 </Project>
