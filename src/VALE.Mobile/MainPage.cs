@@ -1,4 +1,5 @@
 using Microsoft.Maui.Controls;
+using VALE.Contracts;
 
 namespace VALE.Mobile;
 
