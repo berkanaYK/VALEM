@@ -22,6 +22,8 @@ public sealed record RegisterRequest(
     [param: MaxLength(30)] string? CompanyCode = null,
     [param: MaxLength(160)] string? CompanyName = null,
     [param: MaxLength(120)] string? BranchName = null,
+    [param: MaxLength(80)] string? BranchCity = null,
+    [param: MaxLength(300)] string? BranchAddress = null,
     [param: MaxLength(40)] string? InviteCode = null,
     [param: MaxLength(40)] string? RequestedRole = null);
 
