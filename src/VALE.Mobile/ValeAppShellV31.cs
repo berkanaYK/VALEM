@@ -31,7 +31,7 @@ public sealed class ValeAppShellV31 : Shell
         tabs.Items.Add(CreateTab("🏠 Ana", new CompanyDashboardPage(api, user)));
         tabs.Items.Add(CreateTab("🚗 Araçlar", new CompanyTicketsPage(api, user)));
         tabs.Items.Add(CreateTab("📊 Raporlar", CompanyAccess.CanReport(user)
-            ? new ModernReportsPage(api)
+            ? new ReportsV31Page(api)
             : new RestrictedPage("Raporlar", "Bu hesap için rapor görüntüleme yetkisi tanımlı değil.")));
         tabs.Items.Add(CreateTab("🔔 Bildirim", new NotificationsPage(api, user)));
         tabs.Items.Add(CreateTab("☰ Daha", new MoreHubPage(api, user)));
