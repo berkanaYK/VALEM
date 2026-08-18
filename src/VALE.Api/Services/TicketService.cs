@@ -186,11 +186,11 @@ public sealed class TicketService(ValeDbContext db, CurrentUserContext currentUs
 
     private async Task<Vehicle> UpsertVehicleAsync(string normalizedPlate, string plate, string? brand, string? model, string? color, int? year, string? fuel, string? transmission, string? photoBase64, bool removePhoto, CancellationToken cancellationToken)
     {
-        var vehicle = await db.Vehicles.SingleOrDefaultAsync(x => x.NormalizedPlate == normalizedPlate, cancellationToken);
+        var vehicle = await db.Vehicles.SingleOrDefaultAsync(x => x.CompanyId == currentUser.CompanyId && x.NormalizedPlate == normalizedPlate, cancellationToken);
         var photo = string.IsNullOrWhiteSpace(photoBase64) ? null : NormalizePhoto(photoBase64);
         if (vehicle is null)
         {
-            vehicle = new Vehicle { LicensePlate = plate.Trim().ToUpperInvariant(), NormalizedPlate = normalizedPlate, Brand = Clean(brand), Model = Clean(model), Color = Clean(color), Year = year, FuelType = Clean(fuel), Transmission = Clean(transmission), PhotoBase64 = photo };
+            vehicle = new Vehicle { CompanyId = currentUser.CompanyId, LicensePlate = plate.Trim().ToUpperInvariant(), NormalizedPlate = normalizedPlate, Brand = Clean(brand), Model = Clean(model), Color = Clean(color), Year = year, FuelType = Clean(fuel), Transmission = Clean(transmission), PhotoBase64 = photo };
             db.Vehicles.Add(vehicle);
         }
         else
@@ -206,10 +206,10 @@ public sealed class TicketService(ValeDbContext db, CurrentUserContext currentUs
     {
         var normalizedPhone = TextNormalizer.Phone(phone);
         Customer? customer = null;
-        if (normalizedPhone is not null) customer = await db.Customers.SingleOrDefaultAsync(x => x.NormalizedPhone == normalizedPhone, cancellationToken);
+        if (normalizedPhone is not null) customer = await db.Customers.SingleOrDefaultAsync(x => x.CompanyId == currentUser.CompanyId && x.NormalizedPhone == normalizedPhone, cancellationToken);
         if (customer is null && (!string.IsNullOrWhiteSpace(name) || normalizedPhone is not null))
         {
-            customer = new Customer { Name = Clean(name) ?? "Misafir Müşteri", Phone = Clean(phone), NormalizedPhone = normalizedPhone };
+            customer = new Customer { CompanyId = currentUser.CompanyId, Name = Clean(name) ?? "Misafir Müşteri", Phone = Clean(phone), NormalizedPhone = normalizedPhone };
             db.Customers.Add(customer);
         }
         else if (customer is not null)
