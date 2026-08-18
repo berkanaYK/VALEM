@@ -79,6 +79,7 @@ public sealed class ValeNotification
 public sealed class Customer
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CompanyId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? Phone { get; set; }
     public string? NormalizedPhone { get; set; }
@@ -88,6 +89,7 @@ public sealed class Customer
 public sealed class Vehicle
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CompanyId { get; set; }
     public string LicensePlate { get; set; } = string.Empty;
     public string NormalizedPlate { get; set; } = string.Empty;
     public string? Brand { get; set; }
