@@ -10,6 +10,8 @@ public static class PushTokenManager
     private static readonly SemaphoreSlim Gate = new(1, 1);
     private static ApiClient? _api;
 
+    // The Firebase token survives logout locally, but its server registration is deactivated.
+    // A later authenticated session safely re-registers the same token for the new user.
     public static string? CurrentToken => Preferences.Default.Get(TokenPreference, string.Empty) is { Length: > 0 } token ? token : null;
 
     public static async Task AttachAsync(ApiClient api, CancellationToken cancellationToken = default)
