@@ -1,0 +1,209 @@
+<Page
+    x:Class="VALE.Client.Pages.ReportsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:VALE.Client.ViewModels"
+    Loaded="ReportsPage_Loaded">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel
+            MaxWidth="1120"
+            Padding="{StaticResource PagePadding}"
+            HorizontalAlignment="Left"
+            Spacing="18">
+
+            <StackPanel Spacing="4">
+                <TextBlock Style="{StaticResource PageTitleStyle}" Text="Raporlar ve analiz" />
+                <TextBlock
+                    Style="{StaticResource PageSubtitleStyle}"
+                    Text="Operasyon yoğunluğunu, tahsilatları ve araç trendlerini istediğiniz tarih aralığında inceleyin." />
+            </StackPanel>
+
+            <InfoBar
+                IsClosable="False"
+                IsOpen="{x:Bind ViewModel.HasError, Mode=OneWay}"
+                Message="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}"
+                Severity="Error" />
+
+            <Border Style="{StaticResource CardBorderStyle}">
+                <Grid ColumnSpacing="12" RowSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.2*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <ComboBox
+                        x:Name="PresetCombo"
+                        Header="Dönem"
+                        MinWidth="190"
+                        SelectedIndex="1"
+                        SelectionChanged="PresetCombo_SelectionChanged">
+                        <ComboBoxItem Content="Bugün" />
+                        <ComboBoxItem Content="Son 7 gün" />
+                        <ComboBoxItem Content="Son 30 gün" />
+                        <ComboBoxItem Content="Son 90 gün" />
+                        <ComboBoxItem Content="Özel tarih" />
+                    </ComboBox>
+
+                    <DatePicker
+                        Grid.Column="1"
+                        Header="Başlangıç"
+                        SelectedDate="{x:Bind ViewModel.StartDate, Mode=TwoWay}" />
+                    <DatePicker
+                        Grid.Column="2"
+                        Header="Bitiş"
+                        SelectedDate="{x:Bind ViewModel.EndDate, Mode=TwoWay}" />
+                    <Button
+                        Grid.Column="3"
+                        MinWidth="140"
+                        VerticalAlignment="Bottom"
+                        Command="{x:Bind ViewModel.LoadCommand}"
+                        Content="Raporu güncelle"
+                        IsEnabled="{x:Bind ViewModel.IsNotBusy, Mode=OneWay}"
+                        Style="{StaticResource PrimaryActionButtonStyle}" />
+                </Grid>
+            </Border>
+
+            <Grid ColumnSpacing="12" RowSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Border Style="{StaticResource CardBorderStyle}">
+                    <StackPanel Spacing="5">
+                        <TextBlock Style="{StaticResource MetricLabelStyle}" Text="ARAÇ GİRİŞİ" />
+                        <TextBlock Style="{StaticResource MetricValueStyle}" Text="{x:Bind ViewModel.TotalVehicles, Mode=OneWay}" />
+                        <TextBlock Style="{StaticResource PageSubtitleStyle}" Text="Seçilen dönemde" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="1" Style="{StaticResource CardBorderStyle}">
+                    <StackPanel Spacing="5">
+                        <TextBlock Style="{StaticResource MetricLabelStyle}" Text="TESLİM" />
+                        <TextBlock Style="{StaticResource MetricValueStyle}" Text="{x:Bind ViewModel.DeliveredVehicles, Mode=OneWay}" />
+                        <TextBlock Style="{StaticResource PageSubtitleStyle}" Text="Tamamlanan işlem" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="2" Style="{StaticResource CardBorderStyle}">
+                    <StackPanel Spacing="5">
+                        <TextBlock Style="{StaticResource MetricLabelStyle}" Text="CİRO" />
+                        <TextBlock Style="{StaticResource MetricValueStyle}" Text="{x:Bind ViewModel.Revenue, Mode=OneWay}" />
+                        <TextBlock Style="{StaticResource PageSubtitleStyle}" Text="Toplam tahsilat" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}">
+                    <StackPanel Spacing="5">
+                        <TextBlock Style="{StaticResource MetricLabelStyle}" Text="ORTALAMA TUTAR" />
+                        <TextBlock Style="{StaticResource MetricValueStyle}" Text="{x:Bind ViewModel.AverageRevenue, Mode=OneWay}" />
+                        <TextBlock Style="{StaticResource PageSubtitleStyle}" Text="Teslim başına" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource CardBorderStyle}">
+                    <StackPanel Spacing="5">
+                        <TextBlock Style="{StaticResource MetricLabelStyle}" Text="ORTALAMA PARK" />
+                        <TextBlock Style="{StaticResource MetricValueStyle}" Text="{x:Bind ViewModel.AverageParking, Mode=OneWay}" />
+                        <TextBlock Style="{StaticResource PageSubtitleStyle}" Text="Araç başına süre" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource CardBorderStyle}">
+                    <StackPanel Spacing="5">
+                        <TextBlock Style="{StaticResource MetricLabelStyle}" Text="İPTAL" />
+                        <TextBlock Style="{StaticResource MetricValueStyle}" Text="{x:Bind ViewModel.CancelledVehicles, Mode=OneWay}" />
+                        <TextBlock Style="{StaticResource PageSubtitleStyle}" Text="İptal edilen kayıt" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Grid ColumnSpacing="16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Spacing="10">
+                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Günlük ciro" />
+                    <Border Style="{StaticResource CardBorderStyle}">
+                        <ItemsControl ItemsSource="{x:Bind ViewModel.Daily}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:DailyReportRow">
+                                    <Grid Margin="0,5" ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="95" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="130" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock FontWeight="SemiBold" Text="{x:Bind Day}" />
+                                            <TextBlock FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind Summary}" />
+                                        </StackPanel>
+                                        <ProgressBar
+                                            Grid.Column="1"
+                                            Height="9"
+                                            VerticalAlignment="Center"
+                                            Maximum="{x:Bind MaximumRevenue}"
+                                            Value="{x:Bind Revenue}" />
+                                        <TextBlock
+                                            Grid.Column="2"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center"
+                                            FontWeight="SemiBold"
+                                            Text="{x:Bind RevenueText}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Border>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Spacing="10">
+                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Ödeme dağılımı" />
+                    <Border Style="{StaticResource CardBorderStyle}">
+                        <TextBlock TextWrapping="Wrap" Text="{x:Bind ViewModel.PaymentBreakdown, Mode=OneWay}" />
+                    </Border>
+                    <TextBlock Margin="0,8,0,0" Style="{StaticResource SectionTitleStyle}" Text="En sık markalar" />
+                    <Border Style="{StaticResource CardBorderStyle}">
+                        <TextBlock TextWrapping="Wrap" Text="{x:Bind ViewModel.TopBrands, Mode=OneWay}" />
+                    </Border>
+                </StackPanel>
+            </Grid>
+
+            <StackPanel Spacing="10">
+                <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Saatlik teslim yoğunluğu" />
+                <Border Style="{StaticResource CardBorderStyle}">
+                    <ItemsControl ItemsSource="{x:Bind ViewModel.Hourly}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:HourlyReportRow">
+                                <Grid Margin="0,4" ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="70" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="190" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock FontWeight="SemiBold" Text="{x:Bind Hour}" />
+                                    <ProgressBar
+                                        Grid.Column="1"
+                                        Height="8"
+                                        VerticalAlignment="Center"
+                                        Maximum="{x:Bind MaximumDelivered}"
+                                        Value="{x:Bind Delivered}" />
+                                    <TextBlock
+                                        Grid.Column="2"
+                                        HorizontalAlignment="Right"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        Text="{x:Bind Summary}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Page>
