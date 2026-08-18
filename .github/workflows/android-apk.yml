@@ -126,7 +126,9 @@ jobs:
           if ($tracked -match '(^|/)google-services\.json$' -or $tracked -match 'service[-_]?account.*\.json$') {
             throw 'Firebase credential/config dosyası repoya commit edilmiş.'
           }
-          $matches = git grep -n -I -E -- 'BEGIN PRIVATE KEY|AIza[0-9A-Za-z_-]{30,}' -- . 2>$null
+          $privateKeyPattern = ('BEGIN ' + 'PRIVATE KEY')
+          $googleApiPattern = ('AI' + 'za[0-9A-Za-z_-]{30,}')
+          $matches = git grep -n -I -E -- "$privateKeyPattern|$googleApiPattern" -- . 2>$null
           if ($LASTEXITCODE -eq 0 -and $matches) {
             Write-Host $matches
             throw 'Repository içinde private key veya Google API key benzeri secret bulundu.'
@@ -205,9 +207,14 @@ jobs:
             Start-Sleep -Seconds 5
           }
           if (-not $ready) { throw 'Production VALE API hazır hale gelmedi.' }
-          foreach ($header in @{'X-Content-Type-Options'='nosniff';'X-Frame-Options'='DENY';'Referrer-Policy'='no-referrer'}) {
-            $actual = [string]$health.Headers[$header.Key]
-            if ($actual -notmatch [regex]::Escape($header.Value)) { throw "Eksik/güvensiz security header: $($header.Key)=$actual" }
+          $expectedHeaders = @{
+            'X-Content-Type-Options' = 'nosniff'
+            'X-Frame-Options' = 'DENY'
+            'Referrer-Policy' = 'no-referrer'
+          }
+          foreach ($key in $expectedHeaders.Keys) {
+            $actual = [string]$health.Headers[$key]
+            if ($actual -notmatch [regex]::Escape($expectedHeaders[$key])) { throw "Eksik/güvensiz security header: $key=$actual" }
           }
           $dashboard = Invoke-WebRequest "$endpoint/api/dashboard" -TimeoutSec 20 -SkipHttpErrorCheck
           if ($dashboard.StatusCode -ne 401) { throw "Yetkisiz dashboard erişimi engellenmedi: $($dashboard.StatusCode)" }
