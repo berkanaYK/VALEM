@@ -136,9 +136,9 @@ public static class ThemeService
                 Shell.SetForegroundColor(shell, palette.Text);
                 foreach (var item in shell.Items)
                 foreach (var section in item.Items)
-                foreach (var content in section.Items)
-                    if (content.Content is Page contentPage)
-                        RefreshPageChrome(contentPage, previous, palette);
+                foreach (var shellContent in section.Items)
+                    if (shellContent.Content is Page shellPage)
+                        RefreshPageChrome(shellPage, previous, palette);
                 break;
 
             case TabbedPage tabs:
@@ -146,15 +146,15 @@ public static class ThemeService
                 tabs.BarTextColor = palette.Text;
                 tabs.SelectedTabColor = palette.Accent;
                 tabs.UnselectedTabColor = palette.Secondary;
-                foreach (var child in tabs.Children)
-                    RefreshPageChrome(child, previous, palette);
+                foreach (var tabChild in tabs.Children)
+                    RefreshPageChrome(tabChild, previous, palette);
                 break;
 
             case NavigationPage navigation:
                 navigation.BarBackgroundColor = palette.Card;
                 navigation.BarTextColor = palette.Text;
-                foreach (var child in navigation.Navigation.NavigationStack)
-                    RefreshPageChrome(child, previous, palette);
+                foreach (var navigationChild in navigation.Navigation.NavigationStack)
+                    RefreshPageChrome(navigationChild, previous, palette);
                 break;
 
             case FlyoutPage flyout:
@@ -163,8 +163,8 @@ public static class ThemeService
                 break;
 
             case ContentPage contentPage:
-                if (contentPage.Content is Element content)
-                    RefreshElementColors(content, previous, palette);
+                if (contentPage.Content is Element pageContent)
+                    RefreshElementColors(pageContent, previous, palette);
                 break;
         }
     }
@@ -189,21 +189,21 @@ public static class ThemeService
         switch (element)
         {
             case Layout layout:
-                foreach (var child in layout.Children)
-                    if (child is Element childElement)
+                foreach (var layoutChild in layout.Children)
+                    if (layoutChild is Element childElement)
                         RefreshElementColors(childElement, previous, palette);
                 break;
 
-            case Border border when border.Content is Element child:
-                RefreshElementColors(child, previous, palette);
+            case Border border when border.Content is Element borderChild:
+                RefreshElementColors(borderChild, previous, palette);
                 break;
 
-            case ScrollView scroll when scroll.Content is Element child:
-                RefreshElementColors(child, previous, palette);
+            case ScrollView scroll when scroll.Content is Element scrollChild:
+                RefreshElementColors(scrollChild, previous, palette);
                 break;
 
-            case ContentView view when view.Content is Element child:
-                RefreshElementColors(child, previous, palette);
+            case ContentView view when view.Content is Element viewChild:
+                RefreshElementColors(viewChild, previous, palette);
                 break;
         }
     }
