@@ -16,6 +16,7 @@ public static class UiKit
             Text = text,
             FontSize = size,
             FontAttributes = bold ? FontAttributes.Bold : FontAttributes.None,
+            FontAutoScalingEnabled = true,
             LineBreakMode = LineBreakMode.WordWrap
         };
         label.SetDynamicResource(Microsoft.Maui.Controls.Label.TextColorProperty, secondary ? "ValeSecondary" : "ValeText");
@@ -31,7 +32,9 @@ public static class UiKit
             IsPassword = password,
             MinimumHeightRequest = 54,
             FontSize = 15,
+            FontAutoScalingEnabled = true,
             Margin = new Thickness(0, 2),
+            HorizontalOptions = LayoutOptions.Fill,
             ClearButtonVisibility = password ? ClearButtonVisibility.Never : ClearButtonVisibility.WhileEditing
         };
         entry.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeSoftCard");
@@ -47,7 +50,9 @@ public static class UiKit
             Placeholder = placeholder,
             MinimumHeightRequest = 92,
             AutoSize = EditorAutoSizeOption.TextChanges,
-            FontSize = 15
+            FontSize = 15,
+            FontAutoScalingEnabled = true,
+            HorizontalOptions = LayoutOptions.Fill
         };
         editor.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeSoftCard");
         editor.SetDynamicResource(Microsoft.Maui.Controls.Editor.TextColorProperty, "ValeText");
@@ -61,7 +66,9 @@ public static class UiKit
         {
             Title = title,
             MinimumHeightRequest = 54,
-            FontSize = 15
+            FontSize = 15,
+            FontAutoScalingEnabled = true,
+            HorizontalOptions = LayoutOptions.Fill
         };
         picker.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeSoftCard");
         picker.SetDynamicResource(Microsoft.Maui.Controls.Picker.TextColorProperty, "ValeText");
@@ -73,12 +80,14 @@ public static class UiKit
     {
         Text = text,
         MinimumHeightRequest = 54,
-        Padding = new Thickness(18, 12),
+        Padding = new Thickness(16, 12),
         CornerRadius = 16,
         BackgroundColor = ThemeService.Palette.Accent,
         TextColor = Colors.White,
         FontAttributes = FontAttributes.Bold,
         FontSize = 15,
+        FontAutoScalingEnabled = true,
+        LineBreakMode = LineBreakMode.WordWrap,
         HorizontalOptions = LayoutOptions.Fill
     };
 
@@ -88,12 +97,14 @@ public static class UiKit
         {
             Text = text,
             MinimumHeightRequest = 52,
-            Padding = new Thickness(16, 11),
+            Padding = new Thickness(14, 11),
             CornerRadius = 15,
             BorderWidth = 1,
             BorderColor = ThemeService.Palette.Border,
             FontAttributes = FontAttributes.Bold,
             FontSize = 14,
+            FontAutoScalingEnabled = true,
+            LineBreakMode = LineBreakMode.WordWrap,
             HorizontalOptions = LayoutOptions.Fill
         };
         button.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeCard");
@@ -108,10 +119,12 @@ public static class UiKit
             Text = text,
             BackgroundColor = Colors.Transparent,
             BorderWidth = 0,
-            MinimumHeightRequest = 46,
-            Padding = new Thickness(10, 8),
+            MinimumHeightRequest = 48,
+            Padding = new Thickness(8, 8),
             FontSize = 14,
             FontAttributes = FontAttributes.Bold,
+            FontAutoScalingEnabled = true,
+            LineBreakMode = LineBreakMode.WordWrap,
             HorizontalOptions = LayoutOptions.Fill
         };
         button.SetDynamicResource(Button.TextColorProperty, "ValeAccent");
@@ -126,6 +139,7 @@ public static class UiKit
             StrokeThickness = 1,
             StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = radius },
             Padding = padding ?? new Thickness(16),
+            HorizontalOptions = LayoutOptions.Fill,
             Content = content
         };
         border.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeCard");
@@ -134,16 +148,25 @@ public static class UiKit
 
     public static (Border Card, Label Value) Metric(string title, string value, string caption)
     {
-        var valueLabel = Label(value, 23, true);
-        valueLabel.LineBreakMode = LineBreakMode.TailTruncation;
+        var valueLabel = Label(value, 21, true);
+        valueLabel.LineBreakMode = LineBreakMode.WordWrap;
+        valueLabel.MaxLines = 2;
+        valueLabel.MinimumHeightRequest = 30;
+        valueLabel.VerticalTextAlignment = TextAlignment.Center;
+
+        var titleLabel = Label(title, 10.5, true, true);
+        titleLabel.MaxLines = 2;
+        var captionLabel = Label(caption, 10.5, false, true);
+        captionLabel.MaxLines = 2;
+
         var content = new VerticalStackLayout
         {
             Spacing = 4,
             Children =
             {
-                Label(title, 10.5, true, true),
+                titleLabel,
                 valueLabel,
-                Label(caption, 10.5, false, true)
+                captionLabel
             }
         };
         return (Card(content, new Thickness(13), 18), valueLabel);
