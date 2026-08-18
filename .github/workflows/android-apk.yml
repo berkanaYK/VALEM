@@ -229,7 +229,7 @@ jobs:
           if ($register.StatusCode -ne 400) { throw "Register POST testi başarısız: $($register.StatusCode)" }
           Write-Host 'Production auth/security smoke tests passed.'
 
-      - name: Wait for VALE API SMTP and FCM capabilities on main
+      - name: Wait for VALE API 3.1.2 SMTP and FCM capabilities on main
         if: github.ref == 'refs/heads/main'
         shell: pwsh
         run: |
@@ -238,26 +238,31 @@ jobs:
           for ($i = 1; $i -le 75; $i++) {
             try {
               $status = Invoke-RestMethod "$endpoint/api/status" -TimeoutSec 12
-              if ($status.status -eq 'ok' -and $status.capabilities.smtp -eq $true -and $status.capabilities.fcm -eq $true) {
+              if ([string]$status.version -eq '3.1.2' -and $status.status -eq 'ok' -and $status.capabilities.smtp -eq $true -and $status.capabilities.fcm -eq $true) {
                 $profile = Invoke-WebRequest "$endpoint/api/auth/profile" -TimeoutSec 12 -SkipHttpErrorCheck
                 if ($profile.StatusCode -eq 401) { $newApi = $true; break }
               }
             } catch { }
             Start-Sleep -Seconds 10
           }
-          if (-not $newApi) { throw 'VALE API SMTP+FCM production ortamında hazır değil; APK yayınlanmadı.' }
+          if (-not $newApi) { throw 'VALE API 3.1.2 SMTP+FCM production ortamında hazır değil; APK yayınlanmadı.' }
 
-      - name: Production SMTP mail smoke tests
+      - name: Production SMTP TLS authentication probe
         if: github.ref == 'refs/heads/main'
         shell: pwsh
         run: |
           $endpoint = 'https://vale-api-5fvb.onrender.com'
-          $email = 'memeloialimon@gmail.com'
-          $loginCode = Invoke-WebRequest "$endpoint/api/auth/email-code/request" -Method Post -ContentType 'application/json' -Body (ConvertTo-Json @{ email = $email } -Compress) -TimeoutSec 30 -SkipHttpErrorCheck
-          if ($loginCode.StatusCode -ne 202) { throw "E-posta giriş kodu SMTP testi başarısız: $($loginCode.StatusCode)" }
-          $resetCode = Invoke-WebRequest "$endpoint/api/auth/forgot-password" -Method Post -ContentType 'application/json' -Body (ConvertTo-Json @{ email = $email } -Compress) -TimeoutSec 30 -SkipHttpErrorCheck
-          if ($resetCode.StatusCode -ne 202) { throw "Şifre sıfırlama SMTP testi başarısız: $($resetCode.StatusCode)" }
-          Write-Host 'SMTP endpoint testleri geçti. Hesap aktif/kayıtlıysa iki test e-postası gönderildi.'
+          $response = Invoke-WebRequest "$endpoint/health/email" -TimeoutSec 30 -SkipHttpErrorCheck
+          if ($response.StatusCode -ne 200) { throw "SMTP TLS/authentication probe başarısız: HTTP $($response.StatusCode)" }
+          $probe = $response.Content | ConvertFrom-Json
+          if ($probe.status -ne 'ready' -or $probe.smtp -ne $true -or $probe.stage -ne 'authenticated-envelope') {
+            throw "SMTP doğrulaması beklenen aşamaya ulaşmadı: $($probe.stage)"
+          }
+          $loginCode = Invoke-WebRequest "$endpoint/api/auth/email-code/request" -Method Post -ContentType 'application/json' -Body '{"email":"vale-ci-unregistered@invalid.example"}' -TimeoutSec 20 -SkipHttpErrorCheck
+          if ($loginCode.StatusCode -ne 202) { throw "E-posta kodu endpoint testi başarısız: $($loginCode.StatusCode)" }
+          $resetCode = Invoke-WebRequest "$endpoint/api/auth/forgot-password" -Method Post -ContentType 'application/json' -Body '{"email":"vale-ci-unregistered@invalid.example"}' -TimeoutSec 20 -SkipHttpErrorCheck
+          if ($resetCode.StatusCode -ne 202) { throw "Şifre sıfırlama endpoint testi başarısız: $($resetCode.StatusCode)" }
+          Write-Host 'SMTP STARTTLS + credential authentication + sender envelope ve mail endpoint testleri geçti.'
 
       - name: Release build test
         shell: pwsh
@@ -308,7 +313,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "android-$env:GITHUB_RUN_NUMBER"
-          gh release create $tag "$env:GITHUB_WORKSPACE\VALE.apk" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "VALE Android $env:APP_VERSION" --notes "VALE 3.1.2: girişte bloklayan uzun sunucu hazırlık preflight'ı kaldırıldı ve arka plan warm-up + doğrudan login getirildi; alt navigasyona büyük gerçek ikonlar eklendi; Google/Microsoft Authenticator uyumlu QR TOTP kurulumu ve ayrı OTP giriş ekranı eklendi; SMTP, FCM, dependency vulnerability, secret exposure, auth ve security-header testleri release kapısına eklendi."
+          gh release create $tag "$env:GITHUB_WORKSPACE\VALE.apk" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "VALE Android $env:APP_VERSION" --notes "VALE 3.1.2: girişte bloklayan uzun sunucu hazırlık preflight'ı kaldırıldı ve arka plan warm-up + doğrudan login getirildi; alt navigasyona büyük gerçek ikonlar eklendi; Google/Microsoft Authenticator uyumlu QR TOTP kurulumu ve ayrı OTP giriş ekranı eklendi; SMTP STARTTLS/credential probe, FCM, dependency vulnerability, secret exposure, auth ve security-header testleri release kapısına eklendi."
 
       - name: Publish Android release status
         if: always() && github.ref == 'refs/heads/main'
