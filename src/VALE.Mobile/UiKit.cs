@@ -57,15 +57,15 @@ public static class UiKit
 
     public static Picker Picker(string title)
     {
-        var picker = new Picker
+        var picker = new Microsoft.Maui.Controls.Picker
         {
             Title = title,
             MinimumHeightRequest = 54,
             FontSize = 15
         };
         picker.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeSoftCard");
-        picker.SetDynamicResource(Picker.TextColorProperty, "ValeText");
-        picker.SetDynamicResource(Picker.TitleColorProperty, "ValeSecondary");
+        picker.SetDynamicResource(Microsoft.Maui.Controls.Picker.TextColorProperty, "ValeText");
+        picker.SetDynamicResource(Microsoft.Maui.Controls.Picker.TitleColorProperty, "ValeSecondary");
         return picker;
     }
 
