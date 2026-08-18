@@ -63,18 +63,20 @@ jobs:
 
       - name: Run API tests
         shell: pwsh
-        run: dotnet test tests/VALE.Api.Tests/VALE.Api.Tests.csproj -c Release --no-restore --no-build --logger "console;verbosity=normal"
+        run: dotnet test tests/VALE.Api.Tests/VALE.Api.Tests.csproj -c Release --no-restore --logger "console;verbosity=normal"
 
       - name: Verify security policies
         shell: pwsh
         run: |
           $program = Get-Content 'src/VALE.Api/Program.cs' -Raw
-          @('ManageUsersPolicy','FinancePolicy','ReportsPolicy','AuditPolicy','RecordsEditPolicy','DeleteRecordsPolicy') | ForEach-Object {
-            if ($program -notmatch [regex]::Escape($_)) { throw "Eksik güvenlik policy: $_" }
+          @('ManageUsersPolicy','FinancePolicy','ReportsPolicy','AuditPolicy','RecordsEditPolicy','DeleteRecordsPolicy','security_stamp') | ForEach-Object {
+            if ($program -notmatch [regex]::Escape($_)) { throw "Eksik güvenlik kontrolü: $_" }
           }
           $tickets = Get-Content 'src/VALE.Api/Controllers/TicketsController.cs' -Raw
           if ($tickets -notmatch 'DeleteRecordsPolicy') { throw 'Silme endpointi policy ile korunmuyor.' }
           if ($tickets -notmatch 'RecordsEditPolicy') { throw 'Düzeltme endpointi policy ile korunmuyor.' }
           $auth = Get-Content 'src/VALE.Api/Controllers/AuthController.cs' -Raw
-          if ($auth -notmatch '2fa/setup' -or $auth -notmatch '2fa/enable') { throw '2FA endpointleri eksik.' }
+          if ($auth -notmatch '2fa/setup' -or $auth -notmatch '2fa/enable' -or $auth -notmatch 'email-code/verify') { throw 'Kimlik doğrulama güvenlik endpointleri eksik.' }
+          $admin = Get-Content 'src/VALE.Api/Controllers/AdminController.cs' -Raw
+          if ($admin -notmatch 'UpdateSecurityStampAsync') { throw 'Yetki değişikliklerinde aktif oturum iptali eksik.' }
           Write-Host 'VALE API security policy source checks passed.'
