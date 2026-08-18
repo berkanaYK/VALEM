@@ -358,13 +358,17 @@ public sealed class ModernNewTicketPage : ContentPage
             }
             year = parsed;
         }
+
         decimal? rate = null;
-        if (!string.IsNullOrWhiteSpace(_rate.Text) && !decimal.TryParse(_rate.Text, NumberStyles.Number, CultureInfo.CurrentCulture, out var parsedRate))
+        if (!string.IsNullOrWhiteSpace(_rate.Text))
         {
-            await DisplayAlertAsync("Ücret", "Saatlik ücret geçerli değil.", "Tamam");
-            return;
+            if (!decimal.TryParse(_rate.Text, NumberStyles.Number, CultureInfo.CurrentCulture, out var parsedRate))
+            {
+                await DisplayAlertAsync("Ücret", "Saatlik ücret geçerli değil.", "Tamam");
+                return;
+            }
+            rate = parsedRate;
         }
-        else if (!string.IsNullOrWhiteSpace(_rate.Text)) rate = parsedRate;
 
         var manual = _brand.SelectedItem?.ToString() == "Diğer";
         var brand = manual ? N(_manualBrand.Text) : N(_brand.SelectedItem?.ToString());
