@@ -69,7 +69,7 @@ jobs:
             exit 1
           fi
 
-      - name: API smoke and security checks
+      - name: API smoke security vehicle and reporting checks
         shell: bash
         env:
           ASPNETCORE_URLS: http://127.0.0.1:5080
@@ -83,6 +83,7 @@ jobs:
           Seed__AdminFullName: CI Admin
           Email__Enabled: "false"
         run: |
+          set -euo pipefail
           dotnet run --project src/VALE.Api/VALE.Api.csproj -c Release --no-build --no-launch-profile > api.log 2>&1 &
           API_PID=$!
           trap 'kill $API_PID || true; cat api.log' EXIT
@@ -103,8 +104,24 @@ jobs:
           login=$(curl -fsS -H 'Content-Type: application/json' -d '{"email":"admin@vale.test","password":"StrongTest!123"}' http://127.0.0.1:5080/api/auth/login)
           token=$(echo "$login" | jq -r '.accessToken')
           test -n "$token" && test "$token" != "null"
-          curl -fsS -H "Authorization: Bearer $token" http://127.0.0.1:5080/api/dashboard > /dev/null
-          curl -fsS -H "Authorization: Bearer $token" http://127.0.0.1:5080/api/reports/summary > /dev/null
+          auth=(-H "Authorization: Bearer $token")
+          curl -fsS "${auth[@]}" http://127.0.0.1:5080/api/dashboard > /dev/null
+
+          tiny_png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZlM8AAAAASUVORK5CYII='
+          create_payload=$(jq -nc --arg photo "$tiny_png" '{branchId:null,licensePlate:"07 TEST 210",brand:"Toyota",model:"Corolla",color:"Beyaz",customerName:"CI Müşteri",customerPhone:"05550000001",keyTag:"K-21",parkingSpot:"A-01",notes:"CI fotoğraflı araç",hourlyRate:150,year:2024,fuelType:"Hibrit",transmission:"Otomatik",photoBase64:$photo}')
+          ticket=$(curl -fsS "${auth[@]}" -H 'Content-Type: application/json' -d "$create_payload" http://127.0.0.1:5080/api/tickets)
+          ticket_id=$(echo "$ticket" | jq -r '.id')
+          test -n "$ticket_id" && test "$ticket_id" != "null"
+          echo "$ticket" | jq -e '.year == 2024 and .fuelType == "Hibrit" and .transmission == "Otomatik" and .hasPhoto == true' > /dev/null
+
+          detail=$(curl -fsS "${auth[@]}" http://127.0.0.1:5080/api/tickets/$ticket_id)
+          echo "$detail" | jq -e '.ticket.licensePlate == "07 TEST 210" and .ticket.year == 2024 and (.photoBase64 | length) > 20' > /dev/null
+
+          checkout=$(curl -fsS "${auth[@]}" -H 'Content-Type: application/json' -d '{"paymentMethod":"Card"}' http://127.0.0.1:5080/api/tickets/$ticket_id/checkout)
+          echo "$checkout" | jq -e '.ticket.status == "Delivered" and .paidAmount > 0' > /dev/null
+
+          report=$(curl -fsS "${auth[@]}" http://127.0.0.1:5080/api/reports/summary)
+          echo "$report" | jq -e '.deliveredVehicles >= 1 and .revenue > 0 and (.hourly | length) == 24 and (.daily | length) >= 7 and (.topBrands | any(.brand == "Toyota" and .vehicles >= 1))' > /dev/null
 
           reg_status=$(curl -sS -o register.json -w '%{http_code}' -H 'Content-Type: application/json' -d '{"fullName":"Pending User","email":"pending@vale.test","password":"StrongTest!456"}' http://127.0.0.1:5080/api/auth/register)
           test "$reg_status" = "201"
