@@ -37,6 +37,7 @@ public partial class App : Application
         services.AddTransient<TicketsViewModel>();
         services.AddTransient<CheckInViewModel>();
         services.AddTransient<HistoryViewModel>();
+        services.AddTransient<ReportsViewModel>();
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<AdministrationViewModel>();
 
