@@ -74,14 +74,11 @@ public sealed class AuthController(
     public async Task<ActionResult<LoginResponse>> VerifyEmailLoginCode(EmailCodeVerifyRequest request, CancellationToken cancellationToken)
     {
         var user = await FindUserAsync(request.Email, cancellationToken, hideNotFound: true);
+        if (user.TwoFactorEnabled && string.IsNullOrWhiteSpace(request.TwoFactorCode)) return TwoFactorRequired();
         if (!await oneTimeCodes.ValidateAndConsumeAsync(user, "email-login", request.Code.Trim()))
             throw new ApiException(StatusCodes.Status401Unauthorized, "Kod doğrulanamadı", "Giriş kodu hatalı veya süresi dolmuş.");
-        if (user.TwoFactorEnabled)
-        {
-            if (string.IsNullOrWhiteSpace(request.TwoFactorCode)) return TwoFactorRequired();
-            if (!await userManager.VerifyTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider, NormalizeCode(request.TwoFactorCode)))
-                throw new ApiException(StatusCodes.Status401Unauthorized, "Kod doğrulanamadı", "Authenticator kodunu kontrol edin.");
-        }
+        if (user.TwoFactorEnabled && !await userManager.VerifyTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider, NormalizeCode(request.TwoFactorCode!)))
+            throw new ApiException(StatusCodes.Status401Unauthorized, "Kod doğrulanamadı", "Authenticator kodunu kontrol edin.");
         return Ok(await CompleteLoginAsync(user, user.TwoFactorEnabled ? "email+totp" : "email", cancellationToken));
     }
 
@@ -292,11 +289,11 @@ public sealed class AuthController(
         var user = await userManager.Users.Include(x => x.Branch).SingleOrDefaultAsync(x => x.NormalizedEmail == normalizedEmail, cancellationToken);
         if (user is null || !user.IsActive)
         {
-            if (hideNotFound) throw new ApiException(StatusCodes.Status401Unauthorized, "Giriş doğrulanamadı", "Kod hatalı, hesabın süresi dolmuş veya hesap aktif değil.");
+            if (hideNotFound) throw new ApiException(StatusCodes.Status401Unauthorized, "Giriş doğrulanamadı", "Kod hatalı, süresi dolmuş veya hesap aktif değil.");
             throw new ApiException(StatusCodes.Status401Unauthorized, "Giriş başarısız", user is { IsActive: false } ? "Hesabınız yönetici onayı bekliyor veya devre dışı." : "E-posta adresi veya parola hatalı.");
         }
         if (await userManager.IsLockedOutAsync(user))
-            throw new ApiException(StatusCodes.Status423Locked, "Hesap geçici olarak kilitli", "Çok sayıda hatalı deneme yapıldı. Bir süre sonra yeniden deneyin.");
+            throw new ApiException(423, "Hesap geçici olarak kilitli", "Çok sayıda hatalı deneme yapıldı. Bir süre sonra yeniden deneyin.");
         return user;
     }
 
@@ -338,7 +335,7 @@ public sealed class AuthController(
 
     private async Task<AccountProfileDto> MapProfileAsync(AppUser user) => new(
         user.Id, user.FullName, user.Email ?? string.Empty, user.PhoneNumber, user.EmployeeCode, user.JobTitle,
-        user.BranchId, user.Branch?.Name, await userManager.GetRolesAsync(user), user.CreatedAt, user.LastLoginAt,
+        user.BranchId, user.Branch?.Name, (await userManager.GetRolesAsync(user)).ToList(), user.CreatedAt, user.LastLoginAt,
         user.PreferredTheme, user.AccentTheme, user.ProfileColor, user.TwoFactorEnabled);
 
     private static UserDto MapUser(AppUser user, IEnumerable<string> roles) => new(user.Id, user.FullName, user.Email ?? string.Empty, user.BranchId, user.Branch?.Name, roles.ToList());
