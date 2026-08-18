@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Controls;
 using VALE.Contracts;
@@ -40,6 +41,8 @@ public sealed class MainPage : ContentPage
 
         var emailCode = UiKit.SecondaryButton("E-posta Koduyla Giriş");
         emailCode.Clicked += async (_, _) => await Navigation.PushAsync(new EmailCodeLoginPage(_api));
+        var resendConfirmation = UiKit.TextButton("E-posta doğrulama linkini tekrar gönder");
+        resendConfirmation.Clicked += async (_, _) => await ResendEmailConfirmationAsync(resendConfirmation);
         var register = UiKit.SecondaryButton("Yeni Hesap Oluştur");
         register.AutomationId = "register-open";
         register.Clicked += async (_, _) => await Navigation.PushAsync(new TenantRegisterPage(_api));
@@ -66,7 +69,7 @@ public sealed class MainPage : ContentPage
                 UiKit.Label("Parola, e-posta kodu ve Authenticator ayrı giriş seçenekleridir; hepsini aynı anda girmeniz gerekmez.", 13, false, true),
                 UiKit.Label("E-posta", 11, true, true), _email,
                 UiKit.Label("Parola", 11, true, true), _password,
-                forgot, _login, authenticator, emailCode, statusRow,
+                forgot, _login, authenticator, emailCode, resendConfirmation, statusRow,
                 UiKit.Divider(),
                 register, connection
             }
@@ -159,6 +162,7 @@ public sealed class MainPage : ContentPage
             }
             catch (TwoFactorRequiredException)
             {
+                // LoginWithTwoFactorAsync is intentionally executed by AuthenticatorLoginPage so OTP stays a separate step.
                 _status.Text = "Bu hesap Authenticator ile korunuyor. OTP adımına geçiliyor…";
                 var email = _email.Text ?? string.Empty;
                 var password = _password.Text ?? string.Empty;
@@ -180,6 +184,38 @@ public sealed class MainPage : ContentPage
             SetBusy(false);
             _loginCts?.Dispose(); _loginCts = null;
         }
+    }
+
+    private async Task ResendEmailConfirmationAsync(Button button)
+    {
+        var email = (_email.Text ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(email) || !email.Contains('@'))
+        {
+            await DisplayAlertAsync("E-posta", "Önce doğrulama linkinin gönderileceği e-posta adresini yazın.", "Tamam");
+            return;
+        }
+
+        try
+        {
+            button.IsEnabled = false;
+            _status.Text = "Doğrulama bağlantısı isteniyor…";
+            using var client = new HttpClient { BaseAddress = new Uri(_api.EffectiveBaseUrl), Timeout = TimeSpan.FromSeconds(25) };
+            using var response = await client.PostAsJsonAsync("api/auth/email-confirmation/resend", new EmailCodeRequest(email));
+            if (!response.IsSuccessStatusCode)
+            {
+                _status.Text = "Doğrulama bağlantısı gönderilemedi.";
+                await DisplayAlertAsync("E-posta doğrulama", "Doğrulama bağlantısı şu anda gönderilemedi. Biraz sonra tekrar deneyin.", "Tamam");
+                return;
+            }
+            _status.Text = "Doğrulama bağlantısı istendi.";
+            await DisplayAlertAsync("E-posta doğrulama", "Hesap kayıtlı ve henüz doğrulanmamışsa yeni doğrulama bağlantısı e-posta adresinize gönderildi.", "Tamam");
+        }
+        catch (Exception ex)
+        {
+            _status.Text = "Doğrulama bağlantısı gönderilemedi.";
+            await DisplayAlertAsync("E-posta doğrulama", ex.Message, "Tamam");
+        }
+        finally { button.IsEnabled = true; }
     }
 
     private async Task<LoginResponse> LoginPasswordFlowAsync(CancellationToken ct)
