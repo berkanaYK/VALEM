@@ -102,7 +102,57 @@ public static class ThemeService
         application.Resources["ValeText"] = p.Text;
         application.Resources["ValeSecondary"] = p.Secondary;
         application.Resources["ValeBorder"] = p.Border;
+        application.Resources["ValeBorderBrush"] = new SolidColorBrush(p.Border);
         application.Resources["ValeAccent"] = p.Accent;
+        application.Resources["ValeSuccess"] = p.Success;
+        application.Resources["ValeWarning"] = p.Warning;
+        application.Resources["ValeDanger"] = p.Danger;
+
+        RefreshWindowChrome(application, p);
+    }
+
+    private static void RefreshWindowChrome(Application application, ValePalette palette)
+    {
+        foreach (var window in application.Windows)
+            RefreshPageChrome(window.Page, palette);
+    }
+
+    private static void RefreshPageChrome(Page? page, ValePalette palette)
+    {
+        if (page is null) return;
+
+        switch (page)
+        {
+            case Shell shell:
+                Shell.SetTabBarBackgroundColor(shell, palette.Card);
+                Shell.SetTabBarTitleColor(shell, palette.Accent);
+                Shell.SetTabBarUnselectedColor(shell, palette.Secondary);
+                Shell.SetBackgroundColor(shell, palette.Card);
+                Shell.SetTitleColor(shell, palette.Text);
+                Shell.SetForegroundColor(shell, palette.Text);
+                break;
+
+            case TabbedPage tabs:
+                tabs.BarBackgroundColor = palette.Card;
+                tabs.BarTextColor = palette.Text;
+                tabs.SelectedTabColor = palette.Accent;
+                tabs.UnselectedTabColor = palette.Secondary;
+                foreach (var child in tabs.Children)
+                    RefreshPageChrome(child, palette);
+                break;
+
+            case NavigationPage navigation:
+                navigation.BarBackgroundColor = palette.Card;
+                navigation.BarTextColor = palette.Text;
+                foreach (var child in navigation.Navigation.NavigationStack)
+                    RefreshPageChrome(child, palette);
+                break;
+
+            case FlyoutPage flyout:
+                RefreshPageChrome(flyout.Flyout, palette);
+                RefreshPageChrome(flyout.Detail, palette);
+                break;
+        }
     }
 
     private static ValePalette BuildPalette(bool dark, ValeAccent accent)
