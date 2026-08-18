@@ -1,4 +1,5 @@
 using VALE.Api.Domain;
+using Xunit;
 
 namespace VALE.Api.Tests;
 
