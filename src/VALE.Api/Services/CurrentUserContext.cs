@@ -12,6 +12,10 @@ public sealed class CurrentUserContext(IHttpContextAccessor httpContextAccessor)
         ? userId
         : throw new ApiException(StatusCodes.Status401Unauthorized, "Oturum geçersiz", "Kullanıcı kimliği okunamadı.");
 
+    public Guid CompanyId => Guid.TryParse(User.FindFirstValue("company_id"), out var companyId)
+        ? companyId
+        : throw new ApiException(StatusCodes.Status401Unauthorized, "Oturum güncel değil", "Firma kapsamı bulunamadı. Lütfen yeniden giriş yapın.");
+
     public Guid? BranchId => Guid.TryParse(User.FindFirstValue("branch_id"), out var branchId) ? branchId : null;
     public IReadOnlyList<string> RoleNames => User.FindAll("role").Select(x => x.Value).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     public bool IsOwner => User.IsInRole(Roles.Owner);
