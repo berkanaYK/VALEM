@@ -23,7 +23,7 @@ public sealed class App : Application
     {
         if (Current?.Windows.FirstOrDefault() is { } window)
         {
-            window.Page = new ValeAppShell(api, user);
+            window.Page = new ValeAppShellV31(api, user);
             _ = SyncAccountThemeAsync(api);
         }
     }
