@@ -18,6 +18,7 @@ public interface IValeEmailSender
     Task<SmtpProbeResult> ProbeAsync(CancellationToken cancellationToken);
     Task SendPasswordResetCodeAsync(string email, string fullName, string code, CancellationToken cancellationToken);
     Task SendLoginCodeAsync(string email, string fullName, string code, CancellationToken cancellationToken);
+    Task SendEmailConfirmationLinkAsync(string email, string fullName, string confirmationUrl, CancellationToken cancellationToken);
 }
 
 public sealed class SmtpValeEmailSender(IOptions<EmailOptions> options, ILogger<SmtpValeEmailSender> logger) : IValeEmailSender
@@ -51,6 +52,12 @@ public sealed class SmtpValeEmailSender(IOptions<EmailOptions> options, ILogger<
 
     public Task SendLoginCodeAsync(string email, string fullName, string code, CancellationToken cancellationToken) =>
         SendCodeAsync(email, fullName, code, "VALE giriş kodunuz", "giriş", 10, cancellationToken);
+
+    public Task SendEmailConfirmationLinkAsync(string email, string fullName, string confirmationUrl, CancellationToken cancellationToken)
+    {
+        var body = $"Merhaba {fullName},\n\nVALE hesabınız için bu e-posta adresinin size ait olduğunu doğrulayın:\n\n{confirmationUrl}\n\nBu bağlantı tek kullanımlıktır. Bu hesabı siz oluşturmadıysanız e-postayı yok sayın.\n";
+        return SendMessageAsync(email, fullName, "VALE e-posta adresinizi doğrulayın", body, "email-confirmation", cancellationToken);
+    }
 
     private async Task<SmtpProbeResult> ProbeBrevoAsync(CancellationToken cancellationToken)
     {
@@ -153,12 +160,17 @@ public sealed class SmtpValeEmailSender(IOptions<EmailOptions> options, ILogger<
         }
     }
 
-    private async Task SendCodeAsync(string email, string fullName, string code, string subject, string purpose, int minutes, CancellationToken cancellationToken)
+    private Task SendCodeAsync(string email, string fullName, string code, string subject, string purpose, int minutes, CancellationToken cancellationToken)
+    {
+        var body = $"Merhaba {fullName},\n\nVALE {purpose} kodunuz: {code}\n\nKod {minutes} dakika geçerlidir. Bu işlemi siz başlatmadıysanız e-postayı yok sayın.\n";
+        return SendMessageAsync(email, fullName, subject, body, purpose, cancellationToken);
+    }
+
+    private async Task SendMessageAsync(string email, string fullName, string subject, string body, string purpose, CancellationToken cancellationToken)
     {
         if (!IsConfigured)
             throw new ApiException(StatusCodes.Status503ServiceUnavailable, "E-posta servisi hazır değil", "E-posta ile doğrulama şu anda kullanılamıyor.");
 
-        var body = $"Merhaba {fullName},\n\nVALE {purpose} kodunuz: {code}\n\nKod {minutes} dakika geçerlidir. Bu işlemi siz başlatmadıysanız e-postayı yok sayın.\n";
         if (UseBrevo)
         {
             await SendBrevoAsync(email, fullName, subject, body, purpose, cancellationToken);
