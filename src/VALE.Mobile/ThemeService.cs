@@ -34,6 +34,7 @@ public static class ThemeService
 {
     private const string ThemePreferenceKey = "vale_theme_v3";
     private const string AccentPreferenceKey = "vale_accent_v3";
+    private static ValePalette? _lastAppliedPalette;
 
     public static ValeThemeMode CurrentMode => Enum.TryParse<ValeThemeMode>(
         Preferences.Default.Get(ThemePreferenceKey, nameof(ValeThemeMode.System)),
@@ -79,6 +80,8 @@ public static class ThemeService
 
     private static void Apply(Application application, ValeThemeMode mode, ValeAccent accent, bool save)
     {
+        var previous = _lastAppliedPalette ?? Palette;
+
         if (save)
         {
             Preferences.Default.Set(ThemePreferenceKey, mode.ToString());
@@ -102,7 +105,107 @@ public static class ThemeService
         application.Resources["ValeText"] = p.Text;
         application.Resources["ValeSecondary"] = p.Secondary;
         application.Resources["ValeBorder"] = p.Border;
+        application.Resources["ValeBorderBrush"] = new SolidColorBrush(p.Border);
         application.Resources["ValeAccent"] = p.Accent;
+        application.Resources["ValeSuccess"] = p.Success;
+        application.Resources["ValeWarning"] = p.Warning;
+        application.Resources["ValeDanger"] = p.Danger;
+
+        RefreshWindowChrome(application, previous, p);
+        _lastAppliedPalette = p;
+    }
+
+    private static void RefreshWindowChrome(Application application, ValePalette previous, ValePalette palette)
+    {
+        foreach (var window in application.Windows)
+            RefreshPageChrome(window.Page, previous, palette);
+    }
+
+    private static void RefreshPageChrome(Page? page, ValePalette previous, ValePalette palette)
+    {
+        if (page is null) return;
+
+        switch (page)
+        {
+            case Shell shell:
+                Shell.SetTabBarBackgroundColor(shell, palette.Card);
+                Shell.SetTabBarTitleColor(shell, palette.Accent);
+                Shell.SetTabBarUnselectedColor(shell, palette.Secondary);
+                Shell.SetBackgroundColor(shell, palette.Card);
+                Shell.SetTitleColor(shell, palette.Text);
+                Shell.SetForegroundColor(shell, palette.Text);
+                foreach (var item in shell.Items)
+                foreach (var section in item.Items)
+                foreach (var shellContent in section.Items)
+                    if (shellContent.Content is Page shellPage)
+                        RefreshPageChrome(shellPage, previous, palette);
+                break;
+
+            case TabbedPage tabs:
+                tabs.BarBackgroundColor = palette.Card;
+                tabs.BarTextColor = palette.Text;
+                tabs.SelectedTabColor = palette.Accent;
+                tabs.UnselectedTabColor = palette.Secondary;
+                foreach (var tabChild in tabs.Children)
+                    RefreshPageChrome(tabChild, previous, palette);
+                break;
+
+            case NavigationPage navigation:
+                navigation.BarBackgroundColor = palette.Card;
+                navigation.BarTextColor = palette.Text;
+                foreach (var navigationChild in navigation.Navigation.NavigationStack)
+                    RefreshPageChrome(navigationChild, previous, palette);
+                break;
+
+            case FlyoutPage flyout:
+                RefreshPageChrome(flyout.Flyout, previous, palette);
+                RefreshPageChrome(flyout.Detail, previous, palette);
+                break;
+
+            case ContentPage contentPage:
+                if (contentPage.Content is Element pageContent)
+                    RefreshElementColors(pageContent, previous, palette);
+                break;
+        }
+    }
+
+    private static void RefreshElementColors(Element element, ValePalette previous, ValePalette palette)
+    {
+        switch (element)
+        {
+            case Microsoft.Maui.Controls.Switch control when Equals(control.OnColor, previous.Accent):
+                control.OnColor = palette.Accent;
+                break;
+
+            case Button button when Equals(button.TextColor, previous.Danger):
+                button.TextColor = palette.Danger;
+                break;
+
+            case GraphicsView graphics:
+                graphics.Invalidate();
+                break;
+        }
+
+        switch (element)
+        {
+            case Layout layout:
+                foreach (var layoutChild in layout.Children)
+                    if (layoutChild is Element childElement)
+                        RefreshElementColors(childElement, previous, palette);
+                break;
+
+            case Border border when border.Content is Element borderChild:
+                RefreshElementColors(borderChild, previous, palette);
+                break;
+
+            case ScrollView scroll when scroll.Content is Element scrollChild:
+                RefreshElementColors(scrollChild, previous, palette);
+                break;
+
+            case ContentView view when view.Content is Element viewChild:
+                RefreshElementColors(viewChild, previous, palette);
+                break;
+        }
     }
 
     private static ValePalette BuildPalette(bool dark, ValeAccent accent)

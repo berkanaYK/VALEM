@@ -76,20 +76,24 @@ public static class UiKit
         return picker;
     }
 
-    public static Button PrimaryButton(string text) => new()
+    public static Button PrimaryButton(string text)
     {
-        Text = text,
-        MinimumHeightRequest = 52,
-        Padding = new Thickness(16, 11),
-        CornerRadius = 14,
-        BackgroundColor = ThemeService.Palette.Accent,
-        TextColor = Colors.White,
-        FontAttributes = FontAttributes.Bold,
-        FontSize = 14.5,
-        FontAutoScalingEnabled = true,
-        LineBreakMode = LineBreakMode.WordWrap,
-        HorizontalOptions = LayoutOptions.Fill
-    };
+        var button = new Button
+        {
+            Text = text,
+            MinimumHeightRequest = 52,
+            Padding = new Thickness(16, 11),
+            CornerRadius = 14,
+            TextColor = Colors.White,
+            FontAttributes = FontAttributes.Bold,
+            FontSize = 14.5,
+            FontAutoScalingEnabled = true,
+            LineBreakMode = LineBreakMode.WordWrap,
+            HorizontalOptions = LayoutOptions.Fill
+        };
+        button.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeAccent");
+        return button;
+    }
 
     public static Button SecondaryButton(string text)
     {
@@ -100,7 +104,6 @@ public static class UiKit
             Padding = new Thickness(14, 10),
             CornerRadius = 14,
             BorderWidth = 1,
-            BorderColor = ThemeService.Palette.Border,
             FontAttributes = FontAttributes.Bold,
             FontSize = 14,
             FontAutoScalingEnabled = true,
@@ -109,6 +112,7 @@ public static class UiKit
         };
         button.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeCard");
         button.SetDynamicResource(Button.TextColorProperty, "ValeText");
+        button.SetDynamicResource(Button.BorderColorProperty, "ValeBorder");
         return button;
     }
 
@@ -131,11 +135,24 @@ public static class UiKit
         return button;
     }
 
+    public static Button DangerTextButton(string text)
+    {
+        var button = TextButton(text);
+        button.SetDynamicResource(Button.TextColorProperty, "ValeDanger");
+        return button;
+    }
+
+    public static Switch Switch(bool isToggled = false)
+    {
+        var control = new Microsoft.Maui.Controls.Switch { IsToggled = isToggled };
+        control.SetDynamicResource(Microsoft.Maui.Controls.Switch.OnColorProperty, "ValeAccent");
+        return control;
+    }
+
     public static Border Card(View content, Thickness? padding = null, float radius = 18)
     {
         var border = new Border
         {
-            Stroke = ThemeService.Palette.Border,
             StrokeThickness = 1,
             StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = radius },
             Padding = padding ?? new Thickness(16),
@@ -149,8 +166,16 @@ public static class UiKit
                 Opacity = 0.18f
             }
         };
+        border.SetDynamicResource(Border.StrokeProperty, "ValeBorderBrush");
         border.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeCard");
         return border;
+    }
+
+    public static BoxView Divider()
+    {
+        var divider = new BoxView { HeightRequest = 1, Margin = new Thickness(0, 4) };
+        divider.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeBorder");
+        return divider;
     }
 
     public static (Border Card, Label Value) Metric(string title, string value, string caption)
@@ -179,10 +204,14 @@ public static class UiKit
         return (Card(content, new Thickness(13), 16), valueLabel);
     }
 
-    public static ActivityIndicator Activity() => new()
+    public static ActivityIndicator Activity()
     {
-        Color = ThemeService.Palette.Accent,
-        WidthRequest = 24,
-        HeightRequest = 24
-    };
+        var activity = new ActivityIndicator
+        {
+            WidthRequest = 24,
+            HeightRequest = 24
+        };
+        activity.SetDynamicResource(ActivityIndicator.ColorProperty, "ValeAccent");
+        return activity;
+    }
 }
