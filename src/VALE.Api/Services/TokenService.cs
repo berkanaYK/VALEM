@@ -23,7 +23,8 @@ public sealed class TokenService(IOptions<JwtOptions> options)
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new("name", user.FullName),
             new(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
-            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N"))
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
+            new("security_stamp", user.SecurityStamp ?? string.Empty)
         };
 
         if (user.BranchId.HasValue)

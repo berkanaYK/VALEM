@@ -14,7 +14,10 @@ public sealed record LoginResponse(
 public sealed record RegisterRequest(
     [param: Required, MinLength(2), MaxLength(120)] string FullName,
     [param: Required, EmailAddress, MaxLength(256)] string Email,
-    [param: Required, MinLength(10), MaxLength(128)] string Password);
+    [param: Required, MinLength(10), MaxLength(128)] string Password,
+    [param: MaxLength(30)] string? PhoneNumber = null,
+    [param: MaxLength(20)] string? BranchCode = null,
+    [param: MaxLength(40)] string? EmployeeCode = null);
 
 public sealed record RegisterResponse(string Message, bool RequiresApproval);
 
