@@ -97,8 +97,10 @@ public sealed class ReportsV31Page : ContentPage
     private async Task LoadAsync()
     {
         if (_busy) return;
-        var from = new DateTimeOffset(_from.Date, TimeZoneInfo.Local.GetUtcOffset(_from.Date));
-        var endDate = _to.Date.AddDays(1).AddTicks(-1);
+        var fromDate = _from.Date ?? DateTime.Today.AddDays(-7);
+        var toDate = _to.Date ?? DateTime.Today;
+        var from = new DateTimeOffset(fromDate, TimeZoneInfo.Local.GetUtcOffset(fromDate));
+        var endDate = toDate.AddDays(1).AddTicks(-1);
         var to = new DateTimeOffset(endDate, TimeZoneInfo.Local.GetUtcOffset(endDate));
         if (to <= from)
         {
