@@ -26,7 +26,7 @@ permissions:
 jobs:
   build-launch:
     runs-on: windows-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
 
     steps:
       - name: Checkout repository
@@ -64,7 +64,52 @@ jobs:
           --no-restore
           -o "$env:GITHUB_WORKSPACE\winui-publish"
 
-      - name: Verify real top-level window
+      - name: Template-first launch comparison
+        shell: pwsh
+        run: |
+          $templates = dotnet new list winui 2>&1 | Out-String
+          Write-Host $templates
+          if ($LASTEXITCODE -ne 0 -or $templates -notmatch '(?im)^winui\s') {
+            Write-Warning 'winui dotnet template is unavailable on this hosted runner; template launch comparison cannot run.'
+            'WINUI_TEMPLATE_LAUNCH=unavailable' | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            exit 0
+          }
+
+          $probeRoot = Join-Path $env:RUNNER_TEMP 'ValeWinUIProbe'
+          Remove-Item $probeRoot -Recurse -Force -ErrorAction SilentlyContinue
+          dotnet new winui -o $probeRoot --unpackaged --no-solution-file
+          if ($LASTEXITCODE -ne 0) { throw 'Clean WinUI template scaffold failed.' }
+          $probeProject = Get-ChildItem $probeRoot -Filter *.csproj -Recurse | Select-Object -First 1
+          if (-not $probeProject) { throw 'Clean WinUI template project file not found.' }
+          dotnet restore $probeProject.FullName -r win-x64
+          dotnet publish $probeProject.FullName -c Release -r win-x64 --self-contained true --no-restore -o "$probeRoot\publish"
+          if ($LASTEXITCODE -ne 0) { throw 'Clean WinUI template publish failed.' }
+          $probeExe = Get-ChildItem "$probeRoot\publish" -Filter *.exe | Where-Object { $_.Name -notmatch 'createdump|vcruntime' } | Select-Object -First 1
+          if (-not $probeExe) { throw 'Clean WinUI template executable not found.' }
+
+          $probe = Start-Process $probeExe.FullName -PassThru
+          $probeResult = 'no-window'
+          try {
+            for ($i = 0; $i -lt 20; $i++) {
+              Start-Sleep -Milliseconds 500
+              $probe.Refresh()
+              if ($probe.HasExited) {
+                $probeResult = "exit:$($probe.ExitCode)"
+                break
+              }
+              if ($probe.MainWindowHandle -ne 0) {
+                $probeResult = 'success'
+                break
+              }
+            }
+          }
+          finally {
+            if (-not $probe.HasExited) { Stop-Process -Id $probe.Id -Force }
+          }
+          Write-Host "Clean template launch result: $probeResult"
+          "WINUI_TEMPLATE_LAUNCH=$probeResult" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Verify real VALE top-level window
         shell: pwsh
         run: |
           $exe = Join-Path $env:GITHUB_WORKSPACE 'winui-publish\VALE.Client.exe'
@@ -75,14 +120,16 @@ jobs:
             for ($i = 0; $i -lt 24; $i++) {
               Start-Sleep -Milliseconds 500
               $process.Refresh()
-              if ($process.HasExited) { throw "VALE.Client başlangıç sırasında kapandı. ExitCode=$($process.ExitCode)" }
+              if ($process.HasExited) {
+                throw "VALE.Client başlangıç sırasında kapandı. ExitCode=$($process.ExitCode). CleanTemplate=$env:WINUI_TEMPLATE_LAUNCH"
+              }
               if ($process.MainWindowHandle -ne 0) {
                 $windowReady = $true
                 Write-Host "Top-level WinUI window verified. Handle=$($process.MainWindowHandle), Title='$($process.MainWindowTitle)'"
                 break
               }
             }
-            if (-not $windowReady) { throw 'Uygulama çalıştı ancak gerçek top-level pencere doğrulanamadı.' }
+            if (-not $windowReady) { throw "Uygulama çalıştı ancak gerçek top-level pencere doğrulanamadı. CleanTemplate=$env:WINUI_TEMPLATE_LAUNCH" }
           }
           finally {
             if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
