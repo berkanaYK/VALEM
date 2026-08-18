@@ -80,7 +80,7 @@ public sealed class ValeDbContext(DbContextOptions<ValeDbContext> options)
 
         builder.Entity<Customer>(entity =>
         {
-            entity.HasIndex(x => x.NormalizedPhone);
+            entity.HasIndex(x => new { x.CompanyId, x.NormalizedPhone });
             entity.Property(x => x.Name).HasMaxLength(120);
             entity.Property(x => x.Phone).HasMaxLength(30);
             entity.Property(x => x.NormalizedPhone).HasMaxLength(30);
@@ -88,7 +88,7 @@ public sealed class ValeDbContext(DbContextOptions<ValeDbContext> options)
 
         builder.Entity<Vehicle>(entity =>
         {
-            entity.HasIndex(x => x.NormalizedPlate).IsUnique();
+            entity.HasIndex(x => new { x.CompanyId, x.NormalizedPlate }).IsUnique();
             entity.Property(x => x.LicensePlate).HasMaxLength(16);
             entity.Property(x => x.NormalizedPlate).HasMaxLength(16);
             entity.Property(x => x.Brand).HasMaxLength(60);
