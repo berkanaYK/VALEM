@@ -9,11 +9,13 @@ on:
     paths:
       - 'src/VALE.Mobile/**'
       - 'src/VALE.Contracts/**'
+      - 'src/VALE.Api/**'
       - '.github/workflows/android-apk.yml'
   pull_request:
     paths:
       - 'src/VALE.Mobile/**'
       - 'src/VALE.Contracts/**'
+      - 'src/VALE.Api/**'
       - '.github/workflows/android-apk.yml'
 
 concurrency:
@@ -27,7 +29,7 @@ permissions:
 jobs:
   build-test-release:
     runs-on: windows-latest
-    timeout-minutes: 50
+    timeout-minutes: 55
 
     steps:
       - name: Checkout repository without marketplace actions
@@ -82,7 +84,7 @@ jobs:
           $propertyGroup = @($project.Project.PropertyGroup) | Select-Object -First 1
           if ([string]$propertyGroup.UseNativeHttpHandler -ne 'false') { throw 'Release engellendi: managed HTTP handler kapalı.' }
           $version = [string]$propertyGroup.ApplicationDisplayVersion
-          if ([string]::IsNullOrWhiteSpace($version)) { throw 'ApplicationDisplayVersion bulunamadı.' }
+          if ($version -ne '3.0.0') { throw "Beklenen mobil sürüm 3.0.0, bulunan: $version" }
           "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           Write-Host "Managed HTTP handler doğrulandı. VALE $version"
 
@@ -92,20 +94,27 @@ jobs:
           $manifest = Get-Content 'src/VALE.Mobile/Platforms/Android/AndroidManifest.xml' -Raw
           if ($manifest -notmatch 'android:icon="@mipmap/appicon"') { throw 'Launcher icon manifest referansı eksik.' }
           if ($manifest -notmatch 'android:roundIcon="@mipmap/appicon_round"') { throw 'Round launcher icon manifest referansı eksik.' }
-
           $project = Get-Content 'src/VALE.Mobile/VALE.Mobile.csproj' -Raw
           if ($project -notmatch 'ForegroundFile="Resources\\AppIcon\\appiconfg.svg"') { throw 'Adaptive icon foreground eksik.' }
           if ($project -notmatch 'MonochromeFile="Resources\\AppIcon\\appiconmono.svg"') { throw 'Android themed icon monochrome katmanı eksik.' }
           if ($project -notmatch 'ForegroundScale="0.72"') { throw 'Adaptive icon foreground ölçeği beklenen değerde değil.' }
-
-          @(
-            'src/VALE.Mobile/Resources/AppIcon/appicon.svg',
-            'src/VALE.Mobile/Resources/AppIcon/appiconfg.svg',
-            'src/VALE.Mobile/Resources/AppIcon/appiconmono.svg'
-          ) | ForEach-Object {
+          @('src/VALE.Mobile/Resources/AppIcon/appicon.svg','src/VALE.Mobile/Resources/AppIcon/appiconfg.svg','src/VALE.Mobile/Resources/AppIcon/appiconmono.svg') | ForEach-Object {
             if (-not (Test-Path $_)) { throw "Launcher icon dosyası eksik: $_" }
           }
           Write-Host 'Android adaptive launcher icon kaynakları doğrulandı.'
+
+      - name: Verify company mobile security surface
+        shell: pwsh
+        run: |
+          $main = Get-Content 'src/VALE.Mobile/MainPage.cs' -Raw
+          $company = Get-Content 'src/VALE.Mobile/CompanyPages.cs' -Raw
+          $client = Get-Content 'src/VALE.Mobile/ApiClient.cs' -Raw
+          if ($main -notmatch 'LoginWithTwoFactorAsync') { throw 'Mobil 2FA giriş akışı eksik.' }
+          if ($main -notmatch 'EmailCodeLoginPage') { throw 'E-posta koduyla giriş eksik.' }
+          if ($company -notmatch 'CanManageUsers' -or $company -notmatch 'CanAudit') { throw 'Rol tabanlı şirket menüsü eksik.' }
+          if ($client -notmatch 'DeleteTicketAsync' -or $client -notmatch 'UpdateTicketDetailsAsync') { throw 'Kayıt yönetimi istemci metotları eksik.' }
+          if ($company -notmatch 'TwoFactorPage' -or $company -notmatch 'ThemeService') { throw 'Profil güvenliği veya tema yönetimi eksik.' }
+          Write-Host 'VALE mobile company/security source checks passed.'
 
       - name: Production auth smoke tests
         shell: pwsh
@@ -125,20 +134,23 @@ jobs:
           $register = Invoke-WebRequest "$endpoint/api/auth/register" -Method Post -ContentType 'application/json' -Body '{"fullName":"X","email":"not-an-email","password":"short"}' -TimeoutSec 20 -SkipHttpErrorCheck
           if ($register.StatusCode -ne 400) { throw "Register POST testi başarısız: $($register.StatusCode)" }
 
-      - name: Wait for VALE 2.1 API on main
+      - name: Wait for VALE API v3 on main
         if: github.ref == 'refs/heads/main'
         shell: pwsh
         run: |
           $endpoint = 'https://vale-api-5fvb.onrender.com'
           $newApi = $false
-          for ($i = 1; $i -le 60; $i++) {
+          for ($i = 1; $i -le 75; $i++) {
             try {
-              $detail = Invoke-WebRequest "$endpoint/api/tickets/00000000-0000-0000-0000-000000000000" -TimeoutSec 12 -SkipHttpErrorCheck
-              if ($detail.StatusCode -eq 401) { $newApi = $true; break }
+              $status = Invoke-RestMethod "$endpoint/api/status" -TimeoutSec 12
+              if ($status.status -eq 'ok' -and [string]$status.version -eq '3.0') {
+                $profile = Invoke-WebRequest "$endpoint/api/auth/profile" -TimeoutSec 12 -SkipHttpErrorCheck
+                if ($profile.StatusCode -eq 401) { $newApi = $true; break }
+              }
             } catch { }
             Start-Sleep -Seconds 10
           }
-          if (-not $newApi) { throw 'Yeni araç detay endpointi production ortamına geçmedi; APK yayınlanmadı.' }
+          if (-not $newApi) { throw 'VALE API v3 production ortamına geçmedi; 3.0.0 APK yayınlanmadı.' }
 
       - name: Release build test
         shell: pwsh
@@ -164,9 +176,7 @@ jobs:
           if (-not (Test-Path $jar)) { throw 'jar.exe bulunamadı.' }
           $entries = & $jar tf "$env:GITHUB_WORKSPACE\VALE.apk"
           $icons = @($entries | Where-Object { $_ -match '^res/mipmap[^/]*/appicon(_round)?\.' })
-          if ($icons.Count -eq 0) {
-            $icons = @($entries | Where-Object { $_ -match '^res/mipmap.*/appicon' })
-          }
+          if ($icons.Count -eq 0) { $icons = @($entries | Where-Object { $_ -match '^res/mipmap.*/appicon' }) }
           if ($icons.Count -eq 0) { throw 'APK içinde launcher icon mipmap varlığı bulunamadı.' }
           Write-Host 'APK launcher icon entries:'
           $icons | Select-Object -First 20 | ForEach-Object { Write-Host " - $_" }
@@ -178,7 +188,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "android-$env:GITHUB_RUN_NUMBER"
-          gh release create $tag "$env:GITHUB_WORKSPACE\VALE.apk" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "VALE Android $env:APP_VERSION" --notes "VALE $env:APP_VERSION: Android launcher/adaptive icon düzeltmesi, görünür VALE logosu, themed icon desteği, responsive mobil arayüz, detaylı araç kabulü, fotoğraf ve tarihsel raporlar."
+          gh release create $tag "$env:GITHUB_WORKSPACE\VALE.apk" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "VALE Android $env:APP_VERSION" --notes "VALE 3.0.0: gelişmiş kayıt ve giriş seçenekleri, Authenticator 2FA, hesap bazlı profil ve tema tercihleri, patron/yönetici/personel rol hiyerarşisi, ekip yönetimi, audit kayıtları, araç düzeltme ve güvenli soft-delete, güçlendirilmiş oturum güvenliği ve launcher icon doğrulaması."
 
       - name: Publish Android release status
         if: always() && github.ref == 'refs/heads/main'
@@ -188,6 +198,6 @@ jobs:
           JOB_STATUS: ${{ job.status }}
         run: |
           $state = if ($env:JOB_STATUS -eq 'success') { 'success' } else { 'failure' }
-          $description = if ($state -eq 'success') { 'VALE Android APK test edildi ve yayınlandı.' } else { 'VALE Android APK yayını başarısız; run logunu kontrol edin.' }
+          $description = if ($state -eq 'success') { 'VALE Android 3.0.0 test edildi ve yayınlandı.' } else { 'VALE Android 3.0.0 yayını başarısız; run logunu kontrol edin.' }
           $target = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
           gh api --method POST "repos/$env:GITHUB_REPOSITORY/statuses/$env:GITHUB_SHA" -f state=$state -f context='vale/android-release' -f description=$description -f target_url=$target
