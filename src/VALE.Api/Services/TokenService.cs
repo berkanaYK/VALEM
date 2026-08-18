@@ -27,10 +27,10 @@ public sealed class TokenService(IOptions<JwtOptions> options)
             new("security_stamp", user.SecurityStamp ?? string.Empty)
         };
 
+        if (user.CompanyId.HasValue)
+            claims.Add(new Claim("company_id", user.CompanyId.Value.ToString()));
         if (user.BranchId.HasValue)
-        {
             claims.Add(new Claim("branch_id", user.BranchId.Value.ToString()));
-        }
 
         claims.AddRange(roles.Select(role => new Claim("role", role)));
 
