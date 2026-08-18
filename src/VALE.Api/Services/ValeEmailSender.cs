@@ -74,7 +74,7 @@ public sealed class SmtpValeEmailSender(IOptions<EmailOptions> options, ILogger<
                 var email = sender.TryGetProperty("email", out var emailNode) ? emailNode.GetString() : null;
                 var active = sender.TryGetProperty("active", out var activeNode) && activeNode.ValueKind == JsonValueKind.True;
                 if (active && string.Equals(email, _options.FromEmail.Trim(), StringComparison.OrdinalIgnoreCase))
-                    return new SmtpProbeResult(true, "brevo-api-sender-ready");
+                    return new SmtpProbeResult(true, "authenticated-envelope");
             }
 
             return new SmtpProbeResult(false, "brevo-sender-not-active");
