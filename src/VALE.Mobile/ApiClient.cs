@@ -118,6 +118,20 @@ public sealed class ApiClient : IDisposable
         return await response.Content.ReadFromJsonAsync<RegisterResponse>(JsonOptions, ct) ?? throw new InvalidOperationException("Hesap oluşturma yanıtı alınamadı.");
     }
 
+    public async Task<RegisterResponse> RegisterOwnerAsync(OwnerRegisterRequest request, CancellationToken ct = default)
+    {
+        using var response = await SendJsonAsync(HttpMethod.Post, "api/registration/owner", request, false, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<RegisterResponse>(JsonOptions, ct) ?? throw new InvalidOperationException("Firma hesabı oluşturma yanıtı alınamadı.");
+    }
+
+    public async Task<RegisterResponse> RegisterStaffAsync(StaffRegisterRequest request, CancellationToken ct = default)
+    {
+        using var response = await SendJsonAsync(HttpMethod.Post, "api/registration/staff", request, false, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<RegisterResponse>(JsonOptions, ct) ?? throw new InvalidOperationException("Personel başvurusu yanıtı alınamadı.");
+    }
+
     public async Task RequestPasswordResetAsync(string email, CancellationToken ct = default)
     {
         using var response = await SendJsonAsync(HttpMethod.Post, "api/auth/forgot-password", new ForgotPasswordRequest(email.Trim()), false, ct);
@@ -268,6 +282,32 @@ public sealed class ApiClient : IDisposable
         var path = $"api/audit?limit={Math.Clamp(limit, 1, 250)}";
         if (userId.HasValue) path += "&userId=" + userId.Value;
         return GetAsync<IReadOnlyList<AuditEntryDto>>(path, true, ct);
+    }
+
+    public Task<IReadOnlyList<RegistrationRequestDto>> GetPendingRegistrationsAsync(CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<RegistrationRequestDto>>("api/registration/pending", true, ct);
+
+    public async Task<RegistrationRequestDto> DecideRegistrationAsync(Guid id, bool approve, string? note = null, CancellationToken ct = default)
+    {
+        using var response = await SendJsonAsync(HttpMethod.Post, $"api/registration/{id}/decision", new RegistrationDecisionRequest(approve, note), true, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<RegistrationRequestDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Başvuru sonucu alınamadı.");
+    }
+
+    public Task<IReadOnlyList<NotificationDto>> GetNotificationsAsync(bool unreadOnly = false, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<NotificationDto>>($"api/notifications?unreadOnly={unreadOnly.ToString().ToLowerInvariant()}&limit=150", true, ct);
+
+    public async Task<NotificationDto> SetNotificationReadAsync(Guid id, bool read = true, CancellationToken ct = default)
+    {
+        using var response = await SendJsonAsync(HttpMethod.Patch, $"api/notifications/{id}", new MarkNotificationReadRequest(read), true, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<NotificationDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Bildirim güncellenemedi.");
+    }
+
+    public async Task ReadAllNotificationsAsync(CancellationToken ct = default)
+    {
+        using var response = await SendJsonAsync(HttpMethod.Post, "api/notifications/read-all", new { }, true, ct);
+        await EnsureSuccessAsync(response, ct);
     }
 
     public void Logout() => _accessToken = null;
