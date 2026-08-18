@@ -14,8 +14,27 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         Title = "VALE";
-        SystemBackdrop = new MicaBackdrop();
-        AppWindow.Resize(new SizeInt32(1280, 820));
+
+        // Mica is preferred for the long-lived shell, but remote/headless sessions and
+        // older graphics stacks can reject the composition backdrop. Fall back cleanly.
+        try
+        {
+            SystemBackdrop = new MicaBackdrop();
+        }
+        catch
+        {
+            SystemBackdrop = null;
+        }
+
+        try
+        {
+            AppWindow.Resize(new SizeInt32(1280, 820));
+        }
+        catch
+        {
+            // Window managers can deny resize in constrained/remote sessions.
+        }
+
         RootFrame.Navigate(typeof(LoginPage));
     }
 
