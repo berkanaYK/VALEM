@@ -46,13 +46,13 @@ jobs:
           dotnet --info
           if (-not (dotnet --list-sdks | Select-String '^10\.')) { throw '.NET 10 SDK bulunamadı.' }
 
-      - name: Restore WinUI client
+      - name: Restore WinUI client and runtime
         shell: pwsh
-        run: dotnet restore src/VALE.Client/VALE.Client.csproj
+        run: dotnet restore src/VALE.Client/VALE.Client.csproj -r win-x64
 
       - name: Release build
         shell: pwsh
-        run: dotnet build src/VALE.Client/VALE.Client.csproj -c Release --no-restore
+        run: dotnet build src/VALE.Client/VALE.Client.csproj -c Release -r win-x64 --no-restore
 
       - name: Publish unpackaged WinUI app
         shell: pwsh
@@ -72,7 +72,7 @@ jobs:
           $process = Start-Process $exe -PassThru
           try {
             $windowReady = $false
-            for ($i = 0; $i -lt 20; $i++) {
+            for ($i = 0; $i -lt 24; $i++) {
               Start-Sleep -Milliseconds 500
               $process.Refresh()
               if ($process.HasExited) { throw "VALE.Client başlangıç sırasında kapandı. ExitCode=$($process.ExitCode)" }
