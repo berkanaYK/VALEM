@@ -105,12 +105,12 @@ public sealed class EmailVerificationController(
         {
             StatusCode = status,
             ContentType = "text/html; charset=utf-8",
-            Content = $"""
+            Content = $$"""
                 <!doctype html>
                 <html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-                <title>{E(title)} • VALE</title>
-                <style>body{{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#f4f6fb;color:#172033;margin:0;padding:32px}}main{{max-width:560px;margin:8vh auto;background:#fff;border-radius:24px;padding:32px;box-shadow:0 10px 35px #00000012}}h1{{margin-top:0}}p{{line-height:1.6}}.ok{{font-weight:700;color:#2563eb}}</style></head>
-                <body><main><div class="ok">VALE</div><h1>{E(title)}</h1><p>{E(message)}</p><p>Bu sayfayı kapatıp VALE uygulamasına dönebilirsiniz.</p></main></body></html>
+                <title>{{E(title)}} • VALE</title>
+                <style>body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#f4f6fb;color:#172033;margin:0;padding:32px}main{max-width:560px;margin:8vh auto;background:#fff;border-radius:24px;padding:32px;box-shadow:0 10px 35px #00000012}h1{margin-top:0}p{line-height:1.6}.ok{font-weight:700;color:#2563eb}</style></head>
+                <body><main><div class="ok">VALE</div><h1>{{E(title)}}</h1><p>{{E(message)}}</p><p>Bu sayfayı kapatıp VALE uygulamasına dönebilirsiniz.</p></main></body></html>
                 """
         };
     }
