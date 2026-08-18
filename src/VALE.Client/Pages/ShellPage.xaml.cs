@@ -103,6 +103,7 @@ public sealed partial class ShellPage : Page
             "dashboard" => typeof(DashboardPage),
             "tickets" => typeof(TicketsPage),
             "checkin" => typeof(CheckInPage),
+            "reports" => typeof(ReportsPage),
             "history" => typeof(HistoryPage),
             "administration" => typeof(AdministrationPage),
             "settings" => typeof(SettingsPage),
