@@ -75,18 +75,17 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
         {
             var subject = context.Principal?.FindFirst("sub")?.Value;
             var stamp = context.Principal?.FindFirst("security_stamp")?.Value;
-            if (!Guid.TryParse(subject, out var userId) || string.IsNullOrWhiteSpace(stamp))
+            var companyClaim = context.Principal?.FindFirst("company_id")?.Value;
+            if (!Guid.TryParse(subject, out var userId) || string.IsNullOrWhiteSpace(stamp) || !Guid.TryParse(companyClaim, out var companyId))
             {
-                context.Fail("Oturum kimliği eksik.");
+                context.Fail("Oturum kimliği veya firma kapsamı eksik.");
                 return;
             }
 
             var userManager = context.HttpContext.RequestServices.GetRequiredService<UserManager<AppUser>>();
             var user = await userManager.FindByIdAsync(userId.ToString());
-            if (user is null || !user.IsActive || !string.Equals(user.SecurityStamp, stamp, StringComparison.Ordinal))
-            {
+            if (user is null || !user.IsActive || user.CompanyId != companyId || !string.Equals(user.SecurityStamp, stamp, StringComparison.Ordinal))
                 context.Fail("Oturum artık geçerli değil.");
-            }
         }
     };
 });
@@ -124,6 +123,7 @@ builder.Services.AddScoped<TicketService>();
 builder.Services.AddScoped<PasswordResetCodeService>();
 builder.Services.AddScoped<OneTimeCodeService>();
 builder.Services.AddScoped<AuditService>();
+builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<IValeEmailSender, SmtpValeEmailSender>();
 builder.Services.AddSingleton<IFeeCalculator, FeeCalculator>();
 
@@ -161,7 +161,7 @@ app.MapGet("/health/ready", async (ValeDbContext db, CancellationToken ct) =>
         return Results.Json(new { status = "not-ready", database = "unavailable" }, statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 }).AllowAnonymous();
-app.MapGet("/api/status", () => Results.Ok(new { service = "VALE.Api", version = "3.0", status = "ok", utc = DateTimeOffset.UtcNow })).AllowAnonymous();
+app.MapGet("/api/status", () => Results.Ok(new { service = "VALE.Api", version = "3.1", status = "ok", utc = DateTimeOffset.UtcNow })).AllowAnonymous();
 app.MapControllers();
 
 await using (var scope = app.Services.CreateAsyncScope()) await DatabaseSeeder.InitializeAsync(scope.ServiceProvider);
