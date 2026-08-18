@@ -20,7 +20,9 @@ public sealed class MainPage : ContentPage
         NavigationPage.SetHasNavigationBar(this, false);
 
         _email = UiKit.Entry("E-posta adresi", Keyboard.Email);
+        _email.ReturnType = ReturnType.Next;
         _password = UiKit.Entry("Parola", password: true);
+        _password.ReturnType = ReturnType.Go;
         _password.Completed += async (_, _) => await LoginAsync();
 
         _login = UiKit.PrimaryButton("Giriş Yap");
@@ -30,72 +32,92 @@ public sealed class MainPage : ContentPage
             else await LoginAsync();
         };
 
-        _status = UiKit.Label("Üretim sunucusu hazır olduğunda güvenli giriş yapılır.", 12, false, true);
+        _status = UiKit.Label("Sunucu bağlantısı giriş sırasında otomatik kontrol edilir.", 11.5, false, true);
         _status.HorizontalTextAlignment = TextAlignment.Center;
         _activity = UiKit.Activity();
         _activity.IsVisible = false;
 
-        var register = UiKit.SecondaryButton("Hesap Oluştur");
+        var register = UiKit.SecondaryButton("Yeni Hesap Oluştur");
         register.Clicked += async (_, _) => await Navigation.PushAsync(new RegisterPage(_api));
-        var forgot = UiKit.SecondaryButton("Şifremi Unuttum");
+        var forgot = UiKit.TextButton("Şifremi Unuttum");
         forgot.Clicked += async (_, _) => await Navigation.PushAsync(new ForgotPasswordPage(_api));
-        var connection = new Button
-        {
-            Text = "Bağlantı ayarları",
-            BackgroundColor = Colors.Transparent,
-            TextColor = ThemeService.Palette.Secondary,
-            FontSize = 12,
-            Padding = new Thickness(6)
-        };
+        var connection = UiKit.TextButton("Bağlantı Ayarları");
+        connection.FontSize = 12;
         connection.Clicked += async (_, _) => await Navigation.PushAsync(new ConnectionSettingsPage(_api));
 
-        var actionGrid = new Grid
+        var statusRow = new HorizontalStackLayout
         {
-            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star) },
-            ColumnSpacing = 10
+            HorizontalOptions = LayoutOptions.Center,
+            Spacing = 8,
+            Children = { _activity, _status }
         };
-        actionGrid.Add(register, 0, 0);
-        actionGrid.Add(forgot, 1, 0);
 
         var loginCard = UiKit.Card(new VerticalStackLayout
         {
-            Spacing = 13,
+            Spacing = 12,
             Children =
             {
-                UiKit.Label("Tekrar hoş geldiniz", 22, true),
-                UiKit.Label("Şubenizi, araçları ve tahsilatları tek yerden yönetin.", 13, false, true),
+                UiKit.Label("Tekrar hoş geldiniz", 24, true),
+                UiKit.Label("VALE hesabınızla güvenli şekilde devam edin.", 13, false, true),
+                UiKit.Label("E-posta", 11, true, true),
                 _email,
+                UiKit.Label("Parola", 11, true, true),
                 _password,
+                forgot,
                 _login,
-                new HorizontalStackLayout { HorizontalOptions = LayoutOptions.Center, Spacing = 8, Children = { _activity, _status } },
-                actionGrid,
+                statusRow,
+                new BoxView { HeightRequest = 1, BackgroundColor = ThemeService.Palette.Border, Margin = new Thickness(0, 4) },
+                register,
                 connection
             }
         }, new Thickness(20), 24);
+        loginCard.MaximumWidthRequest = 520;
+        loginCard.HorizontalOptions = LayoutOptions.Center;
 
-        Content = new ScrollView
+        var root = new VerticalStackLayout
         {
-            Content = new VerticalStackLayout
+            Padding = new Thickness(20, 44, 20, 26),
+            Spacing = 18,
+            HorizontalOptions = LayoutOptions.Fill,
+            Children =
             {
-                Padding = new Thickness(24, 58, 24, 28),
-                Spacing = 24,
-                Children =
+                new Image { Source = "vale_logo.svg", HeightRequest = 82, WidthRequest = 82, HorizontalOptions = LayoutOptions.Center },
+                new VerticalStackLayout
                 {
-                    new Image { Source = "vale_logo.svg", HeightRequest = 104, WidthRequest = 104, HorizontalOptions = LayoutOptions.Center },
-                    new VerticalStackLayout
+                    Spacing = 2,
+                    Children =
                     {
-                        Spacing = 3,
-                        Children =
+                        new Label
                         {
-                            new Label { Text = "VALE", FontSize = 42, FontAttributes = FontAttributes.Bold, HorizontalTextAlignment = TextAlignment.Center, TextColor = ThemeService.Palette.Text, CharacterSpacing = 3 },
-                            new Label { Text = "Akıllı vale operasyon platformu", FontSize = 14, HorizontalTextAlignment = TextAlignment.Center, TextColor = ThemeService.Palette.Secondary }
+                            Text = "VALE",
+                            FontSize = 38,
+                            FontAttributes = FontAttributes.Bold,
+                            HorizontalTextAlignment = TextAlignment.Center,
+                            TextColor = ThemeService.Palette.Text,
+                            CharacterSpacing = 2.4
+                        },
+                        new Label
+                        {
+                            Text = "Akıllı vale operasyon platformu",
+                            FontSize = 13.5,
+                            HorizontalTextAlignment = TextAlignment.Center,
+                            TextColor = ThemeService.Palette.Secondary
                         }
-                    },
-                    loginCard,
-                    UiKit.Label("Güvenli oturum • Ortak veri • Çoklu şube • Raporlama", 11, false, true)
+                    }
+                },
+                loginCard,
+                new Label
+                {
+                    Text = "Güvenli oturum  •  Ortak veri  •  Çoklu şube  •  Raporlama",
+                    FontSize = 10.5,
+                    HorizontalTextAlignment = TextAlignment.Center,
+                    TextColor = ThemeService.Palette.Secondary,
+                    LineBreakMode = LineBreakMode.WordWrap
                 }
             }
         };
+
+        Content = new ScrollView { Content = root };
     }
 
     private async Task LoginAsync()

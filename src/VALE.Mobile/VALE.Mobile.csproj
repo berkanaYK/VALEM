@@ -10,8 +10,8 @@
     <UseNativeHttpHandler>false</UseNativeHttpHandler>
     <ApplicationTitle>VALE</ApplicationTitle>
     <ApplicationId>com.berkanayk.vale</ApplicationId>
-    <ApplicationDisplayVersion>2.0.2</ApplicationDisplayVersion>
-    <ApplicationVersion>5</ApplicationVersion>
+    <ApplicationDisplayVersion>2.1.0</ApplicationDisplayVersion>
+    <ApplicationVersion>6</ApplicationVersion>
     <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
   </PropertyGroup>
   <ItemGroup>

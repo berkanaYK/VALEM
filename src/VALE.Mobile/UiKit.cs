@@ -15,7 +15,8 @@ public static class UiKit
         {
             Text = text,
             FontSize = size,
-            FontAttributes = bold ? FontAttributes.Bold : FontAttributes.None
+            FontAttributes = bold ? FontAttributes.Bold : FontAttributes.None,
+            LineBreakMode = LineBreakMode.WordWrap
         };
         label.SetDynamicResource(Microsoft.Maui.Controls.Label.TextColorProperty, secondary ? "ValeSecondary" : "ValeText");
         return label;
@@ -28,7 +29,8 @@ public static class UiKit
             Placeholder = placeholder,
             Keyboard = keyboard ?? Keyboard.Default,
             IsPassword = password,
-            HeightRequest = 52,
+            MinimumHeightRequest = 54,
+            FontSize = 15,
             Margin = new Thickness(0, 2),
             ClearButtonVisibility = password ? ClearButtonVisibility.Never : ClearButtonVisibility.WhileEditing
         };
@@ -38,15 +40,46 @@ public static class UiKit
         return entry;
     }
 
+    public static Editor Editor(string placeholder)
+    {
+        var editor = new Editor
+        {
+            Placeholder = placeholder,
+            MinimumHeightRequest = 92,
+            AutoSize = EditorAutoSizeOption.TextChanges,
+            FontSize = 15
+        };
+        editor.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeSoftCard");
+        editor.SetDynamicResource(Microsoft.Maui.Controls.Editor.TextColorProperty, "ValeText");
+        editor.SetDynamicResource(Microsoft.Maui.Controls.Editor.PlaceholderColorProperty, "ValeSecondary");
+        return editor;
+    }
+
+    public static Picker Picker(string title)
+    {
+        var picker = new Picker
+        {
+            Title = title,
+            MinimumHeightRequest = 54,
+            FontSize = 15
+        };
+        picker.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeSoftCard");
+        picker.SetDynamicResource(Picker.TextColorProperty, "ValeText");
+        picker.SetDynamicResource(Picker.TitleColorProperty, "ValeSecondary");
+        return picker;
+    }
+
     public static Button PrimaryButton(string text) => new()
     {
         Text = text,
-        HeightRequest = 52,
-        CornerRadius = 15,
+        MinimumHeightRequest = 54,
+        Padding = new Thickness(18, 12),
+        CornerRadius = 16,
         BackgroundColor = ThemeService.Palette.Accent,
         TextColor = Colors.White,
         FontAttributes = FontAttributes.Bold,
-        FontSize = 15
+        FontSize = 15,
+        HorizontalOptions = LayoutOptions.Fill
     };
 
     public static Button SecondaryButton(string text)
@@ -54,14 +87,34 @@ public static class UiKit
         var button = new Button
         {
             Text = text,
-            HeightRequest = 48,
-            CornerRadius = 14,
+            MinimumHeightRequest = 52,
+            Padding = new Thickness(16, 11),
+            CornerRadius = 15,
             BorderWidth = 1,
             BorderColor = ThemeService.Palette.Border,
-            FontAttributes = FontAttributes.Bold
+            FontAttributes = FontAttributes.Bold,
+            FontSize = 14,
+            HorizontalOptions = LayoutOptions.Fill
         };
         button.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeCard");
         button.SetDynamicResource(Button.TextColorProperty, "ValeText");
+        return button;
+    }
+
+    public static Button TextButton(string text)
+    {
+        var button = new Button
+        {
+            Text = text,
+            BackgroundColor = Colors.Transparent,
+            BorderWidth = 0,
+            MinimumHeightRequest = 46,
+            Padding = new Thickness(10, 8),
+            FontSize = 14,
+            FontAttributes = FontAttributes.Bold,
+            HorizontalOptions = LayoutOptions.Fill
+        };
+        button.SetDynamicResource(Button.TextColorProperty, "ValeAccent");
         return button;
     }
 
@@ -81,18 +134,19 @@ public static class UiKit
 
     public static (Border Card, Label Value) Metric(string title, string value, string caption)
     {
-        var valueLabel = Label(value, 25, true);
+        var valueLabel = Label(value, 23, true);
+        valueLabel.LineBreakMode = LineBreakMode.TailTruncation;
         var content = new VerticalStackLayout
         {
             Spacing = 4,
             Children =
             {
-                Label(title, 11, true, true),
+                Label(title, 10.5, true, true),
                 valueLabel,
-                Label(caption, 11, false, true)
+                Label(caption, 10.5, false, true)
             }
         };
-        return (Card(content, new Thickness(14), 18), valueLabel);
+        return (Card(content, new Thickness(13), 18), valueLabel);
     }
 
     public static ActivityIndicator Activity() => new()

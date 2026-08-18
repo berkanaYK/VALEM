@@ -18,7 +18,7 @@ public sealed class App : Application
     {
         if (Current?.Windows.FirstOrDefault() is { } window)
         {
-            window.Page = new MainTabsPage(api, user);
+            window.Page = new ModernMainTabsPage(api, user);
         }
     }
 
