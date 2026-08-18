@@ -32,6 +32,12 @@ services:
         value: Antalya
       - key: Email__Enabled
         value: "true"
+      - key: Email__Transport
+        value: Brevo
+      - key: Email__BrevoApiKey
+        sync: false
+      - key: Email__BrevoBaseUrl
+        value: https://api.brevo.com/v3
       - key: Email__Host
         sync: false
       - key: Email__Port
