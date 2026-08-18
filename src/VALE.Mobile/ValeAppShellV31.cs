@@ -193,7 +193,7 @@ public sealed class ValeHelpPage : ContentPage
                     UiKit.Label("VALE Yardım", 27, true),
                     UiKit.Card(new VerticalStackLayout { Spacing = 6, Children = { UiKit.Label("Personel katılımı", 16, true), UiKit.Label("Firma yöneticinizden firma + şube kodunu veya davet kodunu alın. Başvurunuz yalnızca ilgili firmanın yöneticilerine düşer.", 12.5, false, true) } }),
                     UiKit.Card(new VerticalStackLayout { Spacing = 6, Children = { UiKit.Label("Araç ücreti", 16, true), UiKit.Label("Aktif aracın tahmini ücreti araç detayında anlık gösterilir; kesin tahsilat teslim anında hesaplanır.", 12.5, false, true) } }),
-                    UiKit.Card(new VerticalStackLayout { Spacing = 6, Children = { UiKit.Label("Güvenlik", 16, true), UiKit.Label("Authenticator ile 2FA kullanabilirsiniz. E-posta koduyla giriş, sunucudaki SMTP ayarları etkinse kullanılabilir.", 12.5, false, true) } })
+                    UiKit.Card(new VerticalStackLayout { Spacing = 6, Children = { UiKit.Label("Bildirim ve güvenlik", 16, true), UiKit.Label("Authenticator 2FA, e-posta ile giriş ve gerçek Firebase push bildirimleri yapılandırılmış sunucuda kullanılabilir.", 12.5, false, true) } })
                 }
             }
         };
@@ -212,11 +212,12 @@ public sealed class LogoutPage : ContentPage
         Content = UiKit.Label("Oturum kapatılıyor…", 14, false, true);
     }
 
-    protected override void OnAppearing()
+    protected override async void OnAppearing()
     {
         base.OnAppearing();
         if (_done) return;
         _done = true;
+        await PushTokenManager.DetachAsync();
         _api.Logout();
         App.ShowLogin();
     }
