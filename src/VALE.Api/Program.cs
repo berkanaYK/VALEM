@@ -69,6 +69,26 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
         NameClaimType = "name",
         RoleClaimType = "role"
     };
+    options.Events = new JwtBearerEvents
+    {
+        OnTokenValidated = async context =>
+        {
+            var subject = context.Principal?.FindFirst("sub")?.Value;
+            var stamp = context.Principal?.FindFirst("security_stamp")?.Value;
+            if (!Guid.TryParse(subject, out var userId) || string.IsNullOrWhiteSpace(stamp))
+            {
+                context.Fail("Oturum kimliği eksik.");
+                return;
+            }
+
+            var userManager = context.HttpContext.RequestServices.GetRequiredService<UserManager<AppUser>>();
+            var user = await userManager.FindByIdAsync(userId.ToString());
+            if (user is null || !user.IsActive || !string.Equals(user.SecurityStamp, stamp, StringComparison.Ordinal))
+            {
+                context.Fail("Oturum artık geçerli değil.");
+            }
+        }
+    };
 });
 
 var auth = builder.Services.AddAuthorizationBuilder();
