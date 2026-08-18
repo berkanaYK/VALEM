@@ -8,7 +8,7 @@ using Firebase.Messaging;
 namespace VALE.Mobile;
 
 [Service(Exported = false)]
-[IntentFilter(["com.google.firebase.MESSAGING_EVENT"])]
+[IntentFilter(new[] { "com.google.firebase.MESSAGING_EVENT" })]
 public sealed class ValeFirebaseMessagingService : FirebaseMessagingService
 {
     public const string ChannelId = "vale_general";
@@ -43,7 +43,7 @@ public sealed class ValeFirebaseMessagingService : FirebaseMessagingService
         manager.CreateNotificationChannel(channel);
     }
 
-    private void ShowNotification(string title, string body, IReadOnlyDictionary<string, string> data)
+    private void ShowNotification(string title, string body, IDictionary<string, string> data)
     {
         if (Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu &&
             CheckSelfPermission(Android.Manifest.Permission.PostNotifications) != Permission.Granted)
