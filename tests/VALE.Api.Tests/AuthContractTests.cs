@@ -15,6 +15,26 @@ public sealed class AuthContractTests
     }
 
     [Fact]
+    public void Registration_supports_three_explicit_login_methods()
+    {
+        Assert.Equal(new[] { LoginMethods.Password, LoginMethods.EmailCode, LoginMethods.Authenticator }, LoginMethods.All);
+    }
+
+    [Fact]
+    public void Email_code_registration_contract_allows_no_password()
+    {
+        var ownerConstructor = typeof(OwnerRegisterRequest).GetConstructors(BindingFlags.Public | BindingFlags.Instance).Single();
+        var ownerPassword = ownerConstructor.GetParameters()[2];
+        Assert.DoesNotContain(ownerPassword.GetCustomAttributes<ValidationAttribute>(true), x => x is RequiredAttribute);
+        Assert.All(ownerPassword.GetCustomAttributes<ValidationAttribute>(true), x => Assert.True(x.IsValid(null)));
+
+        var staffConstructor = typeof(StaffRegisterRequest).GetConstructors(BindingFlags.Public | BindingFlags.Instance).Single();
+        var staffPassword = staffConstructor.GetParameters()[2];
+        Assert.DoesNotContain(staffPassword.GetCustomAttributes<ValidationAttribute>(true), x => x is RequiredAttribute);
+        Assert.All(staffPassword.GetCustomAttributes<ValidationAttribute>(true), x => Assert.True(x.IsValid(null)));
+    }
+
+    [Fact]
     public void Profile_color_requires_hex_rgb()
     {
         Assert.False(ConstructorParameterIsValid<UpdateAccountProfileRequest>(4, "blue"));
