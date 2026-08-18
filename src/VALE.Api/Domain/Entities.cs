@@ -3,13 +3,26 @@ using VALE.Contracts;
 
 namespace VALE.Api.Domain;
 
+public sealed class Company
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Name { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+    public Guid? OwnerUserId { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 public sealed class Branch
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CompanyId { get; set; }
+    public Company Company { get; set; } = null!;
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string City { get; set; } = string.Empty;
     public string Address { get; set; } = string.Empty;
+    public string? InviteCode { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
@@ -17,6 +30,8 @@ public sealed class Branch
 public sealed class AppUser : IdentityUser<Guid>
 {
     public string FullName { get; set; } = string.Empty;
+    public Guid? CompanyId { get; set; }
+    public Company? Company { get; set; }
     public Guid? BranchId { get; set; }
     public Branch? Branch { get; set; }
     public bool IsActive { get; set; } = true;
@@ -27,6 +42,38 @@ public sealed class AppUser : IdentityUser<Guid>
     public string ProfileColor { get; set; } = "#2563EB";
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? LastLoginAt { get; set; }
+}
+
+public sealed class RegistrationRequest
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CompanyId { get; set; }
+    public Company Company { get; set; } = null!;
+    public Guid BranchId { get; set; }
+    public Branch Branch { get; set; } = null!;
+    public Guid ApplicantUserId { get; set; }
+    public AppUser ApplicantUser { get; set; } = null!;
+    public string RequestedRole { get; set; } = "Valet";
+    public string Status { get; set; } = "Pending";
+    public Guid? ReviewedByUserId { get; set; }
+    public AppUser? ReviewedByUser { get; set; }
+    public DateTimeOffset? ReviewedAt { get; set; }
+    public string? Note { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class ValeNotification
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CompanyId { get; set; }
+    public Guid? BranchId { get; set; }
+    public Guid UserId { get; set; }
+    public AppUser User { get; set; } = null!;
+    public string Title { get; set; } = string.Empty;
+    public string Body { get; set; } = string.Empty;
+    public string Type { get; set; } = "Info";
+    public bool IsRead { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public sealed class Customer
