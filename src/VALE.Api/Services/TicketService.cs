@@ -8,7 +8,13 @@ using VALE.Contracts;
 
 namespace VALE.Api.Services;
 
-public sealed class TicketService(ValeDbContext db, CurrentUserContext currentUser, IFeeCalculator feeCalculator, IOptions<BusinessRulesOptions> businessRules, AuditService audit)
+public sealed class TicketService(
+    ValeDbContext db,
+    CurrentUserContext currentUser,
+    IFeeCalculator feeCalculator,
+    IOptions<BusinessRulesOptions> businessRules,
+    AuditService audit,
+    FirebasePushSender pushSender)
 {
     private const int MaxPhotoBytes = 4_000_000;
     private readonly BusinessRulesOptions _rules = businessRules.Value;
@@ -121,9 +127,18 @@ public sealed class TicketService(ValeDbContext db, CurrentUserContext currentUs
         else if (nextStatus == TicketStatus.Cancelled) ticket.ExitAt = DateTimeOffset.UtcNow;
         ticket.UpdatedByUserId = currentUser.UserId;
         ticket.UpdatedAt = DateTimeOffset.UtcNow;
+
+        var title = "Araç teslim istendi";
+        var body = $"{ticket.Vehicle.LicensePlate} plakalı araç teslim için isteniyor.";
+        IReadOnlyList<Guid> pushRecipients = [];
         if (nextStatus == TicketStatus.Requested)
-            await AddBranchNotificationsAsync(ticket.BranchId, "Araç teslim istendi", $"{ticket.Vehicle.LicensePlate} plakalı araç teslim için isteniyor.", "VehicleRequested", cancellationToken);
+            pushRecipients = await AddBranchNotificationsAsync(ticket.BranchId, title, body, "VehicleRequested", cancellationToken);
+
         await db.SaveChangesAsync(cancellationToken);
+
+        if (pushRecipients.Count > 0)
+            await pushSender.SendToUsersAsync(currentUser.CompanyId, pushRecipients, title, body, "VehicleRequested", ticket.BranchId, cancellationToken);
+
         await audit.RecordAsync(currentUser.UserId, ticket.BranchId, "ticket.status", "ParkingTicket", ticket.Id.ToString(), $"Durum: {nextStatus}", cancellationToken: cancellationToken);
         return Map(ticket);
     }
@@ -175,13 +190,14 @@ public sealed class TicketService(ValeDbContext db, CurrentUserContext currentUs
             throw new ApiException(StatusCodes.Status403Forbidden, "Şube yetkisi yok", "Bu şube firmanıza ait değil veya aktif değil.");
     }
 
-    private async Task AddBranchNotificationsAsync(Guid branchId, string title, string body, string type, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<Guid>> AddBranchNotificationsAsync(Guid branchId, string title, string body, string type, CancellationToken cancellationToken)
     {
         var recipients = await db.Users.AsNoTracking()
             .Where(x => x.IsActive && x.CompanyId == currentUser.CompanyId && x.BranchId == branchId)
             .Select(x => x.Id).ToListAsync(cancellationToken);
         foreach (var userId in recipients)
             db.Notifications.Add(new ValeNotification { CompanyId = currentUser.CompanyId, BranchId = branchId, UserId = userId, Title = title, Body = body, Type = type });
+        return recipients;
     }
 
     private async Task<Vehicle> UpsertVehicleAsync(string normalizedPlate, string plate, string? brand, string? model, string? color, int? year, string? fuel, string? transmission, string? photoBase64, bool removePhoto, CancellationToken cancellationToken)
