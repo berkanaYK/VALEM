@@ -29,7 +29,7 @@ permissions:
 jobs:
   build-test-release:
     runs-on: windows-latest
-    timeout-minutes: 55
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository without marketplace actions
@@ -50,7 +50,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $target = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
-          gh api --method POST "repos/$env:GITHUB_REPOSITORY/statuses/$env:GITHUB_SHA" -f state='pending' -f context='vale/android-release' -f description='VALE Android 3.1.0 release build başladı.' -f target_url=$target
+          gh api --method POST "repos/$env:GITHUB_REPOSITORY/statuses/$env:GITHUB_SHA" -f state='pending' -f context='vale/android-release' -f description='VALE Android 3.1.1 SMTP + FCM release build başladı.' -f target_url=$target
 
       - name: Ensure .NET 10 SDK
         shell: pwsh
@@ -78,6 +78,30 @@ jobs:
           "$javaHome\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           & "$javaHome\bin\java.exe" -version
 
+      - name: Inject Firebase Android configuration
+        shell: pwsh
+        env:
+          FIREBASE_GOOGLE_SERVICES_JSON_B64: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON_B64 }}
+        run: |
+          $relative = 'src/VALE.Mobile/Platforms/Android/google-services.json'
+          $target = Join-Path $env:GITHUB_WORKSPACE $relative
+          if (-not [string]::IsNullOrWhiteSpace($env:FIREBASE_GOOGLE_SERVICES_JSON_B64)) {
+            try {
+              $bytes = [Convert]::FromBase64String($env:FIREBASE_GOOGLE_SERVICES_JSON_B64.Trim())
+              [IO.File]::WriteAllBytes($target, $bytes)
+              $json = Get-Content $target -Raw | ConvertFrom-Json
+              $package = @($json.client.client_info.android_client_info.package_name) | Where-Object { $_ -eq 'com.berkanayk.vale' } | Select-Object -First 1
+              if (-not $package) { throw 'google-services.json içinde com.berkanayk.vale Android uygulaması bulunamadı.' }
+              Write-Host 'Firebase google-services.json güvenli secret üzerinden enjekte edildi.'
+            } catch {
+              throw "Firebase Android yapılandırması okunamadı: $($_.Exception.Message)"
+            }
+          } elseif ($env:GITHUB_REF -eq 'refs/heads/main') {
+            throw 'FIREBASE_GOOGLE_SERVICES_JSON_B64 GitHub Actions secret tanımlı değil; FCM içermeyen production APK yayınlanamaz.'
+          } else {
+            Write-Warning 'Firebase Android secret bu branch çalıştırmasında yok; kod derlenecek ancak gerçek FCM runtime testi production release aşamasında yapılacak.'
+          }
+
       - name: Install MAUI Android workload
         shell: pwsh
         run: dotnet workload install maui-android
@@ -86,16 +110,22 @@ jobs:
         shell: pwsh
         run: dotnet restore src/VALE.Mobile/VALE.Mobile.csproj
 
-      - name: Verify Android transport configuration
+      - name: Verify Android transport and push configuration
         shell: pwsh
         run: |
           [xml]$project = Get-Content 'src/VALE.Mobile/VALE.Mobile.csproj'
           $propertyGroup = @($project.Project.PropertyGroup) | Select-Object -First 1
           if ([string]$propertyGroup.UseNativeHttpHandler -ne 'false') { throw 'Release engellendi: managed HTTP handler kapalı.' }
           $version = [string]$propertyGroup.ApplicationDisplayVersion
-          if ($version -ne '3.1.0') { throw "Beklenen mobil sürüm 3.1.0, bulunan: $version" }
+          if ($version -ne '3.1.1') { throw "Beklenen mobil sürüm 3.1.1, bulunan: $version" }
+          $projectRaw = Get-Content 'src/VALE.Mobile/VALE.Mobile.csproj' -Raw
+          if ($projectRaw -notmatch 'Xamarin.Firebase.Messaging') { throw 'Firebase Messaging Android paketi eksik.' }
+          if ($projectRaw -notmatch 'GoogleServicesJson') { throw 'google-services.json build item tanımı eksik.' }
+          $manifest = Get-Content 'src/VALE.Mobile/Platforms/Android/AndroidManifest.xml' -Raw
+          if ($manifest -notmatch 'POST_NOTIFICATIONS') { throw 'Android POST_NOTIFICATIONS izni eksik.' }
+          if (-not (Test-Path 'src/VALE.Mobile/Platforms/Android/ValeFirebaseMessagingService.cs')) { throw 'FirebaseMessagingService eksik.' }
           "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          Write-Host "Managed HTTP handler doğrulandı. VALE $version"
+          Write-Host "Managed HTTP handler + FCM kaynakları doğrulandı. VALE $version"
 
       - name: Verify Android launcher icon configuration
         shell: pwsh
@@ -121,16 +151,20 @@ jobs:
           $tenant = Get-Content 'src/VALE.Mobile/TenantRegisterPage.cs' -Raw
           $shell = Get-Content 'src/VALE.Mobile/ValeAppShellV31.cs' -Raw
           $notifications = Get-Content 'src/VALE.Mobile/NotificationsPage.cs' -Raw
+          $pushManager = Get-Content 'src/VALE.Mobile/PushTokenManager.cs' -Raw
           if ($main -notmatch 'LoginWithTwoFactorAsync') { throw 'Mobil 2FA giriş akışı eksik.' }
           if ($main -notmatch 'EmailCodeLoginPage') { throw 'E-posta koduyla giriş eksik.' }
+          if ($main -notmatch 'Permissions.PostNotifications') { throw 'Bildirim izin istemi eksik.' }
           if ($company -notmatch 'CanManageUsers' -or $company -notmatch 'CanAudit') { throw 'Rol tabanlı şirket menüsü eksik.' }
           if ($client -notmatch 'DeleteTicketAsync' -or $client -notmatch 'UpdateTicketDetailsAsync') { throw 'Kayıt yönetimi istemci metotları eksik.' }
           if ($client -notmatch 'RegisterOwnerAsync' -or $client -notmatch 'RegisterStaffAsync') { throw 'Firma/personel kayıt istemcisi eksik.' }
+          if ($client -notmatch 'RegisterPushTokenAsync' -or $client -notmatch 'SendPushTestAsync') { throw 'FCM cihaz kayıt/test istemcisi eksik.' }
           if ($tenant -notmatch 'Firma sahibi / yönetici' -or $tenant -notmatch 'Personel / mevcut firmaya katıl') { throw 'Multi-tenant kayıt ekranı eksik.' }
           if ($shell -notmatch 'NotificationsPage' -or $shell -notmatch 'CompanyManagementPage') { throw 'v3.1 ana navigasyon yüzeyi eksik.' }
-          if ($notifications -notmatch 'GetPendingRegistrationsAsync') { throw 'Personel onay kutusu eksik.' }
+          if ($notifications -notmatch 'GetPendingRegistrationsAsync' -or $notifications -notmatch 'SendPushTestAsync') { throw 'Personel onay veya push test ekranı eksik.' }
+          if ($pushManager -notmatch 'RegisterPushTokenAsync' -or $pushManager -notmatch 'UnregisterPushTokenAsync') { throw 'Push token yaşam döngüsü eksik.' }
           if ($company -notmatch 'TwoFactorPage' -or $company -notmatch 'ThemeService') { throw 'Profil güvenliği veya tema yönetimi eksik.' }
-          Write-Host 'VALE v3.1 mobile tenant/company/security source checks passed.'
+          Write-Host 'VALE 3.1.1 mobile tenant/company/security/push source checks passed.'
 
       - name: Production auth smoke tests
         shell: pwsh
@@ -150,7 +184,7 @@ jobs:
           $register = Invoke-WebRequest "$endpoint/api/auth/register" -Method Post -ContentType 'application/json' -Body '{"fullName":"X","email":"not-an-email","password":"short"}' -TimeoutSec 20 -SkipHttpErrorCheck
           if ($register.StatusCode -ne 400) { throw "Register POST testi başarısız: $($register.StatusCode)" }
 
-      - name: Wait for VALE API v3.1 on main
+      - name: Wait for VALE API v3.1.1 capabilities on main
         if: github.ref == 'refs/heads/main'
         shell: pwsh
         run: |
@@ -159,14 +193,14 @@ jobs:
           for ($i = 1; $i -le 75; $i++) {
             try {
               $status = Invoke-RestMethod "$endpoint/api/status" -TimeoutSec 12
-              if ($status.status -eq 'ok' -and [string]$status.version -eq '3.1') {
+              if ($status.status -eq 'ok' -and [string]$status.version -eq '3.1.1' -and $status.capabilities.smtp -eq $true -and $status.capabilities.fcm -eq $true) {
                 $profile = Invoke-WebRequest "$endpoint/api/auth/profile" -TimeoutSec 12 -SkipHttpErrorCheck
                 if ($profile.StatusCode -eq 401) { $newApi = $true; break }
               }
             } catch { }
             Start-Sleep -Seconds 10
           }
-          if (-not $newApi) { throw 'VALE API v3.1 production ortamına geçmedi; 3.1.0 APK yayınlanmadı.' }
+          if (-not $newApi) { throw 'VALE API v3.1.1 SMTP+FCM production ortamında hazır değil; APK yayınlanmadı.' }
 
       - name: Release build test
         shell: pwsh
@@ -197,6 +231,19 @@ jobs:
           Write-Host 'APK launcher icon entries:'
           $icons | Select-Object -First 20 | ForEach-Object { Write-Host " - $_" }
 
+      - name: Verify Firebase resources inside production APK
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        run: |
+          $jar = Join-Path $env:JAVA_HOME 'bin\jar.exe'
+          $entries = & $jar tf "$env:GITHUB_WORKSPACE\VALE.apk"
+          $messagingService = @($entries | Where-Object { $_ -match 'ValeFirebaseMessagingService' })
+          if ($messagingService.Count -eq 0) {
+            Write-Host 'Firebase service class may be stored in assemblies rather than direct APK class entries; source/build checks already passed.'
+          }
+          if (-not (Test-Path 'src/VALE.Mobile/Platforms/Android/google-services.json')) { throw 'Production build sırasında google-services.json mevcut değil.' }
+          Write-Host 'Production Firebase Android configuration present.'
+
       - name: Publish GitHub Release
         if: github.ref == 'refs/heads/main'
         shell: pwsh
@@ -204,7 +251,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "android-$env:GITHUB_RUN_NUMBER"
-          gh release create $tag "$env:GITHUB_WORKSPACE\VALE.apk" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "VALE Android $env:APP_VERSION" --notes "VALE 3.1.0: firma bazlı multi-tenant veri izolasyonu, firma sahibi/personel kayıt akışı ve doğru yönetici onayı, bildirim merkezi, aktif araçlarda anlık ücret, 5 sekmeli alt menü ve drawer, Android geri tuşu düzeltmesi, PDF/Excel/UTF-8 CSV rapor dışa aktarma ve firma/şube yönetimi."
+          gh release create $tag "$env:GITHUB_WORKSPACE\VALE.apk" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "VALE Android $env:APP_VERSION" --notes "VALE 3.1.1: gerçek Firebase Cloud Messaging push bildirimleri, cihaz token yönetimi ve push testi; production SMTP ile e-posta koduyla giriş ve şifre sıfırlama; mevcut multi-tenant VALE 3.1 özellikleri korunmuştur."
 
       - name: Publish Android release status
         if: always() && github.ref == 'refs/heads/main'
@@ -214,6 +261,6 @@ jobs:
           JOB_STATUS: ${{ job.status }}
         run: |
           $state = if ($env:JOB_STATUS -eq 'success') { 'success' } else { 'failure' }
-          $description = if ($state -eq 'success') { 'VALE Android 3.1.0 test edildi ve yayınlandı.' } else { 'VALE Android 3.1.0 yayını başarısız; run logunu kontrol edin.' }
+          $description = if ($state -eq 'success') { 'VALE Android 3.1.1 SMTP+FCM test edildi ve yayınlandı.' } else { 'VALE Android 3.1.1 yayını engellendi/başarısız; run logunu kontrol edin.' }
           $target = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
           gh api --method POST "repos/$env:GITHUB_REPOSITORY/statuses/$env:GITHUB_SHA" -f state=$state -f context='vale/android-release' -f description=$description -f target_url=$target

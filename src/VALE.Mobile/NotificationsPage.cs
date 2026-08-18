@@ -10,6 +10,7 @@ public sealed class NotificationsPage : ContentPage
     private readonly VerticalStackLayout _notifications = new() { Spacing = 9 };
     private readonly VerticalStackLayout _approvals = new() { Spacing = 9 };
     private readonly Label _status = UiKit.Label("Bildirimler yükleniyor…", 11.5, false, true);
+    private readonly Label _pushStatus = UiKit.Label("Push durumu kontrol ediliyor…", 11.5, false, true);
     private bool _loading;
 
     public NotificationsPage(ApiClient api, UserDto user)
@@ -27,6 +28,8 @@ public sealed class NotificationsPage : ContentPage
             try { await _api.ReadAllNotificationsAsync(); await LoadAsync(); }
             catch (Exception ex) { await DisplayAlertAsync("Bildirimler", ex.Message, "Tamam"); }
         };
+        var pushTest = UiKit.SecondaryButton("Gerçek Push Testi Gönder");
+        pushTest.Clicked += async (_, _) => await TestPushAsync();
 
         var root = new VerticalStackLayout
         {
@@ -35,13 +38,23 @@ public sealed class NotificationsPage : ContentPage
             Children =
             {
                 UiKit.Label("Bildirimler", 27, true),
-                UiKit.Label("Personel başvuruları, araç teslim istekleri ve hesap bildirimleri burada görünür.", 12.5, false, true),
+                UiKit.Label("Personel başvuruları, araç teslim istekleri ve hesap bildirimleri burada görünür. Firebase aktifse bunlar telefonunuza gerçek push olarak da gelir.", 12.5, false, true),
                 new Grid
                 {
                     ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star) },
                     ColumnSpacing = 8,
                     Children = { }
                 },
+                UiKit.Card(new VerticalStackLayout
+                {
+                    Spacing = 8,
+                    Children =
+                    {
+                        UiKit.Label("Push bildirim durumu", 15, true),
+                        _pushStatus,
+                        pushTest
+                    }
+                }),
                 _status,
                 _approvals,
                 _notifications
@@ -86,6 +99,18 @@ public sealed class NotificationsPage : ContentPage
                 foreach (var item in notifications) _notifications.Add(CreateNotificationCard(item));
 
             _status.Text = $"{notifications.Count(x => !x.IsRead)} okunmamış • {notifications.Count} toplam";
+
+            try
+            {
+                var push = await _api.GetPushStatusAsync();
+                _pushStatus.Text = push.ServerConfigured
+                    ? $"Firebase sunucusu hazır • Bu hesapta {push.RegisteredDevices} aktif cihaz kayıtlı"
+                    : "Firebase sunucu anahtarı henüz production ortamında tanımlı değil.";
+            }
+            catch
+            {
+                _pushStatus.Text = "Push durumu şu anda okunamadı.";
+            }
         }
         catch (Exception ex)
         {
@@ -93,6 +118,38 @@ public sealed class NotificationsPage : ContentPage
             await DisplayAlertAsync("Bildirimler", ex.Message, "Tamam");
         }
         finally { _loading = false; }
+    }
+
+    private async Task TestPushAsync()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(PushTokenManager.CurrentToken))
+            {
+                await DisplayAlertAsync("Push testi", "Bu cihaz henüz Firebase tokenı alamadı. Firebase Android yapılandırmasının etkin olduğundan ve bildirim izninin verildiğinden emin olun.", "Tamam");
+                return;
+            }
+
+            await PushTokenManager.AttachAsync(_api);
+            var result = await _api.SendPushTestAsync();
+            if (!result.ServerConfigured)
+            {
+                await DisplayAlertAsync("Push testi", "Sunucudaki Firebase servis hesabı henüz etkin değil.", "Tamam");
+                return;
+            }
+
+            await DisplayAlertAsync(
+                "Push testi",
+                result.Delivered > 0
+                    ? $"Test bildirimi Firebase'e gönderildi. {result.Delivered}/{result.Attempted} cihaz başarılı."
+                    : $"Firebase hazır fakat bu hesaba gönderilebilen aktif cihaz yok. Denenen: {result.Attempted}.",
+                "Tamam");
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlertAsync("Push testi", ex.Message, "Tamam");
+        }
     }
 
     private View CreateNotificationCard(NotificationDto item)

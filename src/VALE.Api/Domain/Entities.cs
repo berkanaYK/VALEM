@@ -76,6 +76,20 @@ public sealed class ValeNotification
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
+public sealed class PushRegistration
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CompanyId { get; set; }
+    public Guid UserId { get; set; }
+    public AppUser User { get; set; } = null!;
+    public string Token { get; set; } = string.Empty;
+    public string Platform { get; set; } = "android";
+    public string? DeviceName { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset LastSeenAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 public sealed class Customer
 {
     public Guid Id { get; set; } = Guid.NewGuid();

@@ -31,7 +31,7 @@ services:
       - key: Seed__DefaultBranchCity
         value: Antalya
       - key: Email__Enabled
-        value: "false"
+        value: "true"
       - key: Email__Host
         sync: false
       - key: Email__Port
@@ -46,5 +46,11 @@ services:
         value: VALE
       - key: Email__EnableSsl
         value: "true"
+      - key: Firebase__Enabled
+        value: "true"
+      - key: Firebase__ProjectId
+        sync: false
+      - key: Firebase__ServiceAccountJson
+        sync: false
       - key: ASPNETCORE_FORWARDEDHEADERS_ENABLED
         value: "true"

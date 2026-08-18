@@ -310,6 +310,29 @@ public sealed class ApiClient : IDisposable
         await EnsureSuccessAsync(response, ct);
     }
 
+    public Task<PushStatusDto> GetPushStatusAsync(CancellationToken ct = default) =>
+        GetAsync<PushStatusDto>("api/push/status", true, ct);
+
+    public async Task<PushRegistrationDto> RegisterPushTokenAsync(PushRegistrationRequest request, CancellationToken ct = default)
+    {
+        using var response = await SendJsonAsync(HttpMethod.Put, "api/push/register", request, true, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<PushRegistrationDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Bildirim cihaz kaydı oluşturulamadı.");
+    }
+
+    public async Task UnregisterPushTokenAsync(PushRegistrationRequest request, CancellationToken ct = default)
+    {
+        using var response = await SendJsonAsync(HttpMethod.Post, "api/push/unregister", request, true, ct);
+        await EnsureSuccessAsync(response, ct);
+    }
+
+    public async Task<PushTestResponse> SendPushTestAsync(CancellationToken ct = default)
+    {
+        using var response = await SendJsonAsync(HttpMethod.Post, "api/push/test", new { }, true, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<PushTestResponse>(JsonOptions, ct) ?? throw new InvalidOperationException("Push test yanıtı alınamadı.");
+    }
+
     public void Logout() => _accessToken = null;
 
     private async Task<LoginResponse> AcceptLoginAsync(HttpResponseMessage response, CancellationToken ct)

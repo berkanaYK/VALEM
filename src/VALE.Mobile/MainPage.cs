@@ -1,3 +1,4 @@
+using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Controls;
 using VALE.Contracts;
 
@@ -101,6 +102,19 @@ public sealed class MainPage : ContentPage
                 }
             }
         };
+    }
+
+    protected override async void OnAppearing()
+    {
+        base.OnAppearing();
+        try
+        {
+            _ = await Permissions.RequestAsync<Permissions.PostNotifications>();
+        }
+        catch
+        {
+            // Login remains usable if the user denies notification permission.
+        }
     }
 
     private async Task LoginAsync()

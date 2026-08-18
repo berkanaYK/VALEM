@@ -12,6 +12,7 @@ public sealed class ValeDbContext(DbContextOptions<ValeDbContext> options)
     public DbSet<Branch> Branches => Set<Branch>();
     public DbSet<RegistrationRequest> RegistrationRequests => Set<RegistrationRequest>();
     public DbSet<ValeNotification> Notifications => Set<ValeNotification>();
+    public DbSet<PushRegistration> PushRegistrations => Set<PushRegistration>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Vehicle> Vehicles => Set<Vehicle>();
     public DbSet<ParkingTicket> ParkingTickets => Set<ParkingTicket>();
@@ -105,6 +106,17 @@ public sealed class ValeDbContext(DbContextOptions<ValeDbContext> options)
             entity.Property(x => x.Title).HasMaxLength(140);
             entity.Property(x => x.Body).HasMaxLength(600);
             entity.Property(x => x.Type).HasMaxLength(40);
+            entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<PushRegistration>(entity =>
+        {
+            entity.HasIndex(x => x.Token).IsUnique();
+            entity.HasIndex(x => new { x.UserId, x.IsActive, x.LastSeenAt });
+            entity.HasIndex(x => new { x.CompanyId, x.UserId });
+            entity.Property(x => x.Token).HasMaxLength(4096);
+            entity.Property(x => x.Platform).HasMaxLength(32);
+            entity.Property(x => x.DeviceName).HasMaxLength(120);
             entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 

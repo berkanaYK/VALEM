@@ -206,6 +206,21 @@ public static class DatabaseSeeder
             );
             CREATE INDEX IF NOT EXISTS "IX_Notifications_UserId_IsRead_CreatedAt" ON "Notifications" ("UserId", "IsRead", "CreatedAt");
             CREATE INDEX IF NOT EXISTS "IX_Notifications_CompanyId_CreatedAt" ON "Notifications" ("CompanyId", "CreatedAt");
+
+            CREATE TABLE IF NOT EXISTS "PushRegistrations" (
+                "Id" uuid NOT NULL PRIMARY KEY,
+                "CompanyId" uuid NOT NULL,
+                "UserId" uuid NOT NULL,
+                "Token" character varying(4096) NOT NULL,
+                "Platform" character varying(32) NOT NULL,
+                "DeviceName" character varying(120) NULL,
+                "IsActive" boolean NOT NULL DEFAULT TRUE,
+                "CreatedAt" timestamp with time zone NOT NULL,
+                "LastSeenAt" timestamp with time zone NOT NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_PushRegistrations_Token" ON "PushRegistrations" ("Token");
+            CREATE INDEX IF NOT EXISTS "IX_PushRegistrations_UserId_IsActive_LastSeenAt" ON "PushRegistrations" ("UserId", "IsActive", "LastSeenAt");
+            CREATE INDEX IF NOT EXISTS "IX_PushRegistrations_CompanyId_UserId" ON "PushRegistrations" ("CompanyId", "UserId");
             """,
             cancellationToken);
 }
