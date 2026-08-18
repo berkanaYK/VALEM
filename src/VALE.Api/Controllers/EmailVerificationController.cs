@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using VALE.Api.Configuration;
 using VALE.Api.Data;
 using VALE.Api.Domain;
 using VALE.Api.Services;
@@ -18,8 +20,11 @@ public sealed class EmailVerificationController(
     UserManager<AppUser> userManager,
     ValeDbContext db,
     IValeEmailSender emailSender,
+    IOptions<EmailOptions> emailOptions,
     AuditService audit) : ControllerBase
 {
+    private readonly EmailOptions _emailOptions = emailOptions.Value;
+
     [HttpPost("email-confirmation/resend")]
     [AllowAnonymous]
     [EnableRateLimiting("email-code")]
@@ -92,10 +97,17 @@ public sealed class EmailVerificationController(
         if (string.IsNullOrWhiteSpace(user.Email)) return;
         var rawToken = await userManager.GenerateEmailConfirmationTokenAsync(user);
         var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(rawToken));
-        var scheme = Request.Headers["X-Forwarded-Proto"].FirstOrDefault();
-        if (string.IsNullOrWhiteSpace(scheme)) scheme = Request.Scheme;
-        var url = $"{scheme}://{Request.Host}/api/auth/confirm-email?userId={user.Id:D}&token={Uri.EscapeDataString(encodedToken)}";
+        var url = BuildConfirmationUrl(user.Id, encodedToken);
         await emailSender.SendEmailConfirmationLinkAsync(user.Email, user.FullName, url, cancellationToken);
+    }
+
+    private string BuildConfirmationUrl(Guid userId, string encodedToken)
+    {
+        if (!Uri.TryCreate(_emailOptions.PublicBaseUrl, UriKind.Absolute, out var baseUri)
+            || baseUri.Scheme != Uri.UriSchemeHttps)
+            throw new ApiException(StatusCodes.Status503ServiceUnavailable, "E-posta doğrulama hazır değil", "Güvenilir doğrulama adresi yapılandırılmamış.");
+        var root = baseUri.ToString().TrimEnd('/');
+        return $"{root}/api/auth/confirm-email?userId={userId:D}&token={Uri.EscapeDataString(encodedToken)}";
     }
 
     private ContentResult Html(int status, string title, string message)
