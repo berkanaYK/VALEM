@@ -73,7 +73,7 @@ public sealed class ParkingTicket
 
 public sealed class Payment
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; }
     public Guid TicketId { get; set; }
     public ParkingTicket Ticket { get; set; } = null!;
     public decimal Amount { get; set; }
