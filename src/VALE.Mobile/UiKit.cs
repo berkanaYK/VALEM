@@ -7,6 +7,7 @@ public static class UiKit
     public static void StylePage(ContentPage page)
     {
         page.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValePage");
+        VisualPreferences.ApplyBackground(page);
     }
 
     public static Label Label(string text, double size = 14, bool bold = false, bool secondary = false)
@@ -103,7 +104,7 @@ public static class UiKit
             MinimumHeightRequest = 50,
             Padding = new Thickness(14, 10),
             CornerRadius = 14,
-            BorderWidth = 1,
+            BorderWidth = 0,
             FontAttributes = FontAttributes.Bold,
             FontSize = 14,
             FontAutoScalingEnabled = true,
@@ -112,7 +113,6 @@ public static class UiKit
         };
         button.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeCard");
         button.SetDynamicResource(Button.TextColorProperty, "ValeText");
-        button.SetDynamicResource(Button.BorderColorProperty, "ValeBorder");
         return button;
     }
 
@@ -149,31 +149,30 @@ public static class UiKit
         return control;
     }
 
-    public static Border Card(View content, Thickness? padding = null, float radius = 18)
+    public static Border Card(View content, Thickness? padding = null, float radius = 20)
     {
         var border = new Border
         {
-            StrokeThickness = 1,
+            StrokeThickness = 0,
             StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = radius },
             Padding = padding ?? new Thickness(16),
             HorizontalOptions = LayoutOptions.Fill,
             Content = content,
             Shadow = new Shadow
             {
-                Brush = new SolidColorBrush(Color.FromArgb("#120F172A")),
+                Brush = new SolidColorBrush(Color.FromArgb("#100F172A")),
                 Offset = new Point(0, 2),
-                Radius = 8,
-                Opacity = 0.18f
+                Radius = 10,
+                Opacity = 0.13f
             }
         };
-        border.SetDynamicResource(Border.StrokeProperty, "ValeBorderBrush");
         border.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeCard");
         return border;
     }
 
     public static BoxView Divider()
     {
-        var divider = new BoxView { HeightRequest = 1, Margin = new Thickness(0, 4) };
+        var divider = new BoxView { HeightRequest = 1, Margin = new Thickness(0, 4), Opacity = 0.65 };
         divider.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeBorder");
         return divider;
     }
@@ -194,23 +193,14 @@ public static class UiKit
         var content = new VerticalStackLayout
         {
             Spacing = 4,
-            Children =
-            {
-                titleLabel,
-                valueLabel,
-                captionLabel
-            }
+            Children = { titleLabel, valueLabel, captionLabel }
         };
         return (Card(content, new Thickness(13), 16), valueLabel);
     }
 
     public static ActivityIndicator Activity()
     {
-        var activity = new ActivityIndicator
-        {
-            WidthRequest = 24,
-            HeightRequest = 24
-        };
+        var activity = new ActivityIndicator { WidthRequest = 24, HeightRequest = 24 };
         activity.SetDynamicResource(ActivityIndicator.ColorProperty, "ValeAccent");
         return activity;
     }
