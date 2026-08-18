@@ -10,19 +10,20 @@ public sealed class DailyRevenueDrawable : IDrawable
     public void Draw(ICanvas canvas, RectF dirtyRect)
     {
         canvas.SaveState();
+        var palette = ThemeService.Palette;
         var left = 34f;
         var right = 10f;
         var top = 14f;
         var bottom = 34f;
         var width = Math.Max(1, dirtyRect.Width - left - right);
         var height = Math.Max(1, dirtyRect.Height - top - bottom);
-        canvas.StrokeColor = Color.FromArgb("#CBD5E1");
+        canvas.StrokeColor = palette.Border;
         canvas.StrokeSize = 1;
         canvas.DrawLine(left, top + height, left + width, top + height);
 
         if (Points.Count == 0)
         {
-            canvas.FontColor = Color.FromArgb("#64748B");
+            canvas.FontColor = palette.Secondary;
             canvas.FontSize = 12;
             canvas.DrawString("Bu tarih aralığında veri yok", left, top, width, height, HorizontalAlignment.Center, VerticalAlignment.Center);
             canvas.RestoreState();
@@ -32,7 +33,7 @@ public sealed class DailyRevenueDrawable : IDrawable
         var max = Math.Max(1m, Points.Max(x => x.Revenue));
         var gap = Points.Count <= 14 ? 5f : 2f;
         var barWidth = Math.Max(1.5f, (width - gap * Math.Max(0, Points.Count - 1)) / Points.Count);
-        canvas.FillColor = Color.FromArgb("#2563EB");
+        canvas.FillColor = palette.Accent;
         for (var i = 0; i < Points.Count; i++)
         {
             var value = (float)(Points[i].Revenue / max);
@@ -41,7 +42,7 @@ public sealed class DailyRevenueDrawable : IDrawable
             canvas.FillRoundedRectangle(x, top + height - barHeight, barWidth, barHeight, Math.Min(4, barWidth / 2));
         }
 
-        canvas.FontColor = Color.FromArgb("#64748B");
+        canvas.FontColor = palette.Secondary;
         canvas.FontSize = 9;
         var labelEvery = Math.Max(1, (int)Math.Ceiling(Points.Count / 6d));
         for (var i = 0; i < Points.Count; i += labelEvery)
@@ -60,6 +61,7 @@ public sealed class HourlyDeliveryDrawable : IDrawable
     public void Draw(ICanvas canvas, RectF dirtyRect)
     {
         canvas.SaveState();
+        var palette = ThemeService.Palette;
         var left = 28f;
         var top = 14f;
         var bottom = 30f;
@@ -69,16 +71,16 @@ public sealed class HourlyDeliveryDrawable : IDrawable
         var max = Math.Max(1, points.Max(x => x.Delivered));
         var gap = 3f;
         var barWidth = Math.Max(2f, (width - gap * 23) / 24f);
-        canvas.FillColor = Color.FromArgb("#16A34A");
+        canvas.FillColor = palette.Success;
         for (var i = 0; i < 24; i++)
         {
             var h = Math.Max(2f, height * points[i].Delivered / max);
             var x = left + i * (barWidth + gap);
             canvas.FillRoundedRectangle(x, top + height - h, barWidth, h, Math.Min(3, barWidth / 2));
         }
-        canvas.StrokeColor = Color.FromArgb("#CBD5E1");
+        canvas.StrokeColor = palette.Border;
         canvas.DrawLine(left, top + height, left + width, top + height);
-        canvas.FontColor = Color.FromArgb("#64748B");
+        canvas.FontColor = palette.Secondary;
         canvas.FontSize = 9;
         foreach (var hour in new[] { 0, 6, 12, 18, 23 })
         {
