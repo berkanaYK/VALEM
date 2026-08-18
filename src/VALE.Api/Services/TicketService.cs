@@ -8,7 +8,13 @@ using VALE.Contracts;
 
 namespace VALE.Api.Services;
 
-public sealed class TicketService(ValeDbContext db, CurrentUserContext currentUser, IFeeCalculator feeCalculator, IOptions<BusinessRulesOptions> businessRules, AuditService audit)
+public sealed class TicketService(
+    ValeDbContext db,
+    CurrentUserContext currentUser,
+    IFeeCalculator feeCalculator,
+    IOptions<BusinessRulesOptions> businessRules,
+    AuditService audit,
+    NotificationService notifications)
 {
     private const int MaxPhotoBytes = 4_000_000;
     private readonly BusinessRulesOptions _rules = businessRules.Value;
@@ -18,7 +24,7 @@ public sealed class TicketService(ValeDbContext db, CurrentUserContext currentUs
         var branchId = currentUser.ResolveBranchId(requestedBranchId);
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
-        var query = db.ParkingTickets.AsNoTracking().Where(x => x.BranchId == branchId);
+        var query = db.ParkingTickets.AsNoTracking().Where(x => x.BranchId == branchId && x.Branch.CompanyId == currentUser.CompanyId);
         if (status.HasValue) query = query.Where(x => x.Status == status.Value);
         else if (!includeClosed) query = query.Where(x => x.Status != TicketStatus.Delivered && x.Status != TicketStatus.Cancelled);
         if (!string.IsNullOrWhiteSpace(search))
@@ -29,7 +35,8 @@ public sealed class TicketService(ValeDbContext db, CurrentUserContext currentUs
             query = query.Where(x => x.Vehicle.NormalizedPlate.Contains(normalizedPlate) || x.TicketNumber.Contains(ticketSearch) || (normalizedPhone != null && x.Customer != null && x.Customer.NormalizedPhone != null && x.Customer.NormalizedPhone.Contains(normalizedPhone)));
         }
         var totalCount = await query.CountAsync(cancellationToken);
-        var tickets = await query.Include(x => x.Branch).Include(x => x.Vehicle).Include(x => x.Customer).OrderByDescending(x => x.EntryAt).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+        var tickets = await query.Include(x => x.Branch).Include(x => x.Vehicle).Include(x => x.Customer)
+            .OrderByDescending(x => x.EntryAt).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
         return new PagedResponse<TicketSummaryDto>(tickets.Select(Map).ToList(), page, pageSize, totalCount);
     }
 
@@ -42,8 +49,8 @@ public sealed class TicketService(ValeDbContext db, CurrentUserContext currentUs
     public async Task<TicketSummaryDto> CreateAsync(CreateTicketRequest request, CancellationToken cancellationToken)
     {
         var branchId = currentUser.ResolveBranchId(request.BranchId);
-        var branch = await db.Branches.SingleOrDefaultAsync(x => x.Id == branchId && x.IsActive, cancellationToken)
-            ?? throw new ApiException(StatusCodes.Status404NotFound, "Şube bulunamadı", "Seçilen şube aktif değil veya bulunamadı.");
+        var branch = await db.Branches.SingleOrDefaultAsync(x => x.Id == branchId && x.CompanyId == currentUser.CompanyId && x.IsActive, cancellationToken)
+            ?? throw new ApiException(StatusCodes.Status404NotFound, "Şube bulunamadı", "Seçilen şube aktif değil veya firmanıza ait değil.");
         var normalizedPlate = TextNormalizer.Plate(request.LicensePlate);
         if (normalizedPlate.Length < 3) throw new ApiException(StatusCodes.Status400BadRequest, "Plaka geçersiz", "Geçerli bir araç plakası girin.");
         var hasActiveTicket = await db.ParkingTickets.AnyAsync(x => x.BranchId == branchId && x.Vehicle.NormalizedPlate == normalizedPlate && x.Status != TicketStatus.Delivered && x.Status != TicketStatus.Cancelled, cancellationToken);
@@ -122,6 +129,13 @@ public sealed class TicketService(ValeDbContext db, CurrentUserContext currentUs
         ticket.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
         await audit.RecordAsync(currentUser.UserId, ticket.BranchId, "ticket.status", "ParkingTicket", ticket.Id.ToString(), $"Durum: {nextStatus}", cancellationToken: cancellationToken);
+
+        if (nextStatus == TicketStatus.Requested)
+        {
+            await notifications.NotifyBranchAsync(currentUser.CompanyId, ticket.BranchId, Roles.OperationWriteRoles,
+                "Araç teslim için istendi", $"{ticket.Vehicle.LicensePlate} plakalı araç hazırlanmayı bekliyor.",
+                "vehicle-requested", "ParkingTicket", ticket.Id.ToString(), currentUser.UserId, cancellationToken);
+        }
         return Map(ticket);
     }
 
@@ -143,8 +157,8 @@ public sealed class TicketService(ValeDbContext db, CurrentUserContext currentUs
     public async Task<DashboardDto> GetDashboardAsync(Guid? requestedBranchId, CancellationToken cancellationToken)
     {
         var branchId = currentUser.ResolveBranchId(requestedBranchId);
-        var branch = await db.Branches.AsNoTracking().SingleOrDefaultAsync(x => x.Id == branchId, cancellationToken)
-            ?? throw new ApiException(StatusCodes.Status404NotFound, "Şube bulunamadı", "Seçilen şube bulunamadı.");
+        var branch = await db.Branches.AsNoTracking().SingleOrDefaultAsync(x => x.Id == branchId && x.CompanyId == currentUser.CompanyId, cancellationToken)
+            ?? throw new ApiException(StatusCodes.Status404NotFound, "Şube bulunamadı", "Seçilen şube firmanızda bulunamadı.");
         var localDayStartUtc = GetLocalDayStartUtc();
         var activeVehicles = await db.ParkingTickets.CountAsync(x => x.BranchId == branchId && x.Status != TicketStatus.Delivered && x.Status != TicketStatus.Cancelled, cancellationToken);
         var waiting = await db.ParkingTickets.CountAsync(x => x.BranchId == branchId && x.Status == TicketStatus.Requested, cancellationToken);
@@ -152,25 +166,32 @@ public sealed class TicketService(ValeDbContext db, CurrentUserContext currentUs
         var revenueToday = currentUser.CanViewFinancials
             ? await db.Payments.Where(x => x.Ticket.BranchId == branchId && x.PaidAt >= localDayStartUtc).SumAsync(x => (decimal?)x.Amount, cancellationToken) ?? 0m
             : 0m;
-        var recent = await db.ParkingTickets.AsNoTracking().Include(x => x.Branch).Include(x => x.Vehicle).Include(x => x.Customer).Where(x => x.BranchId == branchId).OrderByDescending(x => x.EntryAt).Take(8).ToListAsync(cancellationToken);
+        var recent = await db.ParkingTickets.AsNoTracking().Include(x => x.Branch).Include(x => x.Vehicle).Include(x => x.Customer)
+            .Where(x => x.BranchId == branchId).OrderByDescending(x => x.EntryAt).Take(8).ToListAsync(cancellationToken);
         return new DashboardDto(branch.Id, branch.Name, activeVehicles, waiting, deliveredToday, revenueToday, recent.Select(Map).ToList());
     }
 
     private async Task<ParkingTicket> GetTicketAsync(Guid ticketId, CancellationToken cancellationToken)
     {
-        var ticket = await db.ParkingTickets.Include(x => x.Branch).Include(x => x.Vehicle).Include(x => x.Customer).Include(x => x.Payments).SingleOrDefaultAsync(x => x.Id == ticketId, cancellationToken)
-            ?? throw new ApiException(StatusCodes.Status404NotFound, "Kayıt bulunamadı", "Vale kaydı bulunamadı.");
+        var ticket = await db.ParkingTickets.Include(x => x.Branch).Include(x => x.Vehicle).Include(x => x.Customer).Include(x => x.Payments)
+            .SingleOrDefaultAsync(x => x.Id == ticketId && x.Branch.CompanyId == currentUser.CompanyId, cancellationToken)
+            ?? throw new ApiException(StatusCodes.Status404NotFound, "Kayıt bulunamadı", "Vale kaydı firmanızda bulunamadı.");
         currentUser.EnsureBranchAccess(ticket.BranchId);
         return ticket;
     }
 
     private async Task<Vehicle> UpsertVehicleAsync(string normalizedPlate, string plate, string? brand, string? model, string? color, int? year, string? fuel, string? transmission, string? photoBase64, bool removePhoto, CancellationToken cancellationToken)
     {
-        var vehicle = await db.Vehicles.SingleOrDefaultAsync(x => x.NormalizedPlate == normalizedPlate, cancellationToken);
+        var vehicle = await db.Vehicles.SingleOrDefaultAsync(x => x.CompanyId == currentUser.CompanyId && x.NormalizedPlate == normalizedPlate, cancellationToken);
         var photo = string.IsNullOrWhiteSpace(photoBase64) ? null : NormalizePhoto(photoBase64);
         if (vehicle is null)
         {
-            vehicle = new Vehicle { LicensePlate = plate.Trim().ToUpperInvariant(), NormalizedPlate = normalizedPlate, Brand = Clean(brand), Model = Clean(model), Color = Clean(color), Year = year, FuelType = Clean(fuel), Transmission = Clean(transmission), PhotoBase64 = photo };
+            vehicle = new Vehicle
+            {
+                CompanyId = currentUser.CompanyId,
+                LicensePlate = plate.Trim().ToUpperInvariant(), NormalizedPlate = normalizedPlate, Brand = Clean(brand), Model = Clean(model), Color = Clean(color),
+                Year = year, FuelType = Clean(fuel), Transmission = Clean(transmission), PhotoBase64 = photo
+            };
             db.Vehicles.Add(vehicle);
         }
         else
@@ -186,10 +207,17 @@ public sealed class TicketService(ValeDbContext db, CurrentUserContext currentUs
     {
         var normalizedPhone = TextNormalizer.Phone(phone);
         Customer? customer = null;
-        if (normalizedPhone is not null) customer = await db.Customers.SingleOrDefaultAsync(x => x.NormalizedPhone == normalizedPhone, cancellationToken);
+        if (normalizedPhone is not null)
+            customer = await db.Customers.SingleOrDefaultAsync(x => x.CompanyId == currentUser.CompanyId && x.NormalizedPhone == normalizedPhone, cancellationToken);
         if (customer is null && (!string.IsNullOrWhiteSpace(name) || normalizedPhone is not null))
         {
-            customer = new Customer { Name = Clean(name) ?? "Misafir Müşteri", Phone = Clean(phone), NormalizedPhone = normalizedPhone };
+            customer = new Customer
+            {
+                CompanyId = currentUser.CompanyId,
+                Name = Clean(name) ?? "Misafir Müşteri",
+                Phone = Clean(phone),
+                NormalizedPhone = normalizedPhone
+            };
             db.Customers.Add(customer);
         }
         else if (customer is not null)
@@ -207,13 +235,16 @@ public sealed class TicketService(ValeDbContext db, CurrentUserContext currentUs
         (TicketStatus.Requested, TicketStatus.Parked) => true, (TicketStatus.Requested, TicketStatus.Cancelled) => true, _ => false
     };
 
-    private static TicketSummaryDto Map(ParkingTicket ticket)
+    private TicketSummaryDto Map(ParkingTicket ticket)
     {
         var vehicleDescription = string.Join(" ", new[] { ticket.Vehicle.Brand, ticket.Vehicle.Model, ticket.Vehicle.Color }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        var liveAmount = ticket.Status is TicketStatus.Delivered or TicketStatus.Cancelled
+            ? ticket.AmountDue
+            : feeCalculator.Calculate(ticket.EntryAt, DateTimeOffset.UtcNow, ticket.HourlyRate);
         return new TicketSummaryDto(ticket.Id, ticket.TicketNumber, ticket.BranchId, ticket.Branch.Name, ticket.Vehicle.LicensePlate,
             string.IsNullOrWhiteSpace(vehicleDescription) ? "Araç bilgisi yok" : vehicleDescription, ticket.Customer?.Name, ticket.Customer?.Phone,
             ticket.KeyTag, ticket.ParkingSpot, ticket.Status, ticket.EntryAt, ticket.RequestedAt, ticket.ExitAt, ticket.HourlyRate,
-            ticket.AmountDue, ticket.PaidAmount, ticket.Notes, ticket.Vehicle.Year, ticket.Vehicle.FuelType, ticket.Vehicle.Transmission,
+            liveAmount, ticket.PaidAmount, ticket.Notes, ticket.Vehicle.Year, ticket.Vehicle.FuelType, ticket.Vehicle.Transmission,
             !string.IsNullOrWhiteSpace(ticket.Vehicle.PhotoBase64));
     }
 
