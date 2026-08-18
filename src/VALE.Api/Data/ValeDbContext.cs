@@ -52,6 +52,9 @@ public sealed class ValeDbContext(DbContextOptions<ValeDbContext> options)
             entity.Property(x => x.Brand).HasMaxLength(60);
             entity.Property(x => x.Model).HasMaxLength(60);
             entity.Property(x => x.Color).HasMaxLength(40);
+            entity.Property(x => x.FuelType).HasMaxLength(30);
+            entity.Property(x => x.Transmission).HasMaxLength(30);
+            entity.Property(x => x.PhotoBase64).HasColumnType("text");
         });
 
         builder.Entity<ParkingTicket>(entity =>

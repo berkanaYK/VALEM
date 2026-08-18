@@ -32,6 +32,13 @@ public sealed class TicketsController(TicketService ticketService) : ControllerB
             cancellationToken));
     }
 
+    [HttpGet("{ticketId:guid}")]
+    [ProducesResponseType<TicketDetailDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<TicketDetailDto>> GetOne(Guid ticketId, CancellationToken cancellationToken)
+    {
+        return Ok(await ticketService.GetDetailAsync(ticketId, cancellationToken));
+    }
+
     [HttpPost]
     [Authorize(Roles = $"{Roles.Admin},{Roles.Manager},{Roles.Valet},{Roles.Cashier}")]
     [ProducesResponseType<TicketSummaryDto>(StatusCodes.Status201Created)]
@@ -65,4 +72,3 @@ public sealed class TicketsController(TicketService ticketService) : ControllerB
         return Ok(await ticketService.CheckoutAsync(ticketId, request.PaymentMethod, cancellationToken));
     }
 }
-

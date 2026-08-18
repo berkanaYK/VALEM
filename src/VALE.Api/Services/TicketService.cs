@@ -14,6 +14,7 @@ public sealed class TicketService(
     IFeeCalculator feeCalculator,
     IOptions<BusinessRulesOptions> businessRules)
 {
+    private const int MaxPhotoBytes = 4_000_000;
     private readonly BusinessRulesOptions _rules = businessRules.Value;
 
     public async Task<PagedResponse<TicketSummaryDto>> QueryAsync(
@@ -72,6 +73,12 @@ public sealed class TicketService(
             totalCount);
     }
 
+    public async Task<TicketDetailDto> GetDetailAsync(Guid ticketId, CancellationToken cancellationToken)
+    {
+        var ticket = await GetTicketAsync(ticketId, cancellationToken);
+        return new TicketDetailDto(Map(ticket), ticket.Vehicle.PhotoBase64);
+    }
+
     public async Task<TicketSummaryDto> CreateAsync(
         CreateTicketRequest request,
         CancellationToken cancellationToken)
@@ -99,6 +106,7 @@ public sealed class TicketService(
             throw new ApiException(StatusCodes.Status409Conflict, "Araç zaten içeride", "Bu plakaya ait açık bir vale kaydı bulunuyor.");
         }
 
+        var photo = NormalizePhoto(request.PhotoBase64);
         var vehicle = await db.Vehicles.SingleOrDefaultAsync(
             x => x.NormalizedPlate == normalizedPlate,
             cancellationToken);
@@ -110,7 +118,11 @@ public sealed class TicketService(
                 NormalizedPlate = normalizedPlate,
                 Brand = Clean(request.Brand),
                 Model = Clean(request.Model),
-                Color = Clean(request.Color)
+                Color = Clean(request.Color),
+                Year = request.Year,
+                FuelType = Clean(request.FuelType),
+                Transmission = Clean(request.Transmission),
+                PhotoBase64 = photo
             };
             db.Vehicles.Add(vehicle);
         }
@@ -119,6 +131,10 @@ public sealed class TicketService(
             vehicle.Brand = Clean(request.Brand) ?? vehicle.Brand;
             vehicle.Model = Clean(request.Model) ?? vehicle.Model;
             vehicle.Color = Clean(request.Color) ?? vehicle.Color;
+            vehicle.Year = request.Year ?? vehicle.Year;
+            vehicle.FuelType = Clean(request.FuelType) ?? vehicle.FuelType;
+            vehicle.Transmission = Clean(request.Transmission) ?? vehicle.Transmission;
+            vehicle.PhotoBase64 = photo ?? vehicle.PhotoBase64;
         }
 
         Customer? customer = null;
@@ -328,7 +344,11 @@ public sealed class TicketService(
             ticket.HourlyRate,
             ticket.AmountDue,
             ticket.PaidAmount,
-            ticket.Notes);
+            ticket.Notes,
+            ticket.Vehicle.Year,
+            ticket.Vehicle.FuelType,
+            ticket.Vehicle.Transmission,
+            !string.IsNullOrWhiteSpace(ticket.Vehicle.PhotoBase64));
     }
 
     private DateTimeOffset GetLocalDayStartUtc()
@@ -352,6 +372,34 @@ public sealed class TicketService(
         Span<byte> randomBytes = stackalloc byte[4];
         RandomNumberGenerator.Fill(randomBytes);
         return $"VALE-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}-{Convert.ToHexString(randomBytes)[..6]}";
+    }
+
+    private static string? NormalizePhoto(string? base64)
+    {
+        if (string.IsNullOrWhiteSpace(base64)) return null;
+        var value = base64.Trim();
+        var comma = value.IndexOf(',');
+        if (value.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase) && comma >= 0)
+        {
+            value = value[(comma + 1)..];
+        }
+
+        byte[] bytes;
+        try
+        {
+            bytes = Convert.FromBase64String(value);
+        }
+        catch (FormatException)
+        {
+            throw new ApiException(StatusCodes.Status400BadRequest, "Fotoğraf geçersiz", "Araç fotoğrafı geçerli bir görsel verisi değil.");
+        }
+
+        if (bytes.Length > MaxPhotoBytes)
+        {
+            throw new ApiException(StatusCodes.Status413PayloadTooLarge, "Fotoğraf çok büyük", "Araç fotoğrafı en fazla 4 MB olabilir.");
+        }
+
+        return value;
     }
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

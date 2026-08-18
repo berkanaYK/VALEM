@@ -13,7 +13,11 @@ public sealed record CreateTicketRequest(
     [param: MaxLength(30)] string? KeyTag,
     [param: MaxLength(30)] string? ParkingSpot,
     [param: MaxLength(500)] string? Notes,
-    [param: Range(0.01, 100000)] decimal? HourlyRate);
+    [param: Range(0.01, 100000)] decimal? HourlyRate,
+    [param: Range(1900, 2100)] int? Year = null,
+    [param: MaxLength(30)] string? FuelType = null,
+    [param: MaxLength(30)] string? Transmission = null,
+    [param: MaxLength(6_000_000)] string? PhotoBase64 = null);
 
 public sealed record UpdateTicketStatusRequest(TicketStatus Status);
 
@@ -41,4 +45,12 @@ public sealed record TicketSummaryDto(
     decimal HourlyRate,
     decimal AmountDue,
     decimal PaidAmount,
-    string? Notes);
+    string? Notes,
+    int? Year = null,
+    string? FuelType = null,
+    string? Transmission = null,
+    bool HasPhoto = false);
+
+public sealed record TicketDetailDto(
+    TicketSummaryDto Ticket,
+    string? PhotoBase64);

@@ -11,7 +11,9 @@ public sealed record ReportSummaryDto(
     decimal AverageRevenuePerDelivery,
     double AverageParkingMinutes,
     IReadOnlyList<PaymentBreakdownDto> Payments,
-    IReadOnlyList<DailyReportPointDto> Daily);
+    IReadOnlyList<DailyReportPointDto> Daily,
+    IReadOnlyList<HourlyReportPointDto> Hourly,
+    IReadOnlyList<VehicleBrandReportDto> TopBrands);
 
 public sealed record PaymentBreakdownDto(
     PaymentMethod Method,
@@ -23,3 +25,12 @@ public sealed record DailyReportPointDto(
     int Vehicles,
     int Delivered,
     decimal Revenue);
+
+public sealed record HourlyReportPointDto(
+    int Hour,
+    int Delivered,
+    decimal Revenue);
+
+public sealed record VehicleBrandReportDto(
+    string Brand,
+    int Vehicles);

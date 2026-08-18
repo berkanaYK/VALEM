@@ -39,6 +39,10 @@ public sealed class Vehicle
     public string? Brand { get; set; }
     public string? Model { get; set; }
     public string? Color { get; set; }
+    public int? Year { get; set; }
+    public string? FuelType { get; set; }
+    public string? Transmission { get; set; }
+    public string? PhotoBase64 { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
@@ -78,4 +82,3 @@ public sealed class Payment
     public Guid? RecordedByUserId { get; set; }
     public AppUser? RecordedByUser { get; set; }
 }
-

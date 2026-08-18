@@ -17,6 +17,7 @@ public static class DatabaseSeeder
         var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger("DatabaseSeeder");
 
         await db.Database.EnsureCreatedAsync(cancellationToken);
+        await EnsureVehicleColumnsAsync(db, cancellationToken);
 
         foreach (var roleName in Roles.All)
         {
@@ -84,5 +85,14 @@ public static class DatabaseSeeder
 
         logger.LogInformation("İlk VALE yöneticisi ve merkez şube oluşturuldu.");
     }
-}
 
+    private static Task EnsureVehicleColumnsAsync(ValeDbContext db, CancellationToken cancellationToken) =>
+        db.Database.ExecuteSqlRawAsync(
+            """
+            ALTER TABLE "Vehicles" ADD COLUMN IF NOT EXISTS "Year" integer;
+            ALTER TABLE "Vehicles" ADD COLUMN IF NOT EXISTS "FuelType" character varying(30);
+            ALTER TABLE "Vehicles" ADD COLUMN IF NOT EXISTS "Transmission" character varying(30);
+            ALTER TABLE "Vehicles" ADD COLUMN IF NOT EXISTS "PhotoBase64" text;
+            """,
+            cancellationToken);
+}
