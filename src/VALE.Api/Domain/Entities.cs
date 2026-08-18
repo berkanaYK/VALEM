@@ -3,9 +3,20 @@ using VALE.Contracts;
 
 namespace VALE.Api.Domain;
 
+public sealed class Company
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 public sealed class Branch
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CompanyId { get; set; }
+    public Company Company { get; set; } = null!;
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string City { get; set; } = string.Empty;
@@ -17,6 +28,8 @@ public sealed class Branch
 public sealed class AppUser : IdentityUser<Guid>
 {
     public string FullName { get; set; } = string.Empty;
+    public Guid? CompanyId { get; set; }
+    public Company? Company { get; set; }
     public Guid? BranchId { get; set; }
     public Branch? Branch { get; set; }
     public bool IsActive { get; set; } = true;
@@ -32,6 +45,8 @@ public sealed class AppUser : IdentityUser<Guid>
 public sealed class Customer
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CompanyId { get; set; }
+    public Company Company { get; set; } = null!;
     public string Name { get; set; } = string.Empty;
     public string? Phone { get; set; }
     public string? NormalizedPhone { get; set; }
@@ -41,6 +56,8 @@ public sealed class Customer
 public sealed class Vehicle
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CompanyId { get; set; }
+    public Company Company { get; set; } = null!;
     public string LicensePlate { get; set; } = string.Empty;
     public string NormalizedPlate { get; set; } = string.Empty;
     public string? Brand { get; set; }
@@ -99,9 +116,61 @@ public sealed class Payment
     public AppUser? RecordedByUser { get; set; }
 }
 
+public sealed class RegistrationRequest
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CompanyId { get; set; }
+    public Company Company { get; set; } = null!;
+    public Guid BranchId { get; set; }
+    public Branch Branch { get; set; } = null!;
+    public Guid UserId { get; set; }
+    public AppUser User { get; set; } = null!;
+    public string RequestedRole { get; set; } = Roles.Valet;
+    public RegistrationApprovalStatus Status { get; set; } = RegistrationApprovalStatus.Pending;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public Guid? ReviewedByUserId { get; set; }
+    public DateTimeOffset? ReviewedAt { get; set; }
+    public string? ReviewNote { get; set; }
+}
+
+public sealed class CompanyInvite
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CompanyId { get; set; }
+    public Company Company { get; set; } = null!;
+    public Guid BranchId { get; set; }
+    public Branch Branch { get; set; } = null!;
+    public string Code { get; set; } = string.Empty;
+    public string Role { get; set; } = Roles.Valet;
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset ExpiresAt { get; set; }
+    public int MaxUses { get; set; } = 1;
+    public int UsedCount { get; set; }
+    public Guid CreatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class UserNotification
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CompanyId { get; set; }
+    public Guid UserId { get; set; }
+    public AppUser User { get; set; } = null!;
+    public Guid? BranchId { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public string Type { get; set; } = "info";
+    public bool IsRead { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? ReadAt { get; set; }
+    public string? EntityType { get; set; }
+    public string? EntityId { get; set; }
+}
+
 public sealed class AuditEntry
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid? CompanyId { get; set; }
     public Guid? UserId { get; set; }
     public AppUser? User { get; set; }
     public Guid? BranchId { get; set; }
