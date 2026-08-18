@@ -25,6 +25,7 @@ public sealed class App : Application
         {
             window.Page = new ValeAppShellV31(api, user);
             _ = SyncAccountThemeAsync(api);
+            _ = PushTokenManager.AttachAsync(api);
         }
     }
 
