@@ -36,7 +36,7 @@ public sealed class MainPage : ContentPage
         emailCode.Clicked += async (_, _) => await Navigation.PushAsync(new EmailCodeLoginPage(_api));
         var register = UiKit.SecondaryButton("Yeni Hesap Oluştur");
         register.AutomationId = "register-open";
-        register.Clicked += async (_, _) => await Navigation.PushAsync(new AdvancedRegisterPage(_api));
+        register.Clicked += async (_, _) => await Navigation.PushAsync(new TenantRegisterPage(_api));
         var forgot = UiKit.TextButton("Parolamı unuttum");
         forgot.Clicked += async (_, _) => await Navigation.PushAsync(new ForgotPasswordPage(_api));
         var connection = UiKit.TextButton("Bağlantı ayarları");
