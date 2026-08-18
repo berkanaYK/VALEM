@@ -126,10 +126,21 @@ public static class DatabaseSeeder
             CREATE UNIQUE INDEX IF NOT EXISTS "IX_Branches_CompanyId_Code" ON "Branches" ("CompanyId", "Code");
             CREATE UNIQUE INDEX IF NOT EXISTS "IX_Branches_InviteCode" ON "Branches" ("InviteCode") WHERE "InviteCode" IS NOT NULL;
 
+            ALTER TABLE "Customers" ADD COLUMN IF NOT EXISTS "CompanyId" uuid;
+            UPDATE "Customers" SET "CompanyId" = '11111111-1111-1111-1111-111111111111' WHERE "CompanyId" IS NULL;
+            ALTER TABLE "Customers" ALTER COLUMN "CompanyId" SET NOT NULL;
+            DROP INDEX IF EXISTS "IX_Customers_NormalizedPhone";
+            CREATE INDEX IF NOT EXISTS "IX_Customers_CompanyId_NormalizedPhone" ON "Customers" ("CompanyId", "NormalizedPhone");
+
+            ALTER TABLE "Vehicles" ADD COLUMN IF NOT EXISTS "CompanyId" uuid;
             ALTER TABLE "Vehicles" ADD COLUMN IF NOT EXISTS "Year" integer;
             ALTER TABLE "Vehicles" ADD COLUMN IF NOT EXISTS "FuelType" character varying(30);
             ALTER TABLE "Vehicles" ADD COLUMN IF NOT EXISTS "Transmission" character varying(30);
             ALTER TABLE "Vehicles" ADD COLUMN IF NOT EXISTS "PhotoBase64" text;
+            UPDATE "Vehicles" SET "CompanyId" = '11111111-1111-1111-1111-111111111111' WHERE "CompanyId" IS NULL;
+            ALTER TABLE "Vehicles" ALTER COLUMN "CompanyId" SET NOT NULL;
+            DROP INDEX IF EXISTS "IX_Vehicles_NormalizedPlate";
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_Vehicles_CompanyId_NormalizedPlate" ON "Vehicles" ("CompanyId", "NormalizedPlate");
 
             ALTER TABLE "AspNetUsers" ADD COLUMN IF NOT EXISTS "CompanyId" uuid;
             ALTER TABLE "AspNetUsers" ADD COLUMN IF NOT EXISTS "EmployeeCode" character varying(40);
