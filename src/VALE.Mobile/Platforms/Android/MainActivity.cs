@@ -21,7 +21,7 @@ public sealed class MainActivity : MauiAppCompatActivity
         var root = Microsoft.Maui.Controls.Application.Current?.Windows.FirstOrDefault()?.Page;
         var navigation = root switch
         {
-            Shell shell => shell.Current?.Navigation ?? shell.Navigation,
+            Shell => Shell.Current?.Navigation,
             NavigationPage navPage => navPage.Navigation,
             _ => root?.Navigation
         };
