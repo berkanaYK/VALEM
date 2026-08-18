@@ -34,7 +34,7 @@ public sealed class AdminController(ValeDbContext db, UserManager<AppUser> userM
         db.Branches.Add(branch);
         await db.SaveChangesAsync(cancellationToken);
         await audit.RecordAsync(currentUser.UserId, branch.Id, "branch.created", "Branch", branch.Id.ToString(), $"{branch.Code} - {branch.Name} oluşturuldu.", cancellationToken: cancellationToken);
-        return Created($"/api/branches/{branch.Id}", new BranchDto(branch.Id, branch.Code, branch.Name, branch.City, branch.Address, branch.IsActive));
+        return Created($"/api/branches/{branch.Id}", new BranchDto(branch.Id, branch.Code, branch.Name, branch.City, branch.Address, branch.IsActive, branch.InviteCode));
     }
 
     [HttpGet("users")]
