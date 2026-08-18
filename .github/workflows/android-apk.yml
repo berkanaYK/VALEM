@@ -129,10 +129,13 @@ jobs:
           $privateKeyPattern = ('BEGIN ' + 'PRIVATE KEY')
           $googleApiPattern = ('AI' + 'za[0-9A-Za-z_-]{30,}')
           $matches = git grep -n -I -E -- "$privateKeyPattern|$googleApiPattern" -- . 2>$null
-          if ($LASTEXITCODE -eq 0 -and $matches) {
+          $grepExit = $LASTEXITCODE
+          if ($grepExit -eq 0 -and $matches) {
             Write-Host $matches
             throw 'Repository içinde private key veya Google API key benzeri secret bulundu.'
           }
+          if ($grepExit -gt 1) { throw "Secret scan git grep hatası: $grepExit" }
+          $global:LASTEXITCODE = 0
           Write-Host 'Secret exposure scan passed.'
 
       - name: Verify Android transport and push configuration
