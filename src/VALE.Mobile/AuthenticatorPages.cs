@@ -11,17 +11,18 @@ public sealed class AuthenticatorLoginPage : ContentPage
     private readonly Entry _email = UiKit.Entry("E-posta adresiniz", Keyboard.Email);
     private readonly Entry _password = UiKit.Entry("Parolanız", password: true);
     private readonly Entry _code = UiKit.Entry("6 haneli Authenticator kodu", Keyboard.Numeric);
-    private readonly Label _status = UiKit.Label("Google Authenticator veya başka bir TOTP uygulamasındaki güncel kodu kullanın.", 11.5, false, true);
+    private readonly Label _status = UiKit.Label("Authenticator seçeneği yalnızca hesabınızda TOTP kurulumu etkinse kullanılır.", 11.5, false, true);
 
-    public AuthenticatorLoginPage(ApiClient api, string? email = null)
+    public AuthenticatorLoginPage(ApiClient api, string? email = null, string? password = null)
     {
         _api = api;
         Title = "Authenticator ile Giriş";
         UiKit.StylePage(this);
         _email.Text = email;
+        _password.Text = password;
         _code.MaxLength = 6;
 
-        var login = UiKit.PrimaryButton("OTP ile Güvenli Giriş");
+        var login = UiKit.PrimaryButton("6 Haneli OTP ile Devam Et");
         login.AutomationId = "authenticator-login-submit";
         login.Clicked += async (_, _) => await LoginAsync(login);
 
@@ -34,7 +35,7 @@ public sealed class AuthenticatorLoginPage : ContentPage
                 Children =
                 {
                     UiKit.Label("Authenticator ile giriş", 27, true),
-                    UiKit.Label("Bu seçenek hesabınızda 2FA etkinse parola + zamana bağlı tek kullanımlık kod ile giriş yapar.", 12.5, false, true),
+                    UiKit.Label("Bu ekran ayrı bir güvenli giriş yöntemidir. Parolanız doğrulandıktan sonra yalnızca Authenticator uygulamanızdaki 6 haneli OTP adımını tamamlarsınız.", 12.5, false, true),
                     UiKit.Card(new VerticalStackLayout
                     {
                         Spacing = 10,
@@ -53,7 +54,7 @@ public sealed class AuthenticatorLoginPage : ContentPage
                         Children =
                         {
                             UiKit.Label("İlk kez kullanıyorsanız", 15, true),
-                            UiKit.Label("Önce normal giriş yapın ve uygulama içindeki Authenticator Güvenliği ekranından QR kodu Google Authenticator ile okutun. QR kod yalnızca kurulum içindir; sonraki girişlerde 6 haneli OTP yeterlidir.", 11.5, false, true)
+                            UiKit.Label("Kayıtta Authenticator seçtiyseniz önce e-posta doğrulama linkini onaylayın. İlk parola girişinizden sonra uygulama içindeki Authenticator Güvenliği ekranından QR kodu okutun. QR yalnızca kurulum içindir.", 11.5, false, true)
                         }
                     })
                 }
@@ -107,7 +108,7 @@ public sealed class AuthenticatorSecurityPage : ContentPage
                 Children =
                 {
                     UiKit.Label("Google Authenticator / TOTP", 27, true),
-                    UiKit.Label("QR kodu bir kez okutun. Sonraki girişlerde parolanıza ek olarak her 30 saniyede değişen 6 haneli OTP kodunu kullanın.", 12.5, false, true),
+                    UiKit.Label("Bu özellik isteğe bağlı ek güvenliktir. QR kodu bir kez okutun; ardından parola girişlerinde her 30 saniyede değişen 6 haneli OTP kodu kullanılır.", 12.5, false, true),
                     UiKit.Card(new VerticalStackLayout { Spacing = 10, Children = { _status, _body } })
                 }
             }
