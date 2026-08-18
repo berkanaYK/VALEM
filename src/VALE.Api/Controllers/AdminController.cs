@@ -109,6 +109,8 @@ public sealed class AdminController(ValeDbContext db, UserManager<AppUser> userM
             var result = await userManager.AddToRolesAsync(user, add);
             if (!result.Succeeded) throw new ApiException(StatusCodes.Status400BadRequest, "Roller güncellenemedi", string.Join(" ", result.Errors.Select(x => x.Description)));
         }
+        var stampResult = await userManager.UpdateSecurityStampAsync(user);
+        if (!stampResult.Succeeded) throw new ApiException(StatusCodes.Status500InternalServerError, "Oturumlar yenilenemedi", "Yetki değişikliği sonrası eski oturumlar kapatılamadı.");
         await audit.RecordAsync(currentUser.UserId, branch.Id, "user.updated", "User", user.Id.ToString(), $"Kullanıcı bilgileri ve yetkileri güncellendi. Roller: {string.Join(", ", selectedRoles)}", cancellationToken: cancellationToken);
         return Ok(await MapDetailAsync(user));
     }
@@ -120,6 +122,8 @@ public sealed class AdminController(ValeDbContext db, UserManager<AppUser> userM
         user.IsActive = request.IsActive;
         var result = await userManager.UpdateAsync(user);
         if (!result.Succeeded) throw new ApiException(StatusCodes.Status400BadRequest, "Kullanıcı güncellenemedi", string.Join(" ", result.Errors.Select(x => x.Description)));
+        var stampResult = await userManager.UpdateSecurityStampAsync(user);
+        if (!stampResult.Succeeded) throw new ApiException(StatusCodes.Status500InternalServerError, "Oturumlar yenilenemedi", "Hesap durumu değişikliği sonrası eski oturumlar kapatılamadı.");
         var roles = await userManager.GetRolesAsync(user);
         await audit.RecordAsync(currentUser.UserId, user.BranchId, request.IsActive ? "user.activated" : "user.deactivated", "User", user.Id.ToString(), request.IsActive ? "Kullanıcı erişimi açıldı." : "Kullanıcı erişimi kapatıldı.", cancellationToken: cancellationToken);
         return Ok(MapUser(user, roles));
