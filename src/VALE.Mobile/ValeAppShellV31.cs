@@ -1,3 +1,4 @@
+using Microsoft.Maui.ApplicationModel.DataTransfer;
 using Microsoft.Maui.Controls;
 using VALE.Contracts;
 
