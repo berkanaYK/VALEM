@@ -19,10 +19,54 @@ public sealed class ApiClient(ClientSettings settings, SessionService session)
     public Task<LoginResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default) =>
         SendAsync<LoginResponse>(HttpMethod.Post, "api/auth/login", request, false, cancellationToken);
 
+    public Task RequestPasswordResetAsync(string email, CancellationToken cancellationToken = default) =>
+        SendNoContentAsync(
+            HttpMethod.Post,
+            "api/auth/forgot-password",
+            new ForgotPasswordRequest(email.Trim()),
+            false,
+            cancellationToken);
+
+    public Task ResetPasswordAsync(
+        string email,
+        string code,
+        string newPassword,
+        CancellationToken cancellationToken = default) =>
+        SendNoContentAsync(
+            HttpMethod.Post,
+            "api/auth/reset-password",
+            new ResetPasswordRequest(email.Trim(), code.Trim(), newPassword),
+            false,
+            cancellationToken);
+
     public Task<DashboardDto> GetDashboardAsync(Guid? branchId, CancellationToken cancellationToken = default)
     {
         var query = branchId.HasValue ? $"?branchId={branchId}" : string.Empty;
         return SendAsync<DashboardDto>(HttpMethod.Get, $"api/dashboard{query}", null, true, cancellationToken);
+    }
+
+    public Task<ReportSummaryDto> GetReportAsync(
+        Guid? branchId,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        CancellationToken cancellationToken = default)
+    {
+        var parameters = new List<string>
+        {
+            $"from={Uri.EscapeDataString(from.ToString("O"))}",
+            $"to={Uri.EscapeDataString(to.ToString("O"))}"
+        };
+        if (branchId.HasValue)
+        {
+            parameters.Add($"branchId={branchId}");
+        }
+
+        return SendAsync<ReportSummaryDto>(
+            HttpMethod.Get,
+            "api/reports/summary?" + string.Join("&", parameters),
+            null,
+            true,
+            cancellationToken);
     }
 
     public Task<IReadOnlyList<BranchDto>> GetBranchesAsync(CancellationToken cancellationToken = default) =>
@@ -62,6 +106,11 @@ public sealed class ApiClient(ClientSettings settings, SessionService session)
             cancellationToken);
     }
 
+    public Task<TicketDetailDto> GetTicketDetailAsync(
+        Guid ticketId,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<TicketDetailDto>(HttpMethod.Get, $"api/tickets/{ticketId}", null, true, cancellationToken);
+
     public Task<TicketSummaryDto> CreateTicketAsync(
         CreateTicketRequest request,
         CancellationToken cancellationToken = default) =>
@@ -96,7 +145,39 @@ public sealed class ApiClient(ClientSettings settings, SessionService session)
         bool authorize,
         CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(method, relativeUrl);
+        using var request = CreateRequest(method, relativeUrl, body, authorize);
+        using var response = await SendCoreAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new ValeApiException(
+                await ReadProblemAsync(response, cancellationToken),
+                (int)response.StatusCode);
+        }
+
+        var result = await response.Content.ReadFromJsonAsync<T>(_json, cancellationToken);
+        return result ?? throw new ValeApiException("Sunucudan boş yanıt alındı.", (int)response.StatusCode);
+    }
+
+    private async Task SendNoContentAsync(
+        HttpMethod method,
+        string relativeUrl,
+        object? body,
+        bool authorize,
+        CancellationToken cancellationToken)
+    {
+        using var request = CreateRequest(method, relativeUrl, body, authorize);
+        using var response = await SendCoreAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new ValeApiException(
+                await ReadProblemAsync(response, cancellationToken),
+                (int)response.StatusCode);
+        }
+    }
+
+    private HttpRequestMessage CreateRequest(HttpMethod method, string relativeUrl, object? body, bool authorize)
+    {
+        var request = new HttpRequestMessage(method, relativeUrl);
         if (body is not null)
         {
             request.Content = JsonContent.Create(body, options: _json);
@@ -106,35 +187,33 @@ public sealed class ApiClient(ClientSettings settings, SessionService session)
         {
             if (!session.IsAuthenticated)
             {
+                request.Dispose();
                 throw new ValeApiException("Oturum süresi dolmuş. Lütfen yeniden giriş yapın.", 401);
             }
 
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
         }
 
-        HttpResponseMessage response;
+        return request;
+    }
+
+    private async Task<HttpResponseMessage> SendCoreAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken)
+    {
         try
         {
-            response = await _http.SendAsync(request, cancellationToken);
+            return await _http.SendAsync(request, HttpCompletionOption.ResponseContentRead, cancellationToken);
+        }
+        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new ValeApiException("VALE sunucusu zamanında yanıt vermedi. Lütfen tekrar deneyin.", 0);
         }
         catch (HttpRequestException exception)
         {
             throw new ValeApiException(
                 $"VALE sunucusuna ulaşılamadı. İnternet bağlantısını ve API adresini kontrol edin. ({exception.Message})",
                 0);
-        }
-
-        using (response)
-        {
-            if (!response.IsSuccessStatusCode)
-            {
-                throw new ValeApiException(
-                    await ReadProblemAsync(response, cancellationToken),
-                    (int)response.StatusCode);
-            }
-
-            var result = await response.Content.ReadFromJsonAsync<T>(_json, cancellationToken);
-            return result ?? throw new ValeApiException("Sunucudan boş yanıt alındı.", (int)response.StatusCode);
         }
     }
 
@@ -144,10 +223,20 @@ public sealed class ApiClient(ClientSettings settings, SessionService session)
         try
         {
             var json = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return fallback;
+            }
+
             using var document = JsonDocument.Parse(json);
             if (document.RootElement.TryGetProperty("detail", out var detail) && !string.IsNullOrWhiteSpace(detail.GetString()))
             {
                 return detail.GetString()!;
+            }
+
+            if (document.RootElement.TryGetProperty("message", out var message) && !string.IsNullOrWhiteSpace(message.GetString()))
+            {
+                return message.GetString()!;
             }
 
             if (document.RootElement.TryGetProperty("title", out var title) && !string.IsNullOrWhiteSpace(title.GetString()))
