@@ -13,6 +13,7 @@ public sealed class ValeDbContext(DbContextOptions<ValeDbContext> options)
     public DbSet<Vehicle> Vehicles => Set<Vehicle>();
     public DbSet<ParkingTicket> ParkingTickets => Set<ParkingTicket>();
     public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -30,10 +31,13 @@ public sealed class ValeDbContext(DbContextOptions<ValeDbContext> options)
         builder.Entity<AppUser>(entity =>
         {
             entity.Property(x => x.FullName).HasMaxLength(120);
-            entity.HasOne(x => x.Branch)
-                .WithMany()
-                .HasForeignKey(x => x.BranchId)
-                .OnDelete(DeleteBehavior.SetNull);
+            entity.Property(x => x.EmployeeCode).HasMaxLength(40);
+            entity.Property(x => x.JobTitle).HasMaxLength(80);
+            entity.Property(x => x.PreferredTheme).HasMaxLength(20);
+            entity.Property(x => x.AccentTheme).HasMaxLength(20);
+            entity.Property(x => x.ProfileColor).HasMaxLength(20);
+            entity.HasIndex(x => x.EmployeeCode).IsUnique();
+            entity.HasOne(x => x.Branch).WithMany().HasForeignKey(x => x.BranchId).OnDelete(DeleteBehavior.SetNull);
         });
 
         builder.Entity<Customer>(entity =>
@@ -59,30 +63,43 @@ public sealed class ValeDbContext(DbContextOptions<ValeDbContext> options)
 
         builder.Entity<ParkingTicket>(entity =>
         {
+            entity.HasQueryFilter(x => x.DeletedAt == null);
             entity.HasIndex(x => x.TicketNumber).IsUnique();
             entity.HasIndex(x => new { x.BranchId, x.Status, x.EntryAt });
             entity.Property(x => x.TicketNumber).HasMaxLength(40);
             entity.Property(x => x.KeyTag).HasMaxLength(30);
             entity.Property(x => x.ParkingSpot).HasMaxLength(30);
             entity.Property(x => x.Notes).HasMaxLength(500);
+            entity.Property(x => x.DeletedReason).HasMaxLength(300);
             entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(24);
             entity.Property(x => x.HourlyRate).HasPrecision(12, 2);
             entity.Property(x => x.AmountDue).HasPrecision(12, 2);
             entity.Property(x => x.PaidAmount).HasPrecision(12, 2);
-            entity.HasOne(x => x.AssignedUser)
-                .WithMany()
-                .HasForeignKey(x => x.AssignedUserId)
-                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.AssignedUser).WithMany().HasForeignKey(x => x.AssignedUserId).OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.CreatedByUser).WithMany().HasForeignKey(x => x.CreatedByUserId).OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.UpdatedByUser).WithMany().HasForeignKey(x => x.UpdatedByUserId).OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.DeletedByUser).WithMany().HasForeignKey(x => x.DeletedByUserId).OnDelete(DeleteBehavior.SetNull);
         });
 
         builder.Entity<Payment>(entity =>
         {
             entity.Property(x => x.Amount).HasPrecision(12, 2);
             entity.Property(x => x.Method).HasConversion<string>().HasMaxLength(24);
-            entity.HasOne(x => x.RecordedByUser)
-                .WithMany()
-                .HasForeignKey(x => x.RecordedByUserId)
-                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.RecordedByUser).WithMany().HasForeignKey(x => x.RecordedByUserId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<AuditEntry>(entity =>
+        {
+            entity.HasIndex(x => x.OccurredAt);
+            entity.HasIndex(x => new { x.BranchId, x.OccurredAt });
+            entity.HasIndex(x => new { x.UserId, x.OccurredAt });
+            entity.Property(x => x.Action).HasMaxLength(80);
+            entity.Property(x => x.EntityType).HasMaxLength(80);
+            entity.Property(x => x.EntityId).HasMaxLength(80);
+            entity.Property(x => x.Detail).HasMaxLength(1000);
+            entity.Property(x => x.IpAddress).HasMaxLength(64);
+            entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.Branch).WithMany().HasForeignKey(x => x.BranchId).OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

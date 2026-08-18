@@ -11,26 +11,18 @@ namespace VALE.Api.Controllers;
 [ApiController]
 [Authorize(Policy = Roles.StaffPolicy)]
 [Route("api/branches")]
-public sealed class BranchesController(
-    ValeDbContext db,
-    CurrentUserContext currentUser) : ControllerBase
+public sealed class BranchesController(ValeDbContext db, CurrentUserContext currentUser) : ControllerBase
 {
     [HttpGet]
-    [ProducesResponseType<IReadOnlyList<BranchDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<BranchDto>>> GetAll(CancellationToken cancellationToken)
     {
         var query = db.Branches.AsNoTracking().Where(x => x.IsActive);
-        if (!currentUser.IsAdmin)
+        if (!currentUser.CanAccessAllBranches)
         {
             var branchId = currentUser.ResolveBranchId(null);
             query = query.Where(x => x.Id == branchId);
         }
-
-        var branches = await query
-            .OrderBy(x => x.Name)
-            .Select(x => new BranchDto(x.Id, x.Code, x.Name, x.City, x.Address, x.IsActive))
-            .ToListAsync(cancellationToken);
+        var branches = await query.OrderBy(x => x.Name).Select(x => new BranchDto(x.Id, x.Code, x.Name, x.City, x.Address, x.IsActive)).ToListAsync(cancellationToken);
         return Ok(branches);
     }
 }
-

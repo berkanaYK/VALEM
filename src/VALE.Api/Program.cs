@@ -16,9 +16,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 var configuredConnectionString = builder.Configuration.GetConnectionString("ValeDatabase");
 if (string.IsNullOrWhiteSpace(configuredConnectionString))
-{
     throw new InvalidOperationException("ConnectionStrings:ValeDatabase tanımlı değil. Render Environment bölümünde Neon bağlantısını tanımlayın.");
-}
 var connectionString = NormalizePostgresConnectionString(configuredConnectionString);
 
 builder.Services.AddOptions<JwtOptions>()
@@ -36,20 +34,17 @@ builder.Services.AddOptions<BusinessRulesOptions>()
 builder.Services.AddOptions<EmailOptions>().Bind(builder.Configuration.GetSection(EmailOptions.SectionName));
 
 var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
-if (Encoding.UTF8.GetByteCount(jwt.Key) < 32)
-{
-    throw new InvalidOperationException("Jwt:Key en az 32 bayt olmalıdır.");
-}
+if (Encoding.UTF8.GetByteCount(jwt.Key) < 32) throw new InvalidOperationException("Jwt:Key en az 32 bayt olmalıdır.");
 
 builder.Services.AddDbContext<ValeDbContext>(options => options.UseNpgsql(connectionString));
-builder.Services
-    .AddIdentityCore<AppUser>(options =>
+builder.Services.AddIdentityCore<AppUser>(options =>
     {
         options.Password.RequiredLength = 10;
         options.Password.RequireDigit = true;
         options.Password.RequireLowercase = true;
         options.Password.RequireUppercase = true;
         options.Password.RequireNonAlphanumeric = true;
+        options.Lockout.AllowedForNewUsers = true;
         options.Lockout.MaxFailedAccessAttempts = 5;
         options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
         options.User.RequireUniqueEmail = true;
@@ -76,13 +71,25 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
     };
 });
 
-builder.Services.AddAuthorizationBuilder().AddPolicy(Roles.StaffPolicy, policy => policy.RequireRole(Roles.All));
+var auth = builder.Services.AddAuthorizationBuilder();
+auth.AddPolicy(Roles.StaffPolicy, p => p.RequireRole(Roles.All));
+auth.AddPolicy(Roles.ManageUsersPolicy, p => p.RequireRole(Roles.ManageUsersRoles));
+auth.AddPolicy(Roles.ManageBranchesPolicy, p => p.RequireRole(Roles.ManageBranchesRoles));
+auth.AddPolicy(Roles.OperationWritePolicy, p => p.RequireRole(Roles.OperationWriteRoles));
+auth.AddPolicy(Roles.FinancePolicy, p => p.RequireRole(Roles.FinanceRoles));
+auth.AddPolicy(Roles.ReportsPolicy, p => p.RequireRole(Roles.ReportRoles));
+auth.AddPolicy(Roles.AuditPolicy, p => p.RequireRole(Roles.AuditRoles));
+auth.AddPolicy(Roles.RecordsEditPolicy, p => p.RequireRole(Roles.RecordsEditRoles));
+auth.AddPolicy(Roles.DeleteRecordsPolicy, p => p.RequireRole(Roles.DeleteRecordsRoles));
+
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.AddPolicy("login", context => Fixed(context, 10, TimeSpan.FromMinutes(1)));
     options.AddPolicy("register", context => Fixed(context, 5, TimeSpan.FromMinutes(10)));
     options.AddPolicy("password-reset", context => Fixed(context, 5, TimeSpan.FromMinutes(15)));
+    options.AddPolicy("email-code", context => Fixed(context, 5, TimeSpan.FromMinutes(10)));
+    options.AddPolicy("2fa", context => Fixed(context, 10, TimeSpan.FromMinutes(5)));
 });
 
 builder.Services.AddProblemDetails();
@@ -95,6 +102,8 @@ builder.Services.AddScoped<CurrentUserContext>();
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<TicketService>();
 builder.Services.AddScoped<PasswordResetCodeService>();
+builder.Services.AddScoped<OneTimeCodeService>();
+builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<IValeEmailSender, SmtpValeEmailSender>();
 builder.Services.AddSingleton<IFeeCalculator, FeeCalculator>();
 
@@ -108,6 +117,7 @@ app.Use(async (context, next) =>
     context.Response.Headers["X-Frame-Options"] = "DENY";
     context.Response.Headers["Referrer-Policy"] = "no-referrer";
     context.Response.Headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
+    context.Response.Headers["Cache-Control"] = "no-store";
     await next();
 });
 
@@ -131,38 +141,26 @@ app.MapGet("/health/ready", async (ValeDbContext db, CancellationToken ct) =>
         return Results.Json(new { status = "not-ready", database = "unavailable" }, statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 }).AllowAnonymous();
-app.MapGet("/api/status", () => Results.Ok(new { service = "VALE.Api", version = "2.0", status = "ok", utc = DateTimeOffset.UtcNow })).AllowAnonymous();
+app.MapGet("/api/status", () => Results.Ok(new { service = "VALE.Api", version = "3.0", status = "ok", utc = DateTimeOffset.UtcNow })).AllowAnonymous();
 app.MapControllers();
 
-await using (var scope = app.Services.CreateAsyncScope())
-{
-    await DatabaseSeeder.InitializeAsync(scope.ServiceProvider);
-}
+await using (var scope = app.Services.CreateAsyncScope()) await DatabaseSeeder.InitializeAsync(scope.ServiceProvider);
 await app.RunAsync();
 
 static RateLimitPartition<string> Fixed(HttpContext context, int permitLimit, TimeSpan window) =>
     RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-        _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = permitLimit,
-            Window = window,
-            QueueLimit = 0,
-            AutoReplenishment = true
-        });
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = permitLimit, Window = window, QueueLimit = 0, AutoReplenishment = true });
 
 static string NormalizePostgresConnectionString(string value)
 {
     var trimmed = value.Trim();
-    if (!trimmed.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) &&
-        !trimmed.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase)) return trimmed;
-
+    if (!trimmed.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) && !trimmed.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase)) return trimmed;
     var uri = new Uri(trimmed);
     var userInfo = uri.UserInfo.Split(':', 2);
     if (userInfo.Length != 2 || string.IsNullOrWhiteSpace(uri.Host)) throw new InvalidOperationException("Neon PostgreSQL bağlantı adresi geçersiz.");
     var database = Uri.UnescapeDataString(uri.AbsolutePath.TrimStart('/'));
     if (string.IsNullOrWhiteSpace(database)) throw new InvalidOperationException("Neon PostgreSQL bağlantı adresinde veritabanı adı bulunamadı.");
-
     return new NpgsqlConnectionStringBuilder
     {
         Host = uri.Host,
