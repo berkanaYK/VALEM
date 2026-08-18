@@ -17,7 +17,13 @@ public sealed record RegisterRequest(
     [param: Required, MinLength(10), MaxLength(128)] string Password,
     [param: MaxLength(30)] string? PhoneNumber = null,
     [param: MaxLength(20)] string? BranchCode = null,
-    [param: MaxLength(40)] string? EmployeeCode = null);
+    [param: MaxLength(40)] string? EmployeeCode = null,
+    RegistrationKind Kind = RegistrationKind.Staff,
+    [param: MaxLength(30)] string? CompanyCode = null,
+    [param: MaxLength(160)] string? CompanyName = null,
+    [param: MaxLength(120)] string? BranchName = null,
+    [param: MaxLength(40)] string? InviteCode = null,
+    [param: MaxLength(40)] string? RequestedRole = null);
 
 public sealed record RegisterResponse(string Message, bool RequiresApproval);
 
@@ -42,7 +48,10 @@ public sealed record UserDto(
     string Email,
     Guid? BranchId,
     string? BranchName,
-    IReadOnlyList<string> Roles);
+    IReadOnlyList<string> Roles,
+    Guid? CompanyId = null,
+    string? CompanyName = null,
+    string? CompanyCode = null);
 
 public sealed record CreateUserRequest(
     [param: Required, EmailAddress, MaxLength(256)] string Email,
