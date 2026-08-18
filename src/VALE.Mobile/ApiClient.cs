@@ -113,10 +113,13 @@ public sealed class ApiClient : IDisposable
 
     public async Task<RegisterResponse> RegisterAsync(RegisterRequest request, CancellationToken ct = default)
     {
-        using var response = await SendJsonAsync(HttpMethod.Post, "api/auth/register", request, false, ct);
+        using var response = await SendJsonAsync(HttpMethod.Post, "api/registration/register", request, false, ct);
         await EnsureSuccessAsync(response, ct);
         return await response.Content.ReadFromJsonAsync<RegisterResponse>(JsonOptions, ct) ?? throw new InvalidOperationException("Hesap oluşturma yanıtı alınamadı.");
     }
+
+    public Task<RegistrationCompanyDto> GetRegistrationCompanyAsync(string companyCode, CancellationToken ct = default) =>
+        GetAsync<RegistrationCompanyDto>($"api/registration/company/{Uri.EscapeDataString(companyCode.Trim())}", false, ct);
 
     public async Task RequestPasswordResetAsync(string email, CancellationToken ct = default)
     {
@@ -269,6 +272,48 @@ public sealed class ApiClient : IDisposable
         if (userId.HasValue) path += "&userId=" + userId.Value;
         return GetAsync<IReadOnlyList<AuditEntryDto>>(path, true, ct);
     }
+
+    public Task<NotificationSummaryDto> GetNotificationsAsync(bool unreadOnly = false, CancellationToken ct = default) =>
+        GetAsync<NotificationSummaryDto>($"api/notifications?unreadOnly={unreadOnly.ToString().ToLowerInvariant()}&limit=150", true, ct);
+
+    public async Task MarkNotificationReadAsync(Guid id, CancellationToken ct = default)
+    {
+        using var response = await SendJsonAsync(HttpMethod.Post, $"api/notifications/{id}/read", new { }, true, ct);
+        await EnsureSuccessAsync(response, ct);
+    }
+
+    public async Task MarkAllNotificationsReadAsync(CancellationToken ct = default)
+    {
+        using var response = await SendJsonAsync(HttpMethod.Post, "api/notifications/read-all", new { }, true, ct);
+        await EnsureSuccessAsync(response, ct);
+    }
+
+    public Task<IReadOnlyList<RegistrationRequestDto>> GetRegistrationApprovalsAsync(CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<RegistrationRequestDto>>("api/registration/approvals?status=Pending", true, ct);
+
+    public async Task<RegistrationRequestDto> ApproveRegistrationAsync(Guid id, string? role = null, string? note = null, CancellationToken ct = default)
+    {
+        using var response = await SendJsonAsync(HttpMethod.Post, $"api/registration/approvals/{id}/approve", new ReviewRegistrationRequest(note, role), true, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<RegistrationRequestDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Başvuru onaylanamadı.");
+    }
+
+    public async Task<RegistrationRequestDto> RejectRegistrationAsync(Guid id, string? note = null, CancellationToken ct = default)
+    {
+        using var response = await SendJsonAsync(HttpMethod.Post, $"api/registration/approvals/{id}/reject", new ReviewRegistrationRequest(note), true, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<RegistrationRequestDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Başvuru reddedilemedi.");
+    }
+
+    public async Task<CompanyInviteDto> CreateCompanyInviteAsync(CreateCompanyInviteRequest request, CancellationToken ct = default)
+    {
+        using var response = await SendJsonAsync(HttpMethod.Post, "api/registration/invites", request, true, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<CompanyInviteDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Davet oluşturulamadı.");
+    }
+
+    public Task<IReadOnlyList<CompanyInviteDto>> GetCompanyInvitesAsync(CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<CompanyInviteDto>>("api/registration/invites", true, ct);
 
     public void Logout() => _accessToken = null;
 
