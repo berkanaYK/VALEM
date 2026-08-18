@@ -18,6 +18,36 @@ public sealed class ValeDbContext(DbContextOptions<ValeDbContext> options)
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
 
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        await ApplyTenantDefaultsAsync(cancellationToken);
+        return await base.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task ApplyTenantDefaultsAsync(CancellationToken cancellationToken)
+    {
+        var users = ChangeTracker.Entries<AppUser>()
+            .Where(x => x.State is EntityState.Added or EntityState.Modified)
+            .Select(x => x.Entity)
+            .Where(x => x.CompanyId is null && x.BranchId.HasValue)
+            .ToList();
+
+        foreach (var user in users)
+        {
+            if (user.Branch is { CompanyId: var companyId } && companyId != Guid.Empty)
+            {
+                user.CompanyId = companyId;
+                continue;
+            }
+
+            var branchId = user.BranchId!.Value;
+            user.CompanyId = await Branches.AsNoTracking()
+                .Where(x => x.Id == branchId)
+                .Select(x => (Guid?)x.CompanyId)
+                .SingleOrDefaultAsync(cancellationToken);
+        }
+    }
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
