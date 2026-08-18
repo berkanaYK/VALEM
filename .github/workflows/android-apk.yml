@@ -86,6 +86,27 @@ jobs:
           "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           Write-Host "Managed HTTP handler doğrulandı. VALE $version"
 
+      - name: Verify Android launcher icon configuration
+        shell: pwsh
+        run: |
+          $manifest = Get-Content 'src/VALE.Mobile/Platforms/Android/AndroidManifest.xml' -Raw
+          if ($manifest -notmatch 'android:icon="@mipmap/appicon"') { throw 'Launcher icon manifest referansı eksik.' }
+          if ($manifest -notmatch 'android:roundIcon="@mipmap/appicon_round"') { throw 'Round launcher icon manifest referansı eksik.' }
+
+          $project = Get-Content 'src/VALE.Mobile/VALE.Mobile.csproj' -Raw
+          if ($project -notmatch 'ForegroundFile="Resources\\AppIcon\\appiconfg.svg"') { throw 'Adaptive icon foreground eksik.' }
+          if ($project -notmatch 'MonochromeFile="Resources\\AppIcon\\appiconmono.svg"') { throw 'Android themed icon monochrome katmanı eksik.' }
+          if ($project -notmatch 'ForegroundScale="0.72"') { throw 'Adaptive icon foreground ölçeği beklenen değerde değil.' }
+
+          @(
+            'src/VALE.Mobile/Resources/AppIcon/appicon.svg',
+            'src/VALE.Mobile/Resources/AppIcon/appiconfg.svg',
+            'src/VALE.Mobile/Resources/AppIcon/appiconmono.svg'
+          ) | ForEach-Object {
+            if (-not (Test-Path $_)) { throw "Launcher icon dosyası eksik: $_" }
+          }
+          Write-Host 'Android adaptive launcher icon kaynakları doğrulandı.'
+
       - name: Production auth smoke tests
         shell: pwsh
         run: |
@@ -136,6 +157,20 @@ jobs:
           Copy-Item $apk.FullName "$env:GITHUB_WORKSPACE\VALE.apk" -Force
           Get-Item "$env:GITHUB_WORKSPACE\VALE.apk" | Select-Object FullName,Length
 
+      - name: Verify launcher icon inside APK
+        shell: pwsh
+        run: |
+          $jar = Join-Path $env:JAVA_HOME 'bin\jar.exe'
+          if (-not (Test-Path $jar)) { throw 'jar.exe bulunamadı.' }
+          $entries = & $jar tf "$env:GITHUB_WORKSPACE\VALE.apk"
+          $icons = @($entries | Where-Object { $_ -match '^res/mipmap[^/]*/appicon(_round)?\.' })
+          if ($icons.Count -eq 0) {
+            $icons = @($entries | Where-Object { $_ -match '^res/mipmap.*/appicon' })
+          }
+          if ($icons.Count -eq 0) { throw 'APK içinde launcher icon mipmap varlığı bulunamadı.' }
+          Write-Host 'APK launcher icon entries:'
+          $icons | Select-Object -First 20 | ForEach-Object { Write-Host " - $_" }
+
       - name: Publish GitHub Release
         if: github.ref == 'refs/heads/main'
         shell: pwsh
@@ -143,7 +178,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "android-$env:GITHUB_RUN_NUMBER"
-          gh release create $tag "$env:GITHUB_WORKSPACE\VALE.apk" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "VALE Android $env:APP_VERSION" --notes "VALE $env:APP_VERSION: responsive giriş ekranı, detaylı araç kabulü ve fotoğraf, araç detay sayfası, tarihsel raporlar, günlük/saatlik grafikler, CSV paylaşımı ve rapor düzeltmeleri."
+          gh release create $tag "$env:GITHUB_WORKSPACE\VALE.apk" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "VALE Android $env:APP_VERSION" --notes "VALE $env:APP_VERSION: Android launcher/adaptive icon düzeltmesi, görünür VALE logosu, themed icon desteği, responsive mobil arayüz, detaylı araç kabulü, fotoğraf ve tarihsel raporlar."
 
       - name: Publish Android release status
         if: always() && github.ref == 'refs/heads/main'
