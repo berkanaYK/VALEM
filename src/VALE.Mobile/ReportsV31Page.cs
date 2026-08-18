@@ -135,15 +135,31 @@ public sealed class ReportsV31Page : ContentPage
         }
         foreach (var row in _report.Daily.OrderByDescending(x => x.Day))
         {
-            _daily.Add(UiKit.Card(new Grid
+            var grid = new Grid
             {
                 ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) },
+                ColumnSpacing = 10
+            };
+            grid.Add(new VerticalStackLayout
+            {
+                Spacing = 2,
                 Children =
                 {
-                    new VerticalStackLayout { Spacing = 2, Children = { UiKit.Label(row.Day.ToString("dd.MM.yyyy"), 13.5, true), UiKit.Label($"{row.Vehicles} araç • {row.Delivered} teslim", 11, false, true) } },
-                    new Label { Text = $"{row.Revenue:N0} TL", FontSize = 14, FontAttributes = FontAttributes.Bold, VerticalOptions = LayoutOptions.Center }
+                    UiKit.Label(row.Day.ToString("dd.MM.yyyy"), 13.5, true),
+                    UiKit.Label($"{row.Vehicles} araç • {row.Delivered} teslim", 11, false, true)
                 }
-            }, new Thickness(12), 14));
+            }, 0, 0);
+            var revenue = new Label
+            {
+                Text = $"{row.Revenue:N0} TL",
+                FontSize = 14,
+                FontAttributes = FontAttributes.Bold,
+                VerticalOptions = LayoutOptions.Center,
+                HorizontalOptions = LayoutOptions.End
+            };
+            revenue.SetDynamicResource(Label.TextColorProperty, "ValeText");
+            grid.Add(revenue, 1, 0);
+            _daily.Add(UiKit.Card(grid, new Thickness(12), 14));
         }
     }
 
