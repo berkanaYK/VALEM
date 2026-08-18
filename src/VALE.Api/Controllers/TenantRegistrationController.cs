@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using VALE.Api.Configuration;
 using VALE.Api.Data;
 using VALE.Api.Domain;
 using VALE.Api.Services;
@@ -20,8 +22,11 @@ public sealed class TenantRegistrationController(
     CurrentUserContext currentUser,
     AuditService audit,
     FirebasePushSender pushSender,
-    IValeEmailSender emailSender) : ControllerBase
+    IValeEmailSender emailSender,
+    IOptions<EmailOptions> emailOptions) : ControllerBase
 {
+    private readonly EmailOptions _emailOptions = emailOptions.Value;
+
     [HttpPost("owner")]
     [AllowAnonymous]
     [EnableRateLimiting("register")]
@@ -266,9 +271,7 @@ public sealed class TenantRegistrationController(
         {
             var rawToken = await userManager.GenerateEmailConfirmationTokenAsync(user);
             var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(rawToken));
-            var scheme = Request.Headers["X-Forwarded-Proto"].FirstOrDefault();
-            if (string.IsNullOrWhiteSpace(scheme)) scheme = Request.Scheme;
-            var url = $"{scheme}://{Request.Host}/api/auth/confirm-email?userId={user.Id:D}&token={Uri.EscapeDataString(encodedToken)}";
+            var url = BuildConfirmationUrl(user.Id, encodedToken);
             await emailSender.SendEmailConfirmationLinkAsync(user.Email, user.FullName, url, cancellationToken);
             return true;
         }
@@ -276,6 +279,15 @@ public sealed class TenantRegistrationController(
         {
             return false;
         }
+    }
+
+    private string BuildConfirmationUrl(Guid userId, string encodedToken)
+    {
+        if (!Uri.TryCreate(_emailOptions.PublicBaseUrl, UriKind.Absolute, out var baseUri)
+            || baseUri.Scheme != Uri.UriSchemeHttps)
+            throw new ApiException(StatusCodes.Status503ServiceUnavailable, "E-posta doğrulama hazır değil", "Güvenilir doğrulama adresi yapılandırılmamış.");
+        var root = baseUri.ToString().TrimEnd('/');
+        return $"{root}/api/auth/confirm-email?userId={userId:D}&token={Uri.EscapeDataString(encodedToken)}";
     }
 
     private async Task<IReadOnlyList<Guid>> AddApprovalNotificationsAsync(AppUser applicant, Branch branch, CancellationToken cancellationToken)
