@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using VALE.Contracts;
+using Xunit;
 
 namespace VALE.Api.Tests;
 
