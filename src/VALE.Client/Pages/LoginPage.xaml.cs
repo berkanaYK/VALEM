@@ -18,5 +18,7 @@ public sealed partial class LoginPage : Page
 
     private void PasswordInput_PasswordChanged(object sender, RoutedEventArgs e) =>
         ViewModel.Password = PasswordInput.Password;
-}
 
+    private void ForgotPassword_Click(object sender, RoutedEventArgs e) =>
+        Frame.Navigate(typeof(ForgotPasswordPage));
+}
