@@ -5,23 +5,47 @@
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
     <Grid Padding="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
         <Border
-            Width="420"
-            MaxWidth="420"
+            Width="500"
+            MaxWidth="500"
             HorizontalAlignment="Center"
             VerticalAlignment="Center"
             Style="{StaticResource CardBorderStyle}">
-            <StackPanel Spacing="16">
-                <StackPanel Spacing="4">
+            <StackPanel Spacing="18">
+                <StackPanel HorizontalAlignment="Center" Spacing="5">
+                    <Border
+                        Width="70"
+                        Height="70"
+                        Background="{ThemeResource AccentFillColorDefaultBrush}"
+                        CornerRadius="20">
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontFamily="Segoe UI Variable Display"
+                            FontSize="38"
+                            FontWeight="Bold"
+                            Foreground="White"
+                            Text="V" />
+                    </Border>
                     <TextBlock
+                        Margin="0,8,0,0"
                         HorizontalAlignment="Center"
+                        FontFamily="Segoe UI Variable Display"
                         FontSize="36"
-                        FontWeight="Bold"
+                        FontWeight="SemiBold"
+                        CharacterSpacing="120"
                         Text="VALE" />
                     <TextBlock
+                        MaxWidth="360"
                         HorizontalAlignment="Center"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        Text="Çok şubeli araç teslim yönetimi" />
+                        TextAlignment="Center"
+                        Style="{StaticResource PageSubtitleStyle}"
+                        Text="Akıllı vale operasyon platformu" />
                 </StackPanel>
 
                 <InfoBar
@@ -30,26 +54,35 @@
                     Message="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}"
                     Severity="Error" />
 
-                <TextBox
-                    AutomationProperties.Name="E-posta adresi"
-                    Header="E-posta"
-                    InputScope="EmailSmtpAddress"
-                    PlaceholderText="yonetici@firma.com"
-                    Text="{x:Bind ViewModel.Email, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                <StackPanel Spacing="12">
+                    <TextBox
+                        AutomationProperties.Name="E-posta adresi"
+                        Header="E-posta"
+                        InputScope="EmailSmtpAddress"
+                        MinHeight="44"
+                        PlaceholderText="yonetici@firma.com"
+                        Text="{x:Bind ViewModel.Email, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
-                <PasswordBox
-                    x:Name="PasswordInput"
-                    AutomationProperties.Name="Parola"
-                    Header="Parola"
-                    PasswordChanged="PasswordInput_PasswordChanged"
-                    PlaceholderText="Parolanızı girin" />
+                    <PasswordBox
+                        x:Name="PasswordInput"
+                        AutomationProperties.Name="Parola"
+                        Header="Parola"
+                        MinHeight="44"
+                        PasswordChanged="PasswordInput_PasswordChanged"
+                        PlaceholderText="Parolanızı girin" />
+
+                    <Button
+                        Content="Şifremi unuttum"
+                        Click="ForgotPassword_Click"
+                        Style="{StaticResource TextActionButtonStyle}" />
+                </StackPanel>
 
                 <Button
                     AutomationProperties.Name="VALE sistemine giriş yap"
                     Command="{x:Bind ViewModel.LoginCommand}"
                     IsEnabled="{x:Bind ViewModel.IsNotBusy, Mode=OneWay}"
                     Style="{StaticResource PrimaryActionButtonStyle}">
-                    <Grid HorizontalAlignment="Center" ColumnSpacing="8">
+                    <Grid HorizontalAlignment="Center" ColumnSpacing="9">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
@@ -58,11 +91,26 @@
                             Width="18"
                             Height="18"
                             IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}" />
-                        <TextBlock Grid.Column="1" Text="Giriş yap" />
+                        <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="Giriş yap" />
                     </Grid>
                 </Button>
+
+                <Border Style="{StaticResource SoftCardBorderStyle}">
+                    <StackPanel Spacing="4">
+                        <TextBlock FontWeight="SemiBold" Text="Güvenli bağlantı" />
+                        <TextBlock
+                            Style="{StaticResource PageSubtitleStyle}"
+                            Text="Hesap, şube ve operasyon verileri internet üzerindeki ortak VALE sunucusu ile eşitlenir." />
+                    </StackPanel>
+                </Border>
             </StackPanel>
         </Border>
+
+        <TextBlock
+            Grid.Row="1"
+            Margin="0,16,0,0"
+            HorizontalAlignment="Center"
+            Style="{StaticResource PageSubtitleStyle}"
+            Text="Güvenli oturum  •  Ortak veri  •  Çoklu şube  •  Raporlama" />
     </Grid>
 </Page>
-
