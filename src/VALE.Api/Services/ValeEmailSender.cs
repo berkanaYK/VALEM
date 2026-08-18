@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Mail;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Authentication;
 using System.Text;
 using Microsoft.Extensions.Options;
 using VALE.Api.Configuration;
@@ -86,7 +87,7 @@ public sealed class SmtpValeEmailSender(IOptions<EmailOptions> options, ILogger<
                 stage = "authenticated";
             }
 
-            // Verify that the configured sender can be accepted as an SMTP envelope without sending a message.
+            // Verify the configured sender/recipient envelope without transmitting message content.
             var mailFrom = await SendCommandAsync(session, $"MAIL FROM:<{_options.FromEmail}>", cancellationToken);
             if (mailFrom != 250) return new SmtpProbeResult(false, $"mail-from-{mailFrom}");
             var rcptTo = await SendCommandAsync(session, $"RCPT TO:<{_options.FromEmail}>", cancellationToken);
@@ -99,7 +100,7 @@ public sealed class SmtpValeEmailSender(IOptions<EmailOptions> options, ILogger<
         }
         catch (Exception ex) when (ex is SocketException or IOException or AuthenticationException or InvalidOperationException)
         {
-            logger.LogWarning(ex, "VALE SMTP sağlık kontrolü başarısız. Aşama veya credential ayrıntısı loglanmadı.");
+            logger.LogWarning(ex, "VALE SMTP sağlık kontrolü başarısız. Credential ayrıntısı loglanmadı.");
             return new SmtpProbeResult(false, "connection-failed");
         }
     }
@@ -156,13 +157,11 @@ public sealed class SmtpValeEmailSender(IOptions<EmailOptions> options, ILogger<
 
     private static async Task<int> ReadResponseCodeAsync(StreamReader reader, CancellationToken cancellationToken)
     {
-        int? code = null;
         while (true)
         {
             var line = await reader.ReadLineAsync(cancellationToken);
             if (line is null || line.Length < 3 || !int.TryParse(line.AsSpan(0, 3), out var parsed))
                 throw new IOException("SMTP sunucusundan geçerli yanıt alınamadı.");
-            code ??= parsed;
             if (line.Length < 4 || line[3] != '-') return parsed;
         }
     }
