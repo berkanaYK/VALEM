@@ -30,10 +30,10 @@ public static class UiKit
             Placeholder = placeholder,
             Keyboard = keyboard ?? Keyboard.Default,
             IsPassword = password,
-            MinimumHeightRequest = 54,
+            MinimumHeightRequest = 52,
             FontSize = 15,
             FontAutoScalingEnabled = true,
-            Margin = new Thickness(0, 2),
+            Margin = new Thickness(0, 1),
             HorizontalOptions = LayoutOptions.Fill,
             ClearButtonVisibility = password ? ClearButtonVisibility.Never : ClearButtonVisibility.WhileEditing
         };
@@ -65,7 +65,7 @@ public static class UiKit
         var picker = new Microsoft.Maui.Controls.Picker
         {
             Title = title,
-            MinimumHeightRequest = 54,
+            MinimumHeightRequest = 52,
             FontSize = 15,
             FontAutoScalingEnabled = true,
             HorizontalOptions = LayoutOptions.Fill
@@ -79,13 +79,13 @@ public static class UiKit
     public static Button PrimaryButton(string text) => new()
     {
         Text = text,
-        MinimumHeightRequest = 54,
-        Padding = new Thickness(16, 12),
-        CornerRadius = 16,
+        MinimumHeightRequest = 52,
+        Padding = new Thickness(16, 11),
+        CornerRadius = 14,
         BackgroundColor = ThemeService.Palette.Accent,
         TextColor = Colors.White,
         FontAttributes = FontAttributes.Bold,
-        FontSize = 15,
+        FontSize = 14.5,
         FontAutoScalingEnabled = true,
         LineBreakMode = LineBreakMode.WordWrap,
         HorizontalOptions = LayoutOptions.Fill
@@ -96,9 +96,9 @@ public static class UiKit
         var button = new Button
         {
             Text = text,
-            MinimumHeightRequest = 52,
-            Padding = new Thickness(14, 11),
-            CornerRadius = 15,
+            MinimumHeightRequest = 50,
+            Padding = new Thickness(14, 10),
+            CornerRadius = 14,
             BorderWidth = 1,
             BorderColor = ThemeService.Palette.Border,
             FontAttributes = FontAttributes.Bold,
@@ -119,8 +119,8 @@ public static class UiKit
             Text = text,
             BackgroundColor = Colors.Transparent,
             BorderWidth = 0,
-            MinimumHeightRequest = 48,
-            Padding = new Thickness(8, 8),
+            MinimumHeightRequest = 46,
+            Padding = new Thickness(8, 7),
             FontSize = 14,
             FontAttributes = FontAttributes.Bold,
             FontAutoScalingEnabled = true,
@@ -131,7 +131,7 @@ public static class UiKit
         return button;
     }
 
-    public static Border Card(View content, Thickness? padding = null, float radius = 20)
+    public static Border Card(View content, Thickness? padding = null, float radius = 18)
     {
         var border = new Border
         {
@@ -140,7 +140,14 @@ public static class UiKit
             StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = radius },
             Padding = padding ?? new Thickness(16),
             HorizontalOptions = LayoutOptions.Fill,
-            Content = content
+            Content = content,
+            Shadow = new Shadow
+            {
+                Brush = new SolidColorBrush(Color.FromArgb("#120F172A")),
+                Offset = new Point(0, 2),
+                Radius = 8,
+                Opacity = 0.18f
+            }
         };
         border.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeCard");
         return border;
@@ -169,7 +176,7 @@ public static class UiKit
                 captionLabel
             }
         };
-        return (Card(content, new Thickness(13), 18), valueLabel);
+        return (Card(content, new Thickness(13), 16), valueLabel);
     }
 
     public static ActivityIndicator Activity() => new()
