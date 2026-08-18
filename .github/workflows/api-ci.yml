@@ -57,6 +57,29 @@ jobs:
         shell: pwsh
         run: dotnet restore tests/VALE.Api.Tests/VALE.Api.Tests.csproj
 
+      - name: Dependency vulnerability audit
+        shell: pwsh
+        run: |
+          $audit = dotnet list src/VALE.Api/VALE.Api.csproj package --vulnerable --include-transitive 2>&1 | Out-String
+          Write-Host $audit
+          if ($audit -match 'has the following vulnerable packages' -or $audit -match 'Critical' -or $audit -match 'High') {
+            throw 'API bağımlılık güvenlik denetiminde bilinen zafiyet bulundu.'
+          }
+
+      - name: Repository secret exposure scan
+        shell: pwsh
+        run: |
+          $tracked = git ls-files
+          if ($tracked -match '(^|/)google-services\.json$' -or $tracked -match 'service[-_]?account.*\.json$') {
+            throw 'Credential/config dosyası repoya commit edilmiş.'
+          }
+          $matches = git grep -n -I -E -- 'BEGIN PRIVATE KEY|AIza[0-9A-Za-z_-]{30,}' -- . 2>$null
+          if ($LASTEXITCODE -eq 0 -and $matches) {
+            Write-Host $matches
+            throw 'Repository içinde private key veya Google API key benzeri secret bulundu.'
+          }
+          Write-Host 'Secret exposure scan passed.'
+
       - name: Build API release
         shell: pwsh
         run: dotnet build src/VALE.Api/VALE.Api.csproj -c Release --no-restore
@@ -69,14 +92,17 @@ jobs:
         shell: pwsh
         run: |
           $program = Get-Content 'src/VALE.Api/Program.cs' -Raw
-          @('ManageUsersPolicy','FinancePolicy','ReportsPolicy','AuditPolicy','RecordsEditPolicy','DeleteRecordsPolicy','security_stamp') | ForEach-Object {
+          @('ManageUsersPolicy','FinancePolicy','ReportsPolicy','AuditPolicy','RecordsEditPolicy','DeleteRecordsPolicy','security_stamp','X-Content-Type-Options','X-Frame-Options','Referrer-Policy','Cache-Control') | ForEach-Object {
             if ($program -notmatch [regex]::Escape($_)) { throw "Eksik güvenlik kontrolü: $_" }
           }
+          if ($program -notmatch 'MaxFailedAccessAttempts = 5' -or $program -notmatch 'DefaultLockoutTimeSpan') { throw 'Hesap lockout koruması eksik.' }
+          if ($program -notmatch 'AddPolicy\("login"' -or $program -notmatch 'AddPolicy\("2fa"' -or $program -notmatch 'AddPolicy\("password-reset"') { throw 'Auth rate limiting policy eksik.' }
           $tickets = Get-Content 'src/VALE.Api/Controllers/TicketsController.cs' -Raw
           if ($tickets -notmatch 'DeleteRecordsPolicy') { throw 'Silme endpointi policy ile korunmuyor.' }
           if ($tickets -notmatch 'RecordsEditPolicy') { throw 'Düzeltme endpointi policy ile korunmuyor.' }
           $auth = Get-Content 'src/VALE.Api/Controllers/AuthController.cs' -Raw
-          if ($auth -notmatch '2fa/setup' -or $auth -notmatch '2fa/enable' -or $auth -notmatch 'email-code/verify') { throw 'Kimlik doğrulama güvenlik endpointleri eksik.' }
+          if ($auth -notmatch '2fa/setup' -or $auth -notmatch '2fa/enable' -or $auth -notmatch 'login/2fa' -or $auth -notmatch 'email-code/verify') { throw 'Kimlik doğrulama güvenlik endpointleri eksik.' }
+          if ($auth -notmatch 'VerifyTwoFactorTokenAsync' -or $auth -notmatch 'ResetAuthenticatorKeyAsync') { throw 'TOTP doğrulama/anahtar yaşam döngüsü eksik.' }
           $admin = Get-Content 'src/VALE.Api/Controllers/AdminController.cs' -Raw
           if ($admin -notmatch 'UpdateSecurityStampAsync') { throw 'Yetki değişikliklerinde aktif oturum iptali eksik.' }
           Write-Host 'VALE API security policy source checks passed.'
