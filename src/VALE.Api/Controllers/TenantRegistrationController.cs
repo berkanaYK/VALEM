@@ -16,7 +16,8 @@ public sealed class TenantRegistrationController(
     ValeDbContext db,
     UserManager<AppUser> userManager,
     CurrentUserContext currentUser,
-    AuditService audit) : ControllerBase
+    AuditService audit,
+    FirebasePushSender pushSender) : ControllerBase
 {
     [HttpPost("owner")]
     [AllowAnonymous]
@@ -158,8 +159,21 @@ public sealed class TenantRegistrationController(
             Status = "Pending"
         };
         db.RegistrationRequests.Add(registration);
-        await AddApprovalNotificationsAsync(user, branch, cancellationToken);
+        var managerIds = await AddApprovalNotificationsAsync(user, branch, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
+
+        if (managerIds.Count > 0)
+        {
+            await pushSender.SendToUsersAsync(
+                branch.CompanyId,
+                managerIds,
+                "Yeni personel başvurusu",
+                $"{user.FullName}, {branch.Name} şubesine katılmak için onay bekliyor.",
+                "RegistrationPending",
+                branch.Id,
+                cancellationToken);
+        }
+
         await audit.RecordAsync(user.Id, branch.Id, "account.registration.requested", "RegistrationRequest", registration.Id.ToString(), "Personel katılım başvurusu oluşturuldu.", cancellationToken: cancellationToken);
         return Created("/api/registration/staff", new RegisterResponse($"Başvurunuz {branch.Company.Name} / {branch.Name} yöneticilerine gönderildi. Onaydan sonra giriş yapabilirsiniz.", true));
     }
@@ -219,16 +233,18 @@ public sealed class TenantRegistrationController(
         return Ok(Map(registration));
     }
 
-    private async Task AddApprovalNotificationsAsync(AppUser applicant, Branch branch, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<Guid>> AddApprovalNotificationsAsync(AppUser applicant, Branch branch, CancellationToken cancellationToken)
     {
         var candidates = await userManager.Users.AsNoTracking()
             .Where(x => x.IsActive && x.CompanyId == branch.CompanyId)
             .ToListAsync(cancellationToken);
+        var managerIds = new List<Guid>();
         foreach (var manager in candidates)
         {
             var roles = await userManager.GetRolesAsync(manager);
             if (!roles.Any(r => Roles.ManageUsersRoles.Contains(r, StringComparer.OrdinalIgnoreCase))) continue;
             if (roles.Contains(Roles.BranchManager, StringComparer.OrdinalIgnoreCase) && manager.BranchId != branch.Id) continue;
+            managerIds.Add(manager.Id);
             db.Notifications.Add(new ValeNotification
             {
                 CompanyId = branch.CompanyId,
@@ -239,6 +255,7 @@ public sealed class TenantRegistrationController(
                 Type = "RegistrationPending"
             });
         }
+        return managerIds;
     }
 
     private static RegistrationRequestDto Map(RegistrationRequest x) => new(
