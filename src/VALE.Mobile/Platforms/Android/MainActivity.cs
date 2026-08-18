@@ -1,18 +1,44 @@
 using Android.App;
 using Android.Content.PM;
+using Android.OS;
 using Android.Widget;
+using Android.Gms.Tasks;
+using Firebase.Messaging;
 using Microsoft.Maui;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Controls;
 
 namespace VALE.Mobile;
 
-[Activity(Theme = "@style/Maui.SplashTheme", MainLauncher = true,
+[Activity(Theme = "@style/Maui.SplashTheme", MainLauncher = true, LaunchMode = LaunchMode.SingleTop,
     ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode |
                            ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize | ConfigChanges.Density)]
-public sealed class MainActivity : MauiAppCompatActivity
+public sealed class MainActivity : MauiAppCompatActivity, IOnSuccessListener
 {
     private DateTimeOffset _lastBackPress = DateTimeOffset.MinValue;
+
+    protected override void OnCreate(Bundle? savedInstanceState)
+    {
+        base.OnCreate(savedInstanceState);
+        ValeFirebaseMessagingService.EnsureChannel(this);
+
+        try
+        {
+            var app = Firebase.FirebaseApp.InitializeApp(this);
+            if (app is not null)
+                FirebaseMessaging.Instance.GetToken().AddOnSuccessListener(this);
+        }
+        catch
+        {
+            // Firebase resources are injected only in configured release builds.
+        }
+    }
+
+    public void OnSuccess(Java.Lang.Object? result)
+    {
+        if (result?.ToString() is { Length: > 20 } token)
+            _ = PushTokenManager.UpdateTokenAsync(token);
+    }
 
 #pragma warning disable CS0672
     public override void OnBackPressed()
