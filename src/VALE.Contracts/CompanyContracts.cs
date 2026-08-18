@@ -70,6 +70,13 @@ public sealed record UpdateAdminUserRequest(
     bool IsActive,
     [param: Required, MinLength(1)] IReadOnlyList<string> Roles);
 
+public sealed record UpdateBranchRequest(
+    [param: Required, MinLength(2), MaxLength(20)] string Code,
+    [param: Required, MinLength(2), MaxLength(120)] string Name,
+    [param: Required, MinLength(2), MaxLength(80)] string City,
+    [param: MaxLength(300)] string? Address,
+    bool IsActive);
+
 public sealed record AuditEntryDto(
     Guid Id,
     DateTimeOffset OccurredAt,
