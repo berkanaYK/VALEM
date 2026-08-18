@@ -97,9 +97,17 @@ public sealed class AuthController(
 
         var requestedCode = Clean(request.BranchCode)?.ToUpperInvariant();
         var defaultCode = seedOptions.Value.DefaultBranchCode.Trim().ToUpperInvariant();
-        var branch = await db.Branches.OrderByDescending(x => x.Code == (requestedCode ?? defaultCode)).ThenBy(x => x.CreatedAt)
+        var legacyCompanyId = await db.Companies.AsNoTracking()
+            .Where(x => x.Code == "VALE")
+            .Select(x => (Guid?)x.Id)
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new ApiException(StatusCodes.Status503ServiceUnavailable, "Kayıt geçici olarak kullanılamıyor", "Ana firma kaydı hazırlanamadı. Lütfen v3.1 uygulamasındaki yeni kayıt ekranını kullanın.");
+        var branch = await db.Branches
+            .Where(x => x.CompanyId == legacyCompanyId)
+            .OrderByDescending(x => x.Code == (requestedCode ?? defaultCode))
+            .ThenBy(x => x.CreatedAt)
             .FirstOrDefaultAsync(x => x.IsActive && (requestedCode == null || x.Code == requestedCode), cancellationToken)
-            ?? throw new ApiException(StatusCodes.Status404NotFound, "Şube bulunamadı", "Girilen şube kodunu kontrol edin veya yöneticinizden doğru şube kodunu isteyin.");
+            ?? throw new ApiException(StatusCodes.Status404NotFound, "Şube bulunamadı", "Eski kayıt ekranı yalnızca ana VALE firmasını destekler. Yeni firmalar için v3.1 uygulamasındaki firma/personel kayıt akışını kullanın.");
 
         var user = new AppUser
         {
@@ -109,6 +117,7 @@ public sealed class AuthController(
             FullName = request.FullName.Trim(),
             PhoneNumber = Clean(request.PhoneNumber),
             EmployeeCode = employeeCode,
+            CompanyId = branch.CompanyId,
             BranchId = branch.Id,
             Branch = branch,
             IsActive = false
@@ -122,8 +131,8 @@ public sealed class AuthController(
             await userManager.DeleteAsync(user);
             throw new ApiException(StatusCodes.Status500InternalServerError, "Hesap hazırlanamadı", "Başlangıç rolü atanamadı.");
         }
-        await audit.RecordAsync(user.Id, branch.Id, "account.registered", "User", user.Id.ToString(), "Yeni hesap oluşturuldu; yönetici onayı bekliyor.", cancellationToken: cancellationToken);
-        return Created("/api/auth/register", new RegisterResponse("Hesabınız oluşturuldu. Yöneticiniz onayladığında giriş yapabilirsiniz.", true));
+        await audit.RecordAsync(user.Id, branch.Id, "account.registered", "User", user.Id.ToString(), "Eski istemci üzerinden hesap oluşturuldu; yönetici onayı bekliyor.", cancellationToken: cancellationToken);
+        return Created("/api/auth/register", new RegisterResponse("Hesabınız oluşturuldu. Yöneticiniz onayladığında giriş yapabilirsiniz. Yeni firma/personel kayıt özellikleri için VALE 3.1'i kullanın.", true));
     }
 
     [HttpPost("forgot-password")]
