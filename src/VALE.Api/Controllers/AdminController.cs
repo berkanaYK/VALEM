@@ -130,7 +130,11 @@ public sealed class AdminController(ValeDbContext db, UserManager<AppUser> userM
         if (!allowSelf && userId == currentUser.UserId) throw new ApiException(StatusCodes.Status400BadRequest, "İşlem reddedildi", "Kendi hesabınızın rol veya aktiflik durumunu bu ekrandan değiştiremezsiniz.");
         var user = await userManager.Users.Include(x => x.Branch).SingleOrDefaultAsync(x => x.Id == userId, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Kullanıcı bulunamadı", "Kullanıcı hesabı bulunamadı.");
-        currentUser.EnsureBranchAccess(user.BranchId ?? currentUser.BranchId ?? Guid.Empty);
+        if (!currentUser.CanAccessAllBranches)
+        {
+            if (user.BranchId is not { } targetBranch || targetBranch != currentUser.ResolveBranchId(null))
+                throw new ApiException(StatusCodes.Status403Forbidden, "Şube yetkisi yok", "Bu kullanıcının şubesini yönetme yetkiniz bulunmuyor.");
+        }
         var targetRoles = await userManager.GetRolesAsync(user);
         if (userId != currentUser.UserId && !Roles.CanManageTarget(currentUser.RoleNames, targetRoles))
             throw new ApiException(StatusCodes.Status403Forbidden, "Yetki yetersiz", "Bu kullanıcı sizin yetki seviyenizle yönetilemez.");
@@ -154,7 +158,7 @@ public sealed class AdminController(ValeDbContext db, UserManager<AppUser> userM
     private async Task<AdminUserDetailDto> MapDetailAsync(AppUser user) => new(
         user.Id, user.FullName, user.Email ?? string.Empty, user.PhoneNumber, user.EmployeeCode, user.JobTitle,
         user.BranchId, user.Branch?.Name, user.IsActive, user.TwoFactorEnabled, user.CreatedAt, user.LastLoginAt,
-        await userManager.GetRolesAsync(user));
+        (await userManager.GetRolesAsync(user)).ToList());
 
     private static AdminUserDto MapUser(AppUser user, IEnumerable<string> roles) => new(user.Id, user.FullName, user.Email ?? string.Empty, user.BranchId, user.Branch?.Name, user.IsActive, roles.ToList());
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
