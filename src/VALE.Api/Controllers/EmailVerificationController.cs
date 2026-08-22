@@ -75,7 +75,7 @@ public sealed class EmailVerificationController(
         else
         {
             var registration = await db.RegistrationRequests.AsNoTracking()
-                .SingleOrDefaultAsync(x => x.ApplicantUserId == user.Id, cancellationToken);
+                .SingleOrDefaultAsync(x => x.ApplicantUserId == user.Id && x.CompanyId == user.CompanyId && x.BranchId == user.BranchId, cancellationToken);
             user.IsActive = registration?.Status == "Approved";
         }
 

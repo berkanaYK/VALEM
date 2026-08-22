@@ -11,7 +11,7 @@ namespace VALE.Api.Controllers;
 [ApiController]
 [Authorize(Policy = Roles.ReportsPolicy)]
 [Route("api/reports")]
-public sealed class ReportsController(ValeDbContext db, CurrentUserContext currentUser) : ControllerBase
+public sealed class ReportsController(ValeDbContext db, CurrentUserContext currentUser, TenantAccessService tenantAccess) : ControllerBase
 {
     [HttpGet("summary")]
     public async Task<ActionResult<ReportSummaryDto>> Summary(
@@ -33,26 +33,22 @@ public sealed class ReportsController(ValeDbContext db, CurrentUserContext curre
         var rangeTo = requestedTo.ToUniversalTime();
         var reportOffset = requestedFrom.Offset;
 
-        var resolvedBranchId = currentUser.ResolveBranchId(branchId);
-        var branchAllowed = await db.Branches.AsNoTracking().AnyAsync(
-            x => x.Id == resolvedBranchId && x.CompanyId == currentUser.CompanyId && x.IsActive, cancellationToken);
-        if (!branchAllowed)
-            throw new ApiException(StatusCodes.Status403Forbidden, "Şube yetkisi yok", "Bu rapor şubesi firmanıza ait değil veya aktif değil.");
+        var resolvedBranchId = await tenantAccess.ResolveBranchIdAsync(branchId, cancellationToken);
 
         var tickets = await db.ParkingTickets.AsNoTracking()
-            .Where(x => x.BranchId == resolvedBranchId &&
+            .Where(x => x.CompanyId == currentUser.CompanyId && x.BranchId == resolvedBranchId &&
                         ((x.EntryAt >= rangeFrom && x.EntryAt <= rangeTo) ||
                          (x.ExitAt.HasValue && x.ExitAt >= rangeFrom && x.ExitAt <= rangeTo)))
             .Select(x => new { x.EntryAt, x.ExitAt, x.Status, Brand = x.Vehicle.Brand })
             .ToListAsync(cancellationToken);
 
         var payments = await db.Payments.AsNoTracking()
-            .Where(x => x.Ticket.BranchId == resolvedBranchId && x.PaidAt >= rangeFrom && x.PaidAt <= rangeTo)
+            .Where(x => x.CompanyId == currentUser.CompanyId && x.Ticket.BranchId == resolvedBranchId && x.PaidAt >= rangeFrom && x.PaidAt <= rangeTo)
             .Select(x => new { x.PaidAt, x.Method, x.Amount })
             .ToListAsync(cancellationToken);
 
         var active = await db.ParkingTickets.CountAsync(
-            x => x.BranchId == resolvedBranchId && x.Status != TicketStatus.Delivered && x.Status != TicketStatus.Cancelled,
+            x => x.CompanyId == currentUser.CompanyId && x.BranchId == resolvedBranchId && x.Status != TicketStatus.Delivered && x.Status != TicketStatus.Cancelled,
             cancellationToken);
 
         var entered = tickets.Where(x => x.EntryAt >= rangeFrom && x.EntryAt <= rangeTo).ToList();

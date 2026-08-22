@@ -12,7 +12,7 @@ namespace VALE.Api.Controllers;
 [ApiController]
 [Authorize(Policy = Roles.ManageUsersPolicy)]
 [Route("api/admin")]
-public sealed class AdminController(ValeDbContext db, UserManager<AppUser> userManager, CurrentUserContext currentUser, AuditService audit) : ControllerBase
+public sealed class AdminController(ValeDbContext db, UserManager<AppUser> userManager, CurrentUserContext currentUser, TenantAccessService tenantAccess, AuditService audit) : ControllerBase
 {
     [HttpPost("branches")]
     [Authorize(Policy = Roles.ManageBranchesPolicy)]
@@ -41,11 +41,12 @@ public sealed class AdminController(ValeDbContext db, UserManager<AppUser> userM
     public async Task<ActionResult<IReadOnlyList<AdminUserDto>>> GetUsers(CancellationToken cancellationToken)
     {
         var query = userManager.Users.AsNoTracking().Include(x => x.Branch)
-            .Where(x => x.CompanyId == currentUser.CompanyId);
+            .Where(x => x.CompanyId == currentUser.CompanyId && x.Branch != null && x.Branch.CompanyId == currentUser.CompanyId);
         if (!currentUser.CanAccessAllBranches)
         {
-            var branchId = currentUser.ResolveBranchId(null);
-            query = query.Where(x => x.BranchId == branchId);
+            var branchId = await tenantAccess.ResolveBranchIdAsync(null, cancellationToken);
+            query = query.Where(x => x.BranchId == branchId || db.UserBranchMemberships.Any(membership =>
+                membership.CompanyId == currentUser.CompanyId && membership.UserId == x.Id && membership.BranchId == branchId && membership.IsActive));
         }
         var users = await query.OrderBy(x => x.IsActive).ThenBy(x => x.FullName).ToListAsync(cancellationToken);
         var result = new List<AdminUserDto>(users.Count);
@@ -63,8 +64,8 @@ public sealed class AdminController(ValeDbContext db, UserManager<AppUser> userM
     [HttpPost("users")]
     public async Task<ActionResult<AdminUserDto>> CreateUser(CreateUserRequest request, CancellationToken cancellationToken)
     {
-        currentUser.EnsureBranchAccess(request.BranchId);
-        var branch = await db.Branches.SingleOrDefaultAsync(x => x.Id == request.BranchId && x.CompanyId == currentUser.CompanyId && x.IsActive, cancellationToken)
+        var branchId = await tenantAccess.ResolveBranchIdAsync(request.BranchId, cancellationToken);
+        var branch = await db.Branches.SingleOrDefaultAsync(x => x.Id == branchId && x.CompanyId == currentUser.CompanyId && x.IsActive, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Şube bulunamadı", "Kullanıcı için seçilen şube firmanıza ait değil veya aktif değil.");
         var selectedRoles = NormalizeRoles(request.Roles);
         EnsureCanAssign(selectedRoles);
@@ -84,6 +85,7 @@ public sealed class AdminController(ValeDbContext db, UserManager<AppUser> userM
             await userManager.DeleteAsync(user);
             throw new ApiException(StatusCodes.Status400BadRequest, "Rol atanamadı", string.Join(" ", roleResult.Errors.Select(x => x.Description)));
         }
+        await EnsurePrimaryMembershipAsync(user, branch, cancellationToken);
         await audit.RecordAsync(currentUser.UserId, branch.Id, "user.created", "User", user.Id.ToString(), $"{user.FullName} oluşturuldu. Roller: {string.Join(", ", selectedRoles)}", cancellationToken: cancellationToken);
         return Created($"/api/admin/users/{user.Id}", MapUser(user, selectedRoles));
     }
@@ -92,13 +94,13 @@ public sealed class AdminController(ValeDbContext db, UserManager<AppUser> userM
     public async Task<ActionResult<AdminUserDetailDto>> UpdateUser(Guid userId, UpdateAdminUserRequest request, CancellationToken cancellationToken)
     {
         var user = await FindManageableUserAsync(userId, cancellationToken);
-        currentUser.EnsureBranchAccess(request.BranchId);
-        var branch = await db.Branches.SingleOrDefaultAsync(x => x.Id == request.BranchId && x.CompanyId == currentUser.CompanyId && x.IsActive, cancellationToken)
+        var branchId = await tenantAccess.ResolveBranchIdAsync(request.BranchId, cancellationToken);
+        var branch = await db.Branches.SingleOrDefaultAsync(x => x.Id == branchId && x.CompanyId == currentUser.CompanyId && x.IsActive, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Şube bulunamadı", "Seçilen şube firmanıza ait değil veya aktif değil.");
         var selectedRoles = NormalizeRoles(request.Roles);
         EnsureCanAssign(selectedRoles);
         var employeeCode = Clean(request.EmployeeCode)?.ToUpperInvariant();
-        if (employeeCode is not null && await userManager.Users.AnyAsync(x => x.Id != user.Id && x.EmployeeCode == employeeCode, cancellationToken))
+        if (employeeCode is not null && await userManager.Users.AnyAsync(x => x.Id != user.Id && x.CompanyId == currentUser.CompanyId && x.EmployeeCode == employeeCode, cancellationToken))
             throw new ApiException(StatusCodes.Status409Conflict, "Personel kodu kullanımda", "Bu personel kodu başka bir kullanıcıya ait.");
 
         user.FullName = request.FullName.Trim();
@@ -111,6 +113,7 @@ public sealed class AdminController(ValeDbContext db, UserManager<AppUser> userM
         user.IsActive = request.IsActive;
         var updateResult = await userManager.UpdateAsync(user);
         if (!updateResult.Succeeded) throw new ApiException(StatusCodes.Status400BadRequest, "Kullanıcı güncellenemedi", string.Join(" ", updateResult.Errors.Select(x => x.Description)));
+        await EnsurePrimaryMembershipAsync(user, branch, cancellationToken);
 
         var currentRoles = await userManager.GetRolesAsync(user);
         var remove = currentRoles.Where(x => !selectedRoles.Contains(x, StringComparer.OrdinalIgnoreCase)).ToArray();
@@ -145,15 +148,106 @@ public sealed class AdminController(ValeDbContext db, UserManager<AppUser> userM
         return Ok(MapUser(user, roles));
     }
 
+    [HttpGet("users/{userId:guid}/branches")]
+    public async Task<ActionResult<IReadOnlyList<UserBranchMembershipDto>>> GetUserBranches(Guid userId, CancellationToken cancellationToken)
+    {
+        var user = await FindManageableUserAsync(userId, cancellationToken, allowSelf: true);
+        var query = db.UserBranchMemberships.AsNoTracking()
+            .Where(x => x.CompanyId == currentUser.CompanyId && x.UserId == user.Id && x.Branch.CompanyId == currentUser.CompanyId);
+        if (!currentUser.CanAccessAllBranches)
+        {
+            var accessibleBranches = tenantAccess.AccessibleBranches(activeOnly: false);
+            query = query.Where(x => accessibleBranches.Any(branch => branch.Id == x.BranchId));
+        }
+        var rows = await query
+            .OrderByDescending(x => x.IsPrimary).ThenBy(x => x.Branch.Name)
+            .Select(x => new UserBranchMembershipDto(x.BranchId, x.Branch.Code, x.Branch.Name, x.IsPrimary, x.IsActive))
+            .ToListAsync(cancellationToken);
+        return Ok(rows);
+    }
+
+    [HttpPut("users/{userId:guid}/branches")]
+    [Authorize(Policy = Roles.ManageBranchesPolicy)]
+    public async Task<ActionResult<IReadOnlyList<UserBranchMembershipDto>>> UpdateUserBranches(
+        Guid userId,
+        UpdateUserBranchMembershipsRequest request,
+        CancellationToken cancellationToken)
+    {
+        var user = await FindManageableUserAsync(userId, cancellationToken);
+        var selectedBranchIds = request.BranchIds.Where(x => x != Guid.Empty).Distinct().ToHashSet();
+        if (request.PrimaryBranchId == Guid.Empty || !selectedBranchIds.Contains(request.PrimaryBranchId))
+            throw new ApiException(StatusCodes.Status400BadRequest, "Varsayılan şube geçersiz", "Varsayılan şube erişim grupları içinde yer almalıdır.");
+
+        var branches = await db.Branches
+            .Where(x => x.CompanyId == currentUser.CompanyId && x.IsActive && selectedBranchIds.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+        if (branches.Count != selectedBranchIds.Count)
+            throw new ApiException(StatusCodes.Status404NotFound, "Şube bulunamadı", "Seçilen şubelerden biri firmanıza ait değil, aktif değil veya bulunamadı.");
+
+        var memberships = await db.UserBranchMemberships
+            .Where(x => x.CompanyId == currentUser.CompanyId && x.UserId == user.Id)
+            .ToListAsync(cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+        foreach (var membership in memberships.Where(x => x.IsPrimary && x.BranchId != request.PrimaryBranchId))
+        {
+            membership.IsPrimary = false;
+            membership.UpdatedAt = now;
+        }
+        await db.SaveChangesAsync(cancellationToken);
+        foreach (var membership in memberships)
+        {
+            membership.IsActive = selectedBranchIds.Contains(membership.BranchId);
+            membership.IsPrimary = membership.BranchId == request.PrimaryBranchId;
+            membership.UpdatedAt = now;
+        }
+        foreach (var branch in branches.Where(branch => memberships.All(x => x.BranchId != branch.Id)))
+        {
+            db.UserBranchMemberships.Add(new UserBranchMembership
+            {
+                CompanyId = currentUser.CompanyId,
+                UserId = user.Id,
+                User = user,
+                BranchId = branch.Id,
+                Branch = branch,
+                IsPrimary = branch.Id == request.PrimaryBranchId,
+                IsActive = true,
+                CreatedAt = now
+            });
+        }
+
+        var primaryBranch = branches.Single(x => x.Id == request.PrimaryBranchId);
+        user.BranchId = primaryBranch.Id;
+        user.Branch = primaryBranch;
+        await db.SaveChangesAsync(cancellationToken);
+        var update = await userManager.UpdateAsync(user);
+        if (!update.Succeeded)
+            throw new ApiException(StatusCodes.Status400BadRequest, "Şube grupları güncellenemedi", string.Join(" ", update.Errors.Select(x => x.Description)));
+        var stamp = await userManager.UpdateSecurityStampAsync(user);
+        if (!stamp.Succeeded)
+            throw new ApiException(StatusCodes.Status500InternalServerError, "Oturumlar yenilenemedi", "Şube erişimi değişikliğinden sonra eski oturumlar kapatılamadı.");
+
+        await audit.RecordAsync(currentUser.UserId, primaryBranch.Id, "user.branches.updated", "User", user.Id.ToString(),
+            $"Kullanıcı şube grupları güncellendi. Aktif grup sayısı: {selectedBranchIds.Count}.", cancellationToken: cancellationToken);
+        return Ok(await db.UserBranchMemberships.AsNoTracking()
+            .Where(x => x.CompanyId == currentUser.CompanyId && x.UserId == user.Id && x.IsActive && x.Branch.CompanyId == currentUser.CompanyId)
+            .OrderByDescending(x => x.IsPrimary).ThenBy(x => x.Branch.Name)
+            .Select(x => new UserBranchMembershipDto(x.BranchId, x.Branch.Code, x.Branch.Name, x.IsPrimary, x.IsActive))
+            .ToListAsync(cancellationToken));
+    }
+
     private async Task<AppUser> FindManageableUserAsync(Guid userId, CancellationToken cancellationToken, bool allowSelf = false)
     {
         if (!allowSelf && userId == currentUser.UserId) throw new ApiException(StatusCodes.Status400BadRequest, "İşlem reddedildi", "Kendi hesabınızın rol veya aktiflik durumunu bu ekrandan değiştiremezsiniz.");
         var user = await userManager.Users.Include(x => x.Branch)
-            .SingleOrDefaultAsync(x => x.Id == userId && x.CompanyId == currentUser.CompanyId, cancellationToken)
+            .SingleOrDefaultAsync(x => x.Id == userId && x.CompanyId == currentUser.CompanyId && x.Branch != null && x.Branch.CompanyId == currentUser.CompanyId, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Kullanıcı bulunamadı", "Bu firmaya ait kullanıcı hesabı bulunamadı.");
         if (!currentUser.CanAccessAllBranches)
         {
-            if (user.BranchId is not { } targetBranch || targetBranch != currentUser.ResolveBranchId(null))
+            var managedBranch = await tenantAccess.ResolveBranchIdAsync(null, cancellationToken);
+            var inManagedBranch = user.BranchId == managedBranch || await db.UserBranchMemberships.AsNoTracking().AnyAsync(
+                x => x.CompanyId == currentUser.CompanyId && x.UserId == user.Id && x.BranchId == managedBranch && x.IsActive,
+                cancellationToken);
+            if (!inManagedBranch)
                 throw new ApiException(StatusCodes.Status403Forbidden, "Şube yetkisi yok", "Bu kullanıcının şubesini yönetme yetkiniz bulunmuyor.");
         }
         var targetRoles = await userManager.GetRolesAsync(user);
@@ -182,6 +276,39 @@ public sealed class AdminController(ValeDbContext db, UserManager<AppUser> userM
         (await userManager.GetRolesAsync(user)).ToList());
 
     private static AdminUserDto MapUser(AppUser user, IEnumerable<string> roles) => new(user.Id, user.FullName, user.Email ?? string.Empty, user.BranchId, user.Branch?.Name, user.IsActive, roles.ToList());
+    private async Task EnsurePrimaryMembershipAsync(AppUser user, Branch branch, CancellationToken cancellationToken)
+    {
+        var memberships = await db.UserBranchMemberships
+            .Where(x => x.CompanyId == currentUser.CompanyId && x.UserId == user.Id)
+            .ToListAsync(cancellationToken);
+        foreach (var membership in memberships.Where(x => x.IsPrimary && x.BranchId != branch.Id))
+        {
+            membership.IsPrimary = false;
+            membership.UpdatedAt = DateTimeOffset.UtcNow;
+        }
+        await db.SaveChangesAsync(cancellationToken);
+        var primary = memberships.SingleOrDefault(x => x.BranchId == branch.Id);
+        if (primary is null)
+        {
+            db.UserBranchMemberships.Add(new UserBranchMembership
+            {
+                CompanyId = currentUser.CompanyId,
+                UserId = user.Id,
+                User = user,
+                BranchId = branch.Id,
+                Branch = branch,
+                IsPrimary = true,
+                IsActive = true
+            });
+        }
+        else
+        {
+            primary.IsPrimary = true;
+            primary.IsActive = true;
+            primary.UpdatedAt = DateTimeOffset.UtcNow;
+        }
+        await db.SaveChangesAsync(cancellationToken);
+    }
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private static string GenerateInviteCode(string branchCode) => $"{branchCode}-{Guid.NewGuid():N}"[..Math.Min(40, branchCode.Length + 9)].ToUpperInvariant();
 }

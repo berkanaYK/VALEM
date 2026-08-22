@@ -94,12 +94,17 @@ public sealed class CompanyDashboardPage : ContentPage
     private readonly Label _waiting;
     private readonly Label _delivered;
     private readonly Label? _revenue;
+    private readonly Label _branchInfo;
+    private readonly BranchContextSelector _branchSelector;
     private readonly ObservableCollection<TicketSummaryDto> _recent = new();
     private bool _busy;
 
     public CompanyDashboardPage(ApiClient api, UserDto user)
     {
         _api = api; _user = user; UiKit.StylePage(this);
+        _branchInfo = UiKit.Label(string.Empty, 12.5, false, true);
+        _branchSelector = new BranchContextSelector(_api, BranchChangedAsync);
+        UpdateBranchInfo();
         var active = UiKit.Metric("İÇERİDE", "—", "Aktif araç"); _active = active.Value;
         var waiting = UiKit.Metric("İSTENEN", "—", "Teslim bekliyor"); _waiting = waiting.Value;
         var delivered = UiKit.Metric("TESLİM", "—", "Bugün tamamlanan"); _delivered = delivered.Value;
@@ -117,7 +122,7 @@ public sealed class CompanyDashboardPage : ContentPage
         if (CompanyAccess.CanOperate(user))
         {
             var add = UiKit.PrimaryButton("Yeni Araç Kabulü");
-            add.Clicked += async (_, _) => await Navigation.PushAsync(new ModernNewTicketPage(_api));
+            add.Clicked += async (_, _) => await Navigation.PushAsync(new ModernNewTicketPage(_api, _user));
             actions.Add(add);
         }
         if (CompanyAccess.CanReport(user))
@@ -151,7 +156,8 @@ public sealed class CompanyDashboardPage : ContentPage
                 Children =
                 {
                     UiKit.Label($"Merhaba, {FirstName(user.FullName)}", 27, true),
-                    UiKit.Label($"{user.BranchName ?? "Şube atanmamış"} • {CompanyAccess.RolesText(user.Roles)}", 12.5, false, true),
+                    _branchInfo,
+                    _branchSelector,
                     metrics, actions, UiKit.Label("Son araçlar", 19, true), list
                 }
             }
@@ -161,6 +167,13 @@ public sealed class CompanyDashboardPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        await _branchSelector.EnsureLoadedAsync();
+        UpdateBranchInfo();
+        await RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
         if (_busy) return;
         try
         {
@@ -175,6 +188,15 @@ public sealed class CompanyDashboardPage : ContentPage
         catch (Exception ex) { await DisplayAlertAsync("Ana sayfa", ex.Message, "Tamam"); }
         finally { _busy = false; }
     }
+
+    private async Task BranchChangedAsync()
+    {
+        UpdateBranchInfo();
+        await RefreshAsync();
+    }
+
+    private void UpdateBranchInfo() =>
+        _branchInfo.Text = $"{_api.ActiveBranchName ?? _user.BranchName ?? "Şube atanmamış"} • {CompanyAccess.RolesText(_user.Roles)}";
 
     private static string FirstName(string fullName) => fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? fullName;
 }
@@ -451,24 +473,25 @@ public sealed class CompanySettingsPage : ContentPage
 public sealed class CompanyTicketsPage : ContentPage
 {
     private readonly ApiClient _api; private readonly UserDto _user; private readonly ObservableCollection<TicketSummaryDto> _items = new();
-    private readonly Entry _search = UiKit.Entry("Plaka, fiş veya telefon ara"); private readonly Switch _closed = new() { OnColor = ThemeService.Palette.Accent }; private readonly CollectionView _list; private bool _busy;
+    private readonly Entry _search = UiKit.Entry("Plaka, fiş veya telefon ara"); private readonly Switch _closed = new() { OnColor = ThemeService.Palette.Accent }; private readonly CollectionView _list; private readonly BranchContextSelector _branchSelector; private bool _busy;
 
     public CompanyTicketsPage(ApiClient api, UserDto user)
     {
         _api = api; _user = user; UiKit.StylePage(this);
+        _branchSelector = new BranchContextSelector(_api, RefreshAsync);
         _list = new CollectionView { ItemsSource = _items, SelectionMode = SelectionMode.Single, ItemTemplate = ModernTicketTemplates.Card(), EmptyView = UiKit.Label("Kayıt bulunamadı.", 13, false, true) };
         _list.SelectionChanged += async (_, e) => { if (e.CurrentSelection.FirstOrDefault() is TicketSummaryDto ticket) { _list.SelectedItem = null; await Navigation.PushAsync(new CompanyTicketDetailPage(_api, _user, ticket.Id)); } };
         _search.Completed += async (_, _) => await RefreshAsync(); _closed.Toggled += async (_, _) => await RefreshAsync();
         var find = UiKit.SecondaryButton("Ara"); find.Clicked += async (_, _) => await RefreshAsync();
         var rows = new VerticalStackLayout { Spacing = 10 };
         var searchRow = new Grid { ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }, ColumnSpacing = 8 }; searchRow.Add(_search, 0, 0); searchRow.Add(find, 1, 0);
-        rows.Add(searchRow); rows.Add(new HorizontalStackLayout { Spacing = 9, Children = { _closed, UiKit.Label("Kapanan kayıtları göster", 12, false, true) } });
-        if (CompanyAccess.CanOperate(user)) { var add = UiKit.PrimaryButton("Yeni Araç Kabulü"); add.Clicked += async (_, _) => await Navigation.PushAsync(new ModernNewTicketPage(_api)); rows.Add(add); }
+        rows.Add(_branchSelector); rows.Add(searchRow); rows.Add(new HorizontalStackLayout { Spacing = 9, Children = { _closed, UiKit.Label("Kapanan kayıtları göster", 12, false, true) } });
+        if (CompanyAccess.CanOperate(user)) { var add = UiKit.PrimaryButton("Yeni Araç Kabulü"); add.Clicked += async (_, _) => await Navigation.PushAsync(new ModernNewTicketPage(_api, _user)); rows.Add(add); }
         Content = new Grid { Padding = 16, RowSpacing = 10, RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Star) } };
         var root = (Grid)Content; root.Add(UiKit.Label("Araçlar", 27, true), 0, 0); root.Add(rows, 0, 1); root.Add(_list, 0, 2);
     }
 
-    protected override async void OnAppearing() { base.OnAppearing(); await RefreshAsync(); }
+    protected override async void OnAppearing() { base.OnAppearing(); await _branchSelector.EnsureLoadedAsync(); await RefreshAsync(); }
     private async Task RefreshAsync() { if (_busy) return; try { _busy = true; var page = await _api.GetTicketsAsync(_search.Text, _closed.IsToggled); _items.Clear(); foreach (var item in page.Items) _items.Add(item); } catch (Exception ex) { await DisplayAlertAsync("Araçlar", ex.Message, "Tamam"); } finally { _busy = false; } }
 }
 
@@ -530,11 +553,250 @@ public sealed class TeamManagementPage : ContentPage
 
 public sealed class UserEditPage : ContentPage
 {
-    private readonly ApiClient _api; private readonly UserDto _actor; private readonly Guid _id; private readonly Entry _name = UiKit.Entry("Ad soyad"); private readonly Entry _phone = UiKit.Entry("Telefon", Keyboard.Telephone); private readonly Entry _employee = UiKit.Entry("Personel kodu"); private readonly Entry _job = UiKit.Entry("Görev / unvan"); private readonly Picker _branch = UiKit.Picker("Şube"); private readonly Switch _active = new() { OnColor = ThemeService.Palette.Accent }; private readonly VerticalStackLayout _roleBox = new() { Spacing = 6 }; private readonly Dictionary<string, Switch> _roles = new(StringComparer.OrdinalIgnoreCase); private List<BranchDto> _branches = [];
-    public UserEditPage(ApiClient api, UserDto actor, Guid id) { _api = api; _actor = actor; _id = id; Title = "Personel Düzenle"; UiKit.StylePage(this); var save = UiKit.PrimaryButton("Personeli Kaydet"); save.Clicked += async (_, _) => await SaveAsync(save); Content = new ScrollView { Content = new VerticalStackLayout { Padding = 16, Spacing = 12, Children = { UiKit.Label("Personel bilgileri", 27, true), UiKit.Card(new VerticalStackLayout { Spacing = 9, Children = { _name, _phone, _employee, _job, _branch, new HorizontalStackLayout { Spacing = 9, Children = { _active, UiKit.Label("Hesap aktif", 12.5) } }, UiKit.Label("Yetkiler", 13, true), _roleBox, save } }) } } }; }
-    protected override async void OnAppearing() { base.OnAppearing(); try { var detail = await _api.GetAdminUserAsync(_id); _branches = (await _api.GetBranchesAsync()).ToList(); _branch.ItemsSource = _branches.Select(x => $"{x.Code} • {x.Name}").ToList(); _branch.SelectedIndex = _branches.FindIndex(x => x.Id == detail.BranchId); _name.Text = detail.FullName; _phone.Text = detail.PhoneNumber; _employee.Text = detail.EmployeeCode; _job.Text = detail.JobTitle; _active.IsToggled = detail.IsActive; _roleBox.Clear(); _roles.Clear(); foreach (var role in CompanyAccess.AssignableRoles(_actor)) { var sw = new Switch { OnColor = ThemeService.Palette.Accent, IsToggled = detail.Roles.Contains(role, StringComparer.OrdinalIgnoreCase) }; _roles[role] = sw; _roleBox.Add(new HorizontalStackLayout { Spacing = 8, Children = { sw, UiKit.Label(CompanyAccess.RoleText(role), 12.5) } }); } } catch (Exception ex) { await DisplayAlertAsync("Personel", ex.Message, "Tamam"); } }
-    private async Task SaveAsync(Button save) { if (_branch.SelectedIndex < 0 || _branch.SelectedIndex >= _branches.Count) { await DisplayAlertAsync("Şube", "Bir şube seçin.", "Tamam"); return; } var selected = _roles.Where(x => x.Value.IsToggled).Select(x => x.Key).ToList(); if (selected.Count == 0) { await DisplayAlertAsync("Yetki", "En az bir görev/yetki seçin.", "Tamam"); return; } try { save.IsEnabled = false; await _api.UpdateAdminUserAsync(_id, new UpdateAdminUserRequest(_name.Text ?? "", N(_phone.Text), N(_employee.Text), N(_job.Text), _branches[_branch.SelectedIndex].Id, _active.IsToggled, selected)); await DisplayAlertAsync("Kaydedildi", "Personel bilgileri ve yetkileri güncellendi.", "Tamam"); await Navigation.PopAsync(); } catch (Exception ex) { await DisplayAlertAsync("Personel kaydedilemedi", ex.Message, "Tamam"); } finally { save.IsEnabled = true; } }
+    private readonly ApiClient _api;
+    private readonly UserDto _actor;
+    private readonly Guid _id;
+    private readonly Entry _name = UiKit.Entry("Ad soyad");
+    private readonly Entry _phone = UiKit.Entry("Telefon", Keyboard.Telephone);
+    private readonly Entry _employee = UiKit.Entry("Personel kodu");
+    private readonly Entry _job = UiKit.Entry("Görev / unvan");
+    private readonly Picker _branch = UiKit.Picker("Birincil şube");
+    private readonly Switch _active = new() { OnColor = ThemeService.Palette.Accent };
+    private readonly VerticalStackLayout _roleBox = new() { Spacing = 6 };
+    private readonly Dictionary<string, Switch> _roles = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Border? _branchAccessCard;
+    private List<BranchDto> _branches = [];
+
+    public UserEditPage(ApiClient api, UserDto actor, Guid id)
+    {
+        _api = api;
+        _actor = actor;
+        _id = id;
+        Title = "Personel Düzenle";
+        UiKit.StylePage(this);
+
+        var save = UiKit.PrimaryButton("Personeli Kaydet");
+        save.Clicked += async (_, _) => await SaveAsync(save);
+        var root = new VerticalStackLayout
+        {
+            Padding = 16,
+            Spacing = 12,
+            Children =
+            {
+                UiKit.Label("Personel bilgileri", 27, true),
+                UiKit.Card(new VerticalStackLayout
+                {
+                    Spacing = 9,
+                    Children =
+                    {
+                        _name, _phone, _employee, _job, _branch,
+                        new HorizontalStackLayout { Spacing = 9, Children = { _active, UiKit.Label("Hesap aktif", 12.5) } },
+                        UiKit.Label("Yetkiler", 13, true), _roleBox, save
+                    }
+                })
+            }
+        };
+
+        if (CompanyAccess.CanManageBranches(actor) && actor.Id != id)
+        {
+            var branchAccess = UiKit.SecondaryButton("Şube erişim gruplarını düzenle");
+            branchAccess.Clicked += async (_, _) => await Navigation.PushAsync(new UserBranchAccessPage(_api, _id));
+            _branchAccessCard = UiKit.Card(new VerticalStackLayout
+            {
+                Spacing = 7,
+                Children =
+                {
+                    UiKit.Label("Çalışma grupları", 15, true),
+                    UiKit.Label("Personeli birden fazla şubeye yetkilendirmek için ayrı, sade seçim ekranını kullanın.", 11.5, false, true),
+                    branchAccess
+                }
+            });
+            _branchAccessCard.IsVisible = false;
+            root.Add(_branchAccessCard);
+        }
+
+        Content = new ScrollView { Content = root };
+    }
+
+    protected override async void OnAppearing()
+    {
+        base.OnAppearing();
+        try
+        {
+            var detail = await _api.GetAdminUserAsync(_id);
+            _branches = (await _api.GetBranchesAsync()).ToList();
+            _branch.ItemsSource = _branches.Select(x => $"{x.Code} • {x.Name}").ToList();
+            _branch.SelectedIndex = _branches.FindIndex(x => x.Id == detail.BranchId);
+            _name.Text = detail.FullName;
+            _phone.Text = detail.PhoneNumber;
+            _employee.Text = detail.EmployeeCode;
+            _job.Text = detail.JobTitle;
+            _active.IsToggled = detail.IsActive;
+            if (_branchAccessCard is not null)
+            {
+                var hasCompanyWideAccess = detail.Roles.Any(role =>
+                    CompanyAccess.CompanyRoles.Contains(role, StringComparer.OrdinalIgnoreCase));
+                _branchAccessCard.IsVisible = !hasCompanyWideAccess;
+            }
+            _roleBox.Clear();
+            _roles.Clear();
+            foreach (var role in CompanyAccess.AssignableRoles(_actor))
+            {
+                var roleSwitch = new Switch
+                {
+                    OnColor = ThemeService.Palette.Accent,
+                    IsToggled = detail.Roles.Contains(role, StringComparer.OrdinalIgnoreCase)
+                };
+                _roles[role] = roleSwitch;
+                _roleBox.Add(new HorizontalStackLayout
+                {
+                    Spacing = 8,
+                    Children = { roleSwitch, UiKit.Label(CompanyAccess.RoleText(role), 12.5) }
+                });
+            }
+        }
+        catch (Exception ex) { await DisplayAlertAsync("Personel", ex.Message, "Tamam"); }
+    }
+
+    private async Task SaveAsync(Button save)
+    {
+        if (_branch.SelectedIndex < 0 || _branch.SelectedIndex >= _branches.Count)
+        {
+            await DisplayAlertAsync("Şube", "Bir şube seçin.", "Tamam");
+            return;
+        }
+        var selected = _roles.Where(x => x.Value.IsToggled).Select(x => x.Key).ToList();
+        if (selected.Count == 0)
+        {
+            await DisplayAlertAsync("Yetki", "En az bir görev/yetki seçin.", "Tamam");
+            return;
+        }
+        try
+        {
+            save.IsEnabled = false;
+            await _api.UpdateAdminUserAsync(_id, new UpdateAdminUserRequest(
+                _name.Text ?? "", N(_phone.Text), N(_employee.Text), N(_job.Text),
+                _branches[_branch.SelectedIndex].Id, _active.IsToggled, selected));
+            await DisplayAlertAsync("Kaydedildi", "Personel bilgileri ve yetkileri güncellendi.", "Tamam");
+            await Navigation.PopAsync();
+        }
+        catch (Exception ex) { await DisplayAlertAsync("Personel kaydedilemedi", ex.Message, "Tamam"); }
+        finally { save.IsEnabled = true; }
+    }
+
     private static string? N(string? v) => string.IsNullOrWhiteSpace(v) ? null : v.Trim();
+}
+
+public sealed class UserBranchAccessPage : ContentPage
+{
+    private readonly ApiClient _api;
+    private readonly Guid _userId;
+    private readonly Picker _primary = UiKit.Picker("Birincil şube");
+    private readonly VerticalStackLayout _accessList = new() { Spacing = 8 };
+    private readonly Dictionary<Guid, Switch> _accessSwitches = [];
+    private List<BranchDto> _branches = [];
+
+    public UserBranchAccessPage(ApiClient api, Guid userId)
+    {
+        _api = api;
+        _userId = userId;
+        Title = "Şube Erişimleri";
+        UiKit.StylePage(this);
+        _primary.SelectedIndexChanged += (_, _) => KeepPrimarySelected();
+
+        var save = UiKit.PrimaryButton("Şube Erişimlerini Kaydet");
+        save.Clicked += async (_, _) => await SaveAsync(save);
+        Content = new ScrollView
+        {
+            Content = new VerticalStackLayout
+            {
+                Padding = 16,
+                Spacing = 12,
+                Children =
+                {
+                    UiKit.Label("Personel çalışma grupları", 27, true),
+                    UiKit.Label("Birincil şube günlük işlemlerde otomatik kullanılır. Ek şubeleri yalnızca ihtiyaç varsa açın.", 12.5, false, true),
+                    UiKit.Card(new VerticalStackLayout
+                    {
+                        Spacing = 10,
+                        Children =
+                        {
+                            UiKit.Label("Birincil şube", 12, true), _primary,
+                            UiKit.Divider(),
+                            UiKit.Label("Erişebileceği şubeler", 12, true), _accessList,
+                            save
+                        }
+                    })
+                }
+            }
+        };
+    }
+
+    protected override async void OnAppearing()
+    {
+        base.OnAppearing();
+        try
+        {
+            var branchesTask = _api.GetBranchesAsync();
+            var membershipsTask = _api.GetUserBranchMembershipsAsync(_userId);
+            await Task.WhenAll(branchesTask, membershipsTask);
+            _branches = (await branchesTask).Where(x => x.IsActive).ToList();
+            var memberships = (await membershipsTask).ToDictionary(x => x.BranchId);
+
+            _primary.ItemsSource = _branches.Select(x => $"{x.Code} • {x.Name}").ToList();
+            var primaryId = memberships.Values.FirstOrDefault(x => x.IsPrimary && x.IsActive)?.BranchId;
+            _primary.SelectedIndex = Math.Max(0, _branches.FindIndex(x => x.Id == primaryId));
+
+            _accessList.Clear();
+            _accessSwitches.Clear();
+            foreach (var branch in _branches)
+            {
+                var accessSwitch = new Switch
+                {
+                    OnColor = ThemeService.Palette.Accent,
+                    IsToggled = memberships.TryGetValue(branch.Id, out var membership) && membership.IsActive
+                };
+                _accessSwitches[branch.Id] = accessSwitch;
+                _accessList.Add(UiKit.Card(new HorizontalStackLayout
+                {
+                    Spacing = 9,
+                    Children = { accessSwitch, UiKit.Label($"{branch.Code} • {branch.Name}", 12.5) }
+                }, new Thickness(10), 12));
+            }
+            KeepPrimarySelected();
+        }
+        catch (Exception ex) { await DisplayAlertAsync("Şube erişimleri", ex.Message, "Tamam"); }
+    }
+
+    private void KeepPrimarySelected()
+    {
+        if (_primary.SelectedIndex < 0 || _primary.SelectedIndex >= _branches.Count) return;
+        if (_accessSwitches.TryGetValue(_branches[_primary.SelectedIndex].Id, out var primarySwitch))
+            primarySwitch.IsToggled = true;
+    }
+
+    private async Task SaveAsync(Button save)
+    {
+        if (_primary.SelectedIndex < 0 || _primary.SelectedIndex >= _branches.Count)
+        {
+            await DisplayAlertAsync("Birincil şube", "Birincil şube seçin.", "Tamam");
+            return;
+        }
+        var primaryId = _branches[_primary.SelectedIndex].Id;
+        var selected = _accessSwitches.Where(x => x.Value.IsToggled).Select(x => x.Key).ToList();
+        if (!selected.Contains(primaryId)) selected.Add(primaryId);
+        try
+        {
+            save.IsEnabled = false;
+            await _api.UpdateUserBranchMembershipsAsync(
+                _userId,
+                new UpdateUserBranchMembershipsRequest(primaryId, selected));
+            await DisplayAlertAsync("Kaydedildi", "Personelin şube erişim grupları güncellendi. Eski oturumu güvenlik için kapatıldı.", "Tamam");
+            await Navigation.PopAsync();
+        }
+        catch (Exception ex) { await DisplayAlertAsync("Şube erişimleri kaydedilemedi", ex.Message, "Tamam"); }
+        finally { save.IsEnabled = true; }
+    }
 }
 
 public sealed class CreateTeamUserPage : ContentPage

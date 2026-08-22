@@ -19,7 +19,7 @@ public sealed class ModernMainTabsPage : TabbedPage
         UnselectedTabColor = ThemeService.Palette.Secondary;
 
         Children.Add(Tab("Ana Sayfa", new ModernDashboardPage(api, user)));
-        Children.Add(Tab("Araçlar", new ModernTicketsPage(api)));
+        Children.Add(Tab("Araçlar", new ModernTicketsPage(api, user)));
         Children.Add(Tab("Raporlar", new ModernReportsPage(api)));
         Children.Add(Tab("Profil", new ProfilePage(api, user)));
         Children.Add(Tab("Ayarlar", new SettingsPage(api)));
@@ -70,7 +70,7 @@ public sealed class ModernDashboardPage : ContentPage
         metrics.Add(a.Card, 0, 0); metrics.Add(w.Card, 1, 0); metrics.Add(d.Card, 0, 1); metrics.Add(r.Card, 1, 1);
 
         var add = UiKit.PrimaryButton("+ Yeni Araç Kabulü");
-        add.Clicked += async (_, _) => await Navigation.PushAsync(new ModernNewTicketPage(_api));
+        add.Clicked += async (_, _) => await Navigation.PushAsync(new ModernNewTicketPage(_api, _user));
         var reports = UiKit.SecondaryButton("Raporları Görüntüle");
         reports.Clicked += async (_, _) => await Navigation.PushAsync(new ModernReportsPage(_api));
 
@@ -137,15 +137,17 @@ public sealed class ModernDashboardPage : ContentPage
 public sealed class ModernTicketsPage : ContentPage
 {
     private readonly ApiClient _api;
+    private readonly UserDto? _user;
     private readonly ObservableCollection<TicketSummaryDto> _items = new();
     private readonly Entry _search;
     private readonly Switch _closed;
     private readonly CollectionView _list;
     private bool _busy;
 
-    public ModernTicketsPage(ApiClient api)
+    public ModernTicketsPage(ApiClient api, UserDto? user = null)
     {
         _api = api;
+        _user = user;
         UiKit.StylePage(this);
         _search = UiKit.Entry("Plaka, fiş veya telefon ara");
         _search.Completed += async (_, _) => await RefreshAsync();
@@ -154,7 +156,7 @@ public sealed class ModernTicketsPage : ContentPage
         var search = UiKit.SecondaryButton("Ara");
         search.Clicked += async (_, _) => await RefreshAsync();
         var add = UiKit.PrimaryButton("+ Yeni Araç");
-        add.Clicked += async (_, _) => await Navigation.PushAsync(new ModernNewTicketPage(_api));
+        add.Clicked += async (_, _) => await Navigation.PushAsync(new ModernNewTicketPage(_api, _user));
 
         _list = new CollectionView
         {
@@ -221,7 +223,9 @@ public sealed class ModernNewTicketPage : ContentPage
 {
     private const int MaxPhotoBytes = 4_000_000;
     private readonly ApiClient _api;
+    private readonly BranchContextSelector _branchSelector;
     private readonly Entry _plate = UiKit.Entry("07 ABC 123");
+    private readonly Entry _vehicleSearch = UiKit.Entry("Marka veya model ara");
     private readonly Picker _brand = UiKit.Picker("Marka seçin");
     private readonly Picker _model = UiKit.Picker("Model seçin");
     private readonly Entry _manualBrand = UiKit.Entry("Marka (elle)");
@@ -240,9 +244,10 @@ public sealed class ModernNewTicketPage : ContentPage
     private readonly Label _photoInfo = UiKit.Label("Fotoğraf eklenmedi", 11, false, true);
     private string? _photoBase64;
 
-    public ModernNewTicketPage(ApiClient api)
+    public ModernNewTicketPage(ApiClient api, UserDto? user = null)
     {
         _api = api;
+        _branchSelector = new BranchContextSelector(_api);
         Title = "Yeni Araç";
         UiKit.StylePage(this);
         _brand.ItemsSource = VehicleCatalog.Brands.Select(x => x.Name).Concat(new[] { "Diğer" }).ToList();
@@ -251,7 +256,7 @@ public sealed class ModernNewTicketPage : ContentPage
         _manualBrand.IsVisible = false;
         _manualModel.IsVisible = false;
         _brand.SelectedIndexChanged += (_, _) => UpdateModels();
-        _year.Text = DateTime.Today.Year.ToString(CultureInfo.InvariantCulture);
+        _vehicleSearch.TextChanged += (_, _) => FilterVehicleCatalog();
 
         var pickPhoto = UiKit.SecondaryButton("Fotoğraf Seç");
         pickPhoto.Clicked += async (_, _) => await PickPhotoAsync();
@@ -266,39 +271,111 @@ public sealed class ModernNewTicketPage : ContentPage
         var save = UiKit.PrimaryButton("Araç Kabulünü Kaydet");
         save.Clicked += async (_, _) => await SaveAsync(save);
 
-        Content = new ScrollView
+        var vehicleFields = new VerticalStackLayout
         {
-            Content = new VerticalStackLayout
+            Spacing = 10,
+            Children =
             {
-                Padding = 16,
-                Spacing = 14,
-                Children =
-                {
-                    UiKit.Label("Araç kabul", 27, true),
-                    UiKit.Label("Plaka ve araç bilgilerini girin; isterseniz fotoğraf ekleyin. Hazır marka/model listesi elle girişi engellemez.", 12.5, false, true),
-                    UiKit.Card(new VerticalStackLayout
-                    {
-                        Spacing = 10,
-                        Children =
-                        {
-                            UiKit.Label("Araç", 16, true), _plate, _brand, _model, _manualBrand, _manualModel,
-                            _year, _color, _fuel, _transmission
-                        }
-                    }),
-                    UiKit.Card(new VerticalStackLayout
-                    {
-                        Spacing = 10,
-                        Children = { UiKit.Label("Araç fotoğrafı", 16, true), _photo, _photoInfo, pickPhoto, removePhoto }
-                    }),
-                    UiKit.Card(new VerticalStackLayout
-                    {
-                        Spacing = 10,
-                        Children = { UiKit.Label("Müşteri ve operasyon", 16, true), _customer, _phone, _key, _spot, _notes, _rate }
-                    }),
-                    save
-                }
+                UiKit.Label("Araç ayrıntıları", 16, true),
+                UiKit.Label("Marka veya modeli yazarak listeyi arayın. Markayı seçince model seçenekleri otomatik daralır.", 11.5, false, true),
+                _vehicleSearch, _brand, _model, _manualBrand, _manualModel, _year, _color, _fuel, _transmission
             }
         };
+        var vehicleCard = UiKit.Card(vehicleFields);
+        vehicleCard.IsVisible = false;
+        var vehicleToggle = UiKit.SecondaryButton("＋ Marka, model ve araç detayı ekle");
+        vehicleToggle.Clicked += (_, _) => ToggleSection(
+            vehicleToggle,
+            vehicleCard,
+            "＋ Marka, model ve araç detayı ekle",
+            "− Araç detaylarını kapat");
+
+        var customerFields = new VerticalStackLayout
+        {
+            Spacing = 10,
+            Children =
+            {
+                UiKit.Label("Müşteri, not ve fotoğraf", 16, true),
+                _customer, _phone, _notes,
+                UiKit.Label("Araçta mevcut hasar varsa kısa not veya fotoğraf ekleyin.", 11, false, true),
+                _photo, _photoInfo, pickPhoto, removePhoto
+            }
+        };
+        var customerCard = UiKit.Card(customerFields);
+        customerCard.IsVisible = false;
+        var customerToggle = UiKit.SecondaryButton("＋ Müşteri, not veya fotoğraf ekle");
+        customerToggle.Clicked += (_, _) => ToggleSection(
+            customerToggle,
+            customerCard,
+            "＋ Müşteri, not veya fotoğraf ekle",
+            "− Ek bilgileri kapat");
+
+        var adminFields = new VerticalStackLayout
+        {
+            Spacing = 10,
+            Children =
+            {
+                UiKit.Label("Yönetici ayarı", 16, true),
+                UiKit.Label("Boş bırakırsanız şubenin varsayılan tarifesi kullanılır.", 11, false, true),
+                _rate
+            }
+        };
+        var adminCard = UiKit.Card(adminFields);
+        adminCard.IsVisible = false;
+        var adminToggle = UiKit.SecondaryButton("＋ Ücret ayarı");
+        adminToggle.Clicked += (_, _) => ToggleSection(
+            adminToggle,
+            adminCard,
+            "＋ Ücret ayarı",
+            "− Ücret ayarını kapat");
+
+        var root = new VerticalStackLayout
+        {
+            Padding = 16,
+            Spacing = 12,
+            Children =
+            {
+                UiKit.Label("Hızlı araç kabul", 27, true),
+                UiKit.Label("Yalnızca plaka zorunlu. Günlük operasyonda gereken kısa bilgileri yazıp hemen kaydedebilirsiniz.", 12.5, false, true),
+                _branchSelector,
+                UiKit.Card(new VerticalStackLayout
+                {
+                    Spacing = 10,
+                    Children =
+                    {
+                        UiKit.Label("Hızlı bilgiler", 16, true),
+                        UiKit.Label("Plaka *", 11, true, true),
+                        _plate,
+                        _key,
+                        _spot
+                    }
+                }),
+                vehicleToggle,
+                vehicleCard,
+                customerToggle,
+                customerCard
+            }
+        };
+
+        if (user is not null && (CompanyAccess.CanFinance(user) || CompanyAccess.CanManageBranches(user)))
+        {
+            root.Add(adminToggle);
+            root.Add(adminCard);
+        }
+
+        root.Add(save);
+        root.Add(UiKit.Label("Marka, model ve diğer ayrıntılar yetkili kullanıcılar tarafından araç detayından daha sonra da eklenebilir.", 10.5, false, true));
+
+        Content = new ScrollView
+        {
+            Content = root
+        };
+    }
+
+    private static void ToggleSection(Button button, VisualElement section, string openText, string closeText)
+    {
+        section.IsVisible = !section.IsVisible;
+        button.Text = section.IsVisible ? closeText : openText;
     }
 
     private void UpdateModels()
@@ -308,8 +385,41 @@ public sealed class ModernNewTicketPage : ContentPage
         _manualBrand.IsVisible = manual;
         _manualModel.IsVisible = manual;
         _model.IsVisible = !manual;
-        _model.ItemsSource = manual ? null : VehicleCatalog.ModelsFor(brand).ToList();
+        var models = VehicleCatalog.ModelsFor(brand);
+        if (!manual && !string.IsNullOrWhiteSpace(_vehicleSearch.Text))
+        {
+            var filtered = models.Where(model => MatchesSearch($"{brand} {model}", _vehicleSearch.Text)).ToList();
+            if (filtered.Count > 0 && !MatchesSearch(brand, _vehicleSearch.Text))
+                models = filtered;
+        }
+        _model.ItemsSource = manual ? null : models.ToList();
         _model.SelectedIndex = -1;
+    }
+
+    private void FilterVehicleCatalog()
+    {
+        var selected = _brand.SelectedItem?.ToString();
+        var query = _vehicleSearch.Text;
+        var brands = VehicleCatalog.Brands
+            .Where(brand => MatchesSearch($"{brand.Name} {string.Join(" ", brand.Models)}", query))
+            .Select(brand => brand.Name)
+            .ToList();
+        if (string.IsNullOrWhiteSpace(query) || MatchesSearch("Diğer", query))
+            brands.Add("Diğer");
+
+        _brand.ItemsSource = brands;
+        if (selected is not null && brands.Contains(selected, StringComparer.OrdinalIgnoreCase))
+            _brand.SelectedItem = selected;
+        else
+            UpdateModels();
+    }
+
+    private static bool MatchesSearch(string? value, string? query)
+    {
+        if (string.IsNullOrWhiteSpace(query)) return true;
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        return query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .All(token => value.Contains(token, StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task PickPhotoAsync()
@@ -376,8 +486,9 @@ public sealed class ModernNewTicketPage : ContentPage
         try
         {
             save.IsEnabled = false;
+            await _branchSelector.EnsureLoadedAsync();
             await _api.CreateTicketAsync(new CreateTicketRequest(
-                null, plate, brand, model, N(_color.Text), N(_customer.Text), N(_phone.Text), N(_key.Text), N(_spot.Text),
+                _api.ActiveBranchId, plate, brand, model, N(_color.Text), N(_customer.Text), N(_phone.Text), N(_key.Text), N(_spot.Text),
                 N(_notes.Text), rate, year, N(_fuel.SelectedItem?.ToString()), N(_transmission.SelectedItem?.ToString()), _photoBase64));
             await DisplayAlertAsync("Kaydedildi", "Araç başarıyla teslim alındı.", "Tamam");
             await Navigation.PopAsync();

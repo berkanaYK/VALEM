@@ -89,6 +89,31 @@ public static class DatabaseSeeder
             await db.SaveChangesAsync(cancellationToken);
         }
 
+        var primaryMembership = await db.UserBranchMemberships.SingleOrDefaultAsync(
+            x => x.CompanyId == company.Id && x.UserId == admin.Id && x.BranchId == branch.Id,
+            cancellationToken);
+        if (primaryMembership is null)
+        {
+            db.UserBranchMemberships.Add(new UserBranchMembership
+            {
+                CompanyId = company.Id,
+                Company = company,
+                UserId = admin.Id,
+                User = admin,
+                BranchId = branch.Id,
+                Branch = branch,
+                IsPrimary = true,
+                IsActive = true
+            });
+        }
+        else
+        {
+            primaryMembership.IsPrimary = true;
+            primaryMembership.IsActive = true;
+            primaryMembership.UpdatedAt = DateTimeOffset.UtcNow;
+        }
+        await db.SaveChangesAsync(cancellationToken);
+
         var requiredRoles = new[] { Roles.Owner, Roles.Admin, Roles.OperationsManager, Roles.Manager };
         var existingRoles = await userManager.GetRolesAsync(admin);
         var missingRoles = requiredRoles.Where(role => !existingRoles.Contains(role, StringComparer.OrdinalIgnoreCase)).ToArray();
@@ -152,7 +177,31 @@ public static class DatabaseSeeder
             ALTER TABLE "AspNetUsers" ADD COLUMN IF NOT EXISTS "LastLoginAt" timestamp with time zone;
             UPDATE "AspNetUsers" u SET "CompanyId" = b."CompanyId" FROM "Branches" b WHERE u."CompanyId" IS NULL AND u."BranchId" = b."Id";
             CREATE INDEX IF NOT EXISTS "IX_AspNetUsers_CompanyId" ON "AspNetUsers" ("CompanyId");
-            CREATE UNIQUE INDEX IF NOT EXISTS "IX_AspNetUsers_EmployeeCode" ON "AspNetUsers" ("EmployeeCode") WHERE "EmployeeCode" IS NOT NULL;
+            DROP INDEX IF EXISTS "IX_AspNetUsers_EmployeeCode";
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_AspNetUsers_CompanyId_EmployeeCode" ON "AspNetUsers" ("CompanyId", "EmployeeCode") WHERE "EmployeeCode" IS NOT NULL;
+
+            CREATE TABLE IF NOT EXISTS "UserBranchMemberships" (
+                "Id" uuid NOT NULL PRIMARY KEY,
+                "CompanyId" uuid NOT NULL,
+                "UserId" uuid NOT NULL,
+                "BranchId" uuid NOT NULL,
+                "IsPrimary" boolean NOT NULL DEFAULT FALSE,
+                "IsActive" boolean NOT NULL DEFAULT TRUE,
+                "CreatedAt" timestamp with time zone NOT NULL,
+                "UpdatedAt" timestamp with time zone NULL,
+                CONSTRAINT "FK_UserBranchMemberships_Companies_CompanyId" FOREIGN KEY ("CompanyId") REFERENCES "Companies" ("Id") ON DELETE CASCADE,
+                CONSTRAINT "FK_UserBranchMemberships_AspNetUsers_UserId" FOREIGN KEY ("UserId") REFERENCES "AspNetUsers" ("Id") ON DELETE CASCADE,
+                CONSTRAINT "FK_UserBranchMemberships_Branches_BranchId" FOREIGN KEY ("BranchId") REFERENCES "Branches" ("Id") ON DELETE CASCADE
+            );
+            INSERT INTO "UserBranchMemberships" ("Id", "CompanyId", "UserId", "BranchId", "IsPrimary", "IsActive", "CreatedAt")
+            SELECT gen_random_uuid(), u."CompanyId", u."Id", u."BranchId", TRUE, TRUE, now()
+            FROM "AspNetUsers" u
+            WHERE u."CompanyId" IS NOT NULL AND u."BranchId" IS NOT NULL
+              AND NOT EXISTS (SELECT 1 FROM "UserBranchMemberships" m WHERE m."UserId" = u."Id" AND m."BranchId" = u."BranchId");
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_UserBranchMemberships_UserId_BranchId" ON "UserBranchMemberships" ("UserId", "BranchId");
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_UserBranchMemberships_UserId_Primary" ON "UserBranchMemberships" ("UserId") WHERE "IsPrimary" = TRUE AND "IsActive" = TRUE;
+            CREATE INDEX IF NOT EXISTS "IX_UserBranchMemberships_CompanyId_BranchId_IsActive" ON "UserBranchMemberships" ("CompanyId", "BranchId", "IsActive");
+            CREATE INDEX IF NOT EXISTS "IX_UserBranchMemberships_CompanyId_UserId_IsActive" ON "UserBranchMemberships" ("CompanyId", "UserId", "IsActive");
 
             ALTER TABLE "ParkingTickets" ADD COLUMN IF NOT EXISTS "CreatedByUserId" uuid;
             ALTER TABLE "ParkingTickets" ADD COLUMN IF NOT EXISTS "UpdatedByUserId" uuid;
@@ -160,10 +209,21 @@ public static class DatabaseSeeder
             ALTER TABLE "ParkingTickets" ADD COLUMN IF NOT EXISTS "DeletedByUserId" uuid;
             ALTER TABLE "ParkingTickets" ADD COLUMN IF NOT EXISTS "DeletedAt" timestamp with time zone;
             ALTER TABLE "ParkingTickets" ADD COLUMN IF NOT EXISTS "DeletedReason" character varying(300);
+            ALTER TABLE "ParkingTickets" ADD COLUMN IF NOT EXISTS "CompanyId" uuid;
+            UPDATE "ParkingTickets" t SET "CompanyId" = b."CompanyId" FROM "Branches" b WHERE t."CompanyId" IS NULL AND t."BranchId" = b."Id";
+            ALTER TABLE "ParkingTickets" ALTER COLUMN "CompanyId" SET NOT NULL;
             CREATE INDEX IF NOT EXISTS "IX_ParkingTickets_DeletedAt" ON "ParkingTickets" ("DeletedAt");
+            DROP INDEX IF EXISTS "IX_ParkingTickets_BranchId_Status_EntryAt";
+            CREATE INDEX IF NOT EXISTS "IX_ParkingTickets_CompanyId_BranchId_Status_EntryAt" ON "ParkingTickets" ("CompanyId", "BranchId", "Status", "EntryAt");
+
+            ALTER TABLE "Payments" ADD COLUMN IF NOT EXISTS "CompanyId" uuid;
+            UPDATE "Payments" p SET "CompanyId" = t."CompanyId" FROM "ParkingTickets" t WHERE p."CompanyId" IS NULL AND p."TicketId" = t."Id";
+            ALTER TABLE "Payments" ALTER COLUMN "CompanyId" SET NOT NULL;
+            CREATE INDEX IF NOT EXISTS "IX_Payments_CompanyId_PaidAt" ON "Payments" ("CompanyId", "PaidAt");
 
             CREATE TABLE IF NOT EXISTS "AuditEntries" (
                 "Id" uuid NOT NULL PRIMARY KEY,
+                "CompanyId" uuid NOT NULL,
                 "UserId" uuid NULL,
                 "BranchId" uuid NULL,
                 "Action" character varying(80) NOT NULL,
@@ -174,9 +234,48 @@ public static class DatabaseSeeder
                 "Success" boolean NOT NULL DEFAULT TRUE,
                 "OccurredAt" timestamp with time zone NOT NULL
             );
+            ALTER TABLE "AuditEntries" ADD COLUMN IF NOT EXISTS "CompanyId" uuid;
+            UPDATE "AuditEntries" a SET "CompanyId" = b."CompanyId" FROM "Branches" b WHERE a."CompanyId" IS NULL AND a."BranchId" = b."Id";
+            UPDATE "AuditEntries" a SET "CompanyId" = u."CompanyId" FROM "AspNetUsers" u WHERE a."CompanyId" IS NULL AND a."UserId" = u."Id";
+            UPDATE "AuditEntries" SET "CompanyId" = '11111111-1111-1111-1111-111111111111' WHERE "CompanyId" IS NULL;
+            ALTER TABLE "AuditEntries" ALTER COLUMN "CompanyId" SET NOT NULL;
             CREATE INDEX IF NOT EXISTS "IX_AuditEntries_OccurredAt" ON "AuditEntries" ("OccurredAt");
-            CREATE INDEX IF NOT EXISTS "IX_AuditEntries_BranchId_OccurredAt" ON "AuditEntries" ("BranchId", "OccurredAt");
-            CREATE INDEX IF NOT EXISTS "IX_AuditEntries_UserId_OccurredAt" ON "AuditEntries" ("UserId", "OccurredAt");
+            DROP INDEX IF EXISTS "IX_AuditEntries_BranchId_OccurredAt";
+            DROP INDEX IF EXISTS "IX_AuditEntries_UserId_OccurredAt";
+            CREATE INDEX IF NOT EXISTS "IX_AuditEntries_CompanyId_OccurredAt" ON "AuditEntries" ("CompanyId", "OccurredAt");
+            CREATE INDEX IF NOT EXISTS "IX_AuditEntries_CompanyId_BranchId_OccurredAt" ON "AuditEntries" ("CompanyId", "BranchId", "OccurredAt");
+            CREATE INDEX IF NOT EXISTS "IX_AuditEntries_CompanyId_UserId_OccurredAt" ON "AuditEntries" ("CompanyId", "UserId", "OccurredAt");
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_Branches_Companies_CompanyId' AND conrelid = '"Branches"'::regclass) THEN
+                    ALTER TABLE "Branches" ADD CONSTRAINT "FK_Branches_Companies_CompanyId"
+                        FOREIGN KEY ("CompanyId") REFERENCES "Companies" ("Id") ON DELETE RESTRICT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_Customers_Companies_CompanyId' AND conrelid = '"Customers"'::regclass) THEN
+                    ALTER TABLE "Customers" ADD CONSTRAINT "FK_Customers_Companies_CompanyId"
+                        FOREIGN KEY ("CompanyId") REFERENCES "Companies" ("Id") ON DELETE RESTRICT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_Vehicles_Companies_CompanyId' AND conrelid = '"Vehicles"'::regclass) THEN
+                    ALTER TABLE "Vehicles" ADD CONSTRAINT "FK_Vehicles_Companies_CompanyId"
+                        FOREIGN KEY ("CompanyId") REFERENCES "Companies" ("Id") ON DELETE RESTRICT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_AspNetUsers_Companies_CompanyId' AND conrelid = '"AspNetUsers"'::regclass) THEN
+                    ALTER TABLE "AspNetUsers" ADD CONSTRAINT "FK_AspNetUsers_Companies_CompanyId"
+                        FOREIGN KEY ("CompanyId") REFERENCES "Companies" ("Id") ON DELETE SET NULL;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_ParkingTickets_Companies_CompanyId' AND conrelid = '"ParkingTickets"'::regclass) THEN
+                    ALTER TABLE "ParkingTickets" ADD CONSTRAINT "FK_ParkingTickets_Companies_CompanyId"
+                        FOREIGN KEY ("CompanyId") REFERENCES "Companies" ("Id") ON DELETE RESTRICT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_Payments_Companies_CompanyId' AND conrelid = '"Payments"'::regclass) THEN
+                    ALTER TABLE "Payments" ADD CONSTRAINT "FK_Payments_Companies_CompanyId"
+                        FOREIGN KEY ("CompanyId") REFERENCES "Companies" ("Id") ON DELETE RESTRICT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_AuditEntries_Companies_CompanyId' AND conrelid = '"AuditEntries"'::regclass) THEN
+                    ALTER TABLE "AuditEntries" ADD CONSTRAINT "FK_AuditEntries_Companies_CompanyId"
+                        FOREIGN KEY ("CompanyId") REFERENCES "Companies" ("Id") ON DELETE RESTRICT;
+                END IF;
+            END $$;
 
             CREATE TABLE IF NOT EXISTS "RegistrationRequests" (
                 "Id" uuid NOT NULL PRIMARY KEY,
@@ -221,6 +320,21 @@ public static class DatabaseSeeder
             CREATE UNIQUE INDEX IF NOT EXISTS "IX_PushRegistrations_Token" ON "PushRegistrations" ("Token");
             CREATE INDEX IF NOT EXISTS "IX_PushRegistrations_UserId_IsActive_LastSeenAt" ON "PushRegistrations" ("UserId", "IsActive", "LastSeenAt");
             CREATE INDEX IF NOT EXISTS "IX_PushRegistrations_CompanyId_UserId" ON "PushRegistrations" ("CompanyId", "UserId");
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_RegistrationRequests_Companies_CompanyId' AND conrelid = '"RegistrationRequests"'::regclass) THEN
+                    ALTER TABLE "RegistrationRequests" ADD CONSTRAINT "FK_RegistrationRequests_Companies_CompanyId"
+                        FOREIGN KEY ("CompanyId") REFERENCES "Companies" ("Id") ON DELETE CASCADE;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_Notifications_Companies_CompanyId' AND conrelid = '"Notifications"'::regclass) THEN
+                    ALTER TABLE "Notifications" ADD CONSTRAINT "FK_Notifications_Companies_CompanyId"
+                        FOREIGN KEY ("CompanyId") REFERENCES "Companies" ("Id") ON DELETE RESTRICT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_PushRegistrations_Companies_CompanyId' AND conrelid = '"PushRegistrations"'::regclass) THEN
+                    ALTER TABLE "PushRegistrations" ADD CONSTRAINT "FK_PushRegistrations_Companies_CompanyId"
+                        FOREIGN KEY ("CompanyId") REFERENCES "Companies" ("Id") ON DELETE RESTRICT;
+                END IF;
+            END $$;
             """,
             cancellationToken);
 }

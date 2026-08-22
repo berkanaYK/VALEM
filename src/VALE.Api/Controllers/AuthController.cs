@@ -3,9 +3,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
-using VALE.Api.Configuration;
-using VALE.Api.Data;
 using VALE.Api.Domain;
 using VALE.Api.Services;
 using VALE.Contracts;
@@ -17,8 +14,6 @@ namespace VALE.Api.Controllers;
 public sealed class AuthController(
     UserManager<AppUser> userManager,
     TokenService tokenService,
-    ValeDbContext db,
-    IOptions<SeedOptions> seedOptions,
     PasswordResetCodeService resetCodes,
     OneTimeCodeService oneTimeCodes,
     IValeEmailSender emailSender,
@@ -85,55 +80,11 @@ public sealed class AuthController(
     [HttpPost("register")]
     [AllowAnonymous]
     [EnableRateLimiting("register")]
-    public async Task<ActionResult<RegisterResponse>> Register(RegisterRequest request, CancellationToken cancellationToken)
-    {
-        var email = request.Email.Trim();
-        if (await userManager.FindByEmailAsync(email) is not null)
-            throw new ApiException(StatusCodes.Status409Conflict, "E-posta kullanımda", "Bu e-posta adresiyle bir hesap zaten bulunuyor.");
-
-        var employeeCode = Clean(request.EmployeeCode)?.ToUpperInvariant();
-        if (employeeCode is not null && await userManager.Users.AnyAsync(x => x.EmployeeCode == employeeCode, cancellationToken))
-            throw new ApiException(StatusCodes.Status409Conflict, "Personel kodu kullanımda", "Bu personel kodu başka bir hesapta kayıtlı.");
-
-        var requestedCode = Clean(request.BranchCode)?.ToUpperInvariant();
-        var defaultCode = seedOptions.Value.DefaultBranchCode.Trim().ToUpperInvariant();
-        var legacyCompanyId = await db.Companies.AsNoTracking()
-            .Where(x => x.Code == "VALE")
-            .Select(x => (Guid?)x.Id)
-            .SingleOrDefaultAsync(cancellationToken)
-            ?? throw new ApiException(StatusCodes.Status503ServiceUnavailable, "Kayıt geçici olarak kullanılamıyor", "Ana firma kaydı hazırlanamadı. Lütfen v3.1 uygulamasındaki yeni kayıt ekranını kullanın.");
-        var branch = await db.Branches
-            .Where(x => x.CompanyId == legacyCompanyId)
-            .OrderByDescending(x => x.Code == (requestedCode ?? defaultCode))
-            .ThenBy(x => x.CreatedAt)
-            .FirstOrDefaultAsync(x => x.IsActive && (requestedCode == null || x.Code == requestedCode), cancellationToken)
-            ?? throw new ApiException(StatusCodes.Status404NotFound, "Şube bulunamadı", "Eski kayıt ekranı yalnızca ana VALE firmasını destekler. Yeni firmalar için v3.1 uygulamasındaki firma/personel kayıt akışını kullanın.");
-
-        var user = new AppUser
-        {
-            UserName = email,
-            Email = email,
-            EmailConfirmed = true,
-            FullName = request.FullName.Trim(),
-            PhoneNumber = Clean(request.PhoneNumber),
-            EmployeeCode = employeeCode,
-            CompanyId = branch.CompanyId,
-            BranchId = branch.Id,
-            Branch = branch,
-            IsActive = false
-        };
-        var result = await userManager.CreateAsync(user, request.Password);
-        if (!result.Succeeded)
-            throw new ApiException(StatusCodes.Status400BadRequest, "Hesap oluşturulamadı", string.Join(" ", result.Errors.Select(x => x.Description)));
-        var roleResult = await userManager.AddToRoleAsync(user, Roles.Valet);
-        if (!roleResult.Succeeded)
-        {
-            await userManager.DeleteAsync(user);
-            throw new ApiException(StatusCodes.Status500InternalServerError, "Hesap hazırlanamadı", "Başlangıç rolü atanamadı.");
-        }
-        await audit.RecordAsync(user.Id, branch.Id, "account.registered", "User", user.Id.ToString(), "Eski istemci üzerinden hesap oluşturuldu; yönetici onayı bekliyor.", cancellationToken: cancellationToken);
-        return Created("/api/auth/register", new RegisterResponse("Hesabınız oluşturuldu. Yöneticiniz onayladığında giriş yapabilirsiniz. Yeni firma/personel kayıt özellikleri için VALE 3.1'i kullanın.", true));
-    }
+    public Task<ActionResult<RegisterResponse>> Register(RegisterRequest request, CancellationToken cancellationToken) =>
+        Task.FromException<ActionResult<RegisterResponse>>(new ApiException(
+            StatusCodes.Status410Gone,
+            "Eski kayıt akışı kapatıldı",
+            "E-posta doğrulaması ve firma onayı için güncel personel kayıt ekranını kullanın (/api/registration/staff)."));
 
     [HttpPost("forgot-password")]
     [AllowAnonymous]
@@ -295,8 +246,8 @@ public sealed class AuthController(
     private async Task<AppUser> FindUserAsync(string email, CancellationToken cancellationToken, bool hideNotFound = false)
     {
         var normalizedEmail = userManager.NormalizeEmail(email.Trim());
-        var user = await userManager.Users.Include(x => x.Branch).SingleOrDefaultAsync(x => x.NormalizedEmail == normalizedEmail, cancellationToken);
-        if (user is null || !user.IsActive)
+        var user = await userManager.Users.Include(x => x.Branch).Include(x => x.Company).SingleOrDefaultAsync(x => x.NormalizedEmail == normalizedEmail, cancellationToken);
+        if (user is null || !user.IsActive || user.Company is not { IsActive: true } || user.Branch is not { IsActive: true } || user.Branch.CompanyId != user.CompanyId)
         {
             if (hideNotFound) throw new ApiException(StatusCodes.Status401Unauthorized, "Giriş doğrulanamadı", "Kod hatalı, süresi dolmuş veya hesap aktif değil.");
             throw new ApiException(StatusCodes.Status401Unauthorized, "Giriş başarısız", user is { IsActive: false } ? "Hesabınız yönetici onayı bekliyor veya devre dışı." : "E-posta adresi veya parola hatalı.");
@@ -337,8 +288,11 @@ public sealed class AuthController(
     private async Task<AppUser> GetCurrentUserAsync(CancellationToken cancellationToken)
     {
         var userId = User.FindFirst("sub")?.Value;
-        if (!Guid.TryParse(userId, out var parsedUserId)) throw new ApiException(StatusCodes.Status401Unauthorized, "Oturum geçersiz", "Kullanıcı kimliği okunamadı.");
-        return await userManager.Users.Include(x => x.Branch).SingleOrDefaultAsync(x => x.Id == parsedUserId && x.IsActive, cancellationToken)
+        var companyClaim = User.FindFirst("company_id")?.Value;
+        if (!Guid.TryParse(userId, out var parsedUserId) || !Guid.TryParse(companyClaim, out var companyId))
+            throw new ApiException(StatusCodes.Status401Unauthorized, "Oturum geçersiz", "Kullanıcı veya firma kapsamı okunamadı.");
+        return await userManager.Users.Include(x => x.Branch).Include(x => x.Company)
+            .SingleOrDefaultAsync(x => x.Id == parsedUserId && x.CompanyId == companyId && x.IsActive && x.Company != null && x.Company.IsActive, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status401Unauthorized, "Oturum geçersiz", "Kullanıcı hesabı bulunamadı veya devre dışı.");
     }
 
