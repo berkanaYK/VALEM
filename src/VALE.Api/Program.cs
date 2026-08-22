@@ -76,18 +76,35 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
         {
             var subject = context.Principal?.FindFirst("sub")?.Value;
             var stamp = context.Principal?.FindFirst("security_stamp")?.Value;
-            if (!Guid.TryParse(subject, out var userId) || string.IsNullOrWhiteSpace(stamp))
+            var tenantClaim = context.Principal?.FindFirst("company_id")?.Value;
+            var branchClaim = context.Principal?.FindFirst("branch_id")?.Value;
+            var tokenBranchId = Guid.TryParse(branchClaim, out var parsedBranchId) ? parsedBranchId : (Guid?)null;
+            if (!Guid.TryParse(subject, out var userId) ||
+                !Guid.TryParse(tenantClaim, out var companyId) ||
+                string.IsNullOrWhiteSpace(stamp))
             {
-                context.Fail("Oturum kimliği eksik.");
+                context.Fail("Oturum kimliği veya firma kapsamı eksik.");
                 return;
             }
 
             var userManager = context.HttpContext.RequestServices.GetRequiredService<UserManager<AppUser>>();
             var user = await userManager.FindByIdAsync(userId.ToString());
-            if (user is null || !user.IsActive || !string.Equals(user.SecurityStamp, stamp, StringComparison.Ordinal))
+            if (user is null ||
+                !user.IsActive ||
+                user.CompanyId != companyId ||
+                !string.Equals(user.SecurityStamp, stamp, StringComparison.Ordinal) ||
+                user.BranchId != tokenBranchId)
             {
                 context.Fail("Oturum artık geçerli değil.");
+                return;
             }
+
+            var db = context.HttpContext.RequestServices.GetRequiredService<ValeDbContext>();
+            var companyActive = await db.Companies.AsNoTracking().AnyAsync(x => x.Id == companyId && x.IsActive, context.HttpContext.RequestAborted);
+            var branchActive = !user.BranchId.HasValue || await db.Branches.AsNoTracking().AnyAsync(
+                x => x.Id == user.BranchId.Value && x.CompanyId == companyId && x.IsActive,
+                context.HttpContext.RequestAborted);
+            if (!companyActive || !branchActive) context.Fail("Firma veya varsayılan şube artık aktif değil.");
         }
     };
 });
@@ -121,6 +138,7 @@ builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<CurrentUserContext>();
+builder.Services.AddScoped<TenantAccessService>();
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<TicketService>();
 builder.Services.AddScoped<PasswordResetCodeService>();

@@ -25,6 +25,7 @@ public sealed class Branch
     public string? InviteCode { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public List<UserBranchMembership> UserMemberships { get; set; } = [];
 }
 
 public sealed class AppUser : IdentityUser<Guid>
@@ -42,6 +43,22 @@ public sealed class AppUser : IdentityUser<Guid>
     public string ProfileColor { get; set; } = "#2563EB";
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? LastLoginAt { get; set; }
+    public List<UserBranchMembership> BranchMemberships { get; set; } = [];
+}
+
+public sealed class UserBranchMembership
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CompanyId { get; set; }
+    public Company Company { get; set; } = null!;
+    public Guid UserId { get; set; }
+    public AppUser User { get; set; } = null!;
+    public Guid BranchId { get; set; }
+    public Branch Branch { get; set; } = null!;
+    public bool IsPrimary { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? UpdatedAt { get; set; }
 }
 
 public sealed class RegistrationRequest
@@ -119,6 +136,7 @@ public sealed class Vehicle
 public sealed class ParkingTicket
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CompanyId { get; set; }
     public string TicketNumber { get; set; } = string.Empty;
     public Guid BranchId { get; set; }
     public Branch Branch { get; set; } = null!;
@@ -153,6 +171,7 @@ public sealed class ParkingTicket
 public sealed class Payment
 {
     public Guid Id { get; set; }
+    public Guid CompanyId { get; set; }
     public Guid TicketId { get; set; }
     public ParkingTicket Ticket { get; set; } = null!;
     public decimal Amount { get; set; }
@@ -165,6 +184,7 @@ public sealed class Payment
 public sealed class AuditEntry
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CompanyId { get; set; }
     public Guid? UserId { get; set; }
     public AppUser? User { get; set; }
     public Guid? BranchId { get; set; }

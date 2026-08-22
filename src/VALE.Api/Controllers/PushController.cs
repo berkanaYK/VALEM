@@ -60,8 +60,8 @@ public sealed class PushController(
         }
         else
         {
-            registration.CompanyId = currentUser.CompanyId;
-            registration.UserId = currentUser.UserId;
+            if (registration.CompanyId != currentUser.CompanyId || registration.UserId != currentUser.UserId)
+                throw new ApiException(StatusCodes.Status409Conflict, "Cihaz kaydı kullanılamıyor", "Bu bildirim anahtarı başka bir hesapla ilişkilendirilmiş. Cihazda bildirim iznini yenileyip tekrar deneyin.");
             registration.Platform = platform;
             registration.DeviceName = deviceName;
             registration.IsActive = true;
