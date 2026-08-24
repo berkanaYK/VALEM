@@ -37,9 +37,11 @@ public sealed class NotificationsController(ValeDbContext db, CurrentUserContext
     [HttpPost("read-all")]
     public async Task<IActionResult> ReadAll(CancellationToken cancellationToken)
     {
-        await db.Notifications
+        var rows = await db.Notifications
             .Where(x => x.CompanyId == currentUser.CompanyId && x.UserId == currentUser.UserId && !x.IsRead)
-            .ExecuteUpdateAsync(set => set.SetProperty(x => x.IsRead, true), cancellationToken);
+            .ToListAsync(cancellationToken);
+        foreach (var row in rows) row.IsRead = true;
+        if (rows.Count > 0) await db.SaveChangesAsync(cancellationToken);
         return NoContent();
     }
 

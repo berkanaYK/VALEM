@@ -11,6 +11,7 @@ namespace VALE.Api.Services;
 public sealed class TicketService(
     ValeDbContext db,
     CurrentUserContext currentUser,
+    TenantAccessService tenantAccess,
     IFeeCalculator feeCalculator,
     IOptions<BusinessRulesOptions> businessRules,
     AuditService audit,
@@ -21,11 +22,10 @@ public sealed class TicketService(
 
     public async Task<PagedResponse<TicketSummaryDto>> QueryAsync(Guid? requestedBranchId, string? search, TicketStatus? status, bool includeClosed, int page, int pageSize, CancellationToken cancellationToken)
     {
-        var branchId = currentUser.ResolveBranchId(requestedBranchId);
-        await EnsureTenantBranchAsync(branchId, cancellationToken);
+        var branchId = await tenantAccess.ResolveBranchIdAsync(requestedBranchId, cancellationToken);
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
-        var query = db.ParkingTickets.AsNoTracking().Where(x => x.BranchId == branchId);
+        var query = db.ParkingTickets.AsNoTracking().Where(x => x.CompanyId == currentUser.CompanyId && x.BranchId == branchId);
         if (status.HasValue) query = query.Where(x => x.Status == status.Value);
         else if (!includeClosed) query = query.Where(x => x.Status != TicketStatus.Delivered && x.Status != TicketStatus.Cancelled);
         if (!string.IsNullOrWhiteSpace(search))
@@ -48,19 +48,19 @@ public sealed class TicketService(
 
     public async Task<TicketSummaryDto> CreateAsync(CreateTicketRequest request, CancellationToken cancellationToken)
     {
-        var branchId = currentUser.ResolveBranchId(request.BranchId);
+        var branchId = await tenantAccess.ResolveBranchIdAsync(request.BranchId, cancellationToken);
         var branch = await db.Branches.SingleOrDefaultAsync(x => x.Id == branchId && x.CompanyId == currentUser.CompanyId && x.IsActive, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Şube bulunamadı", "Seçilen şube firmanıza ait değil, aktif değil veya bulunamadı.");
         var normalizedPlate = TextNormalizer.Plate(request.LicensePlate);
         if (normalizedPlate.Length < 3) throw new ApiException(StatusCodes.Status400BadRequest, "Plaka geçersiz", "Geçerli bir araç plakası girin.");
-        var hasActiveTicket = await db.ParkingTickets.AnyAsync(x => x.BranchId == branchId && x.Vehicle.NormalizedPlate == normalizedPlate && x.Status != TicketStatus.Delivered && x.Status != TicketStatus.Cancelled, cancellationToken);
+        var hasActiveTicket = await db.ParkingTickets.AnyAsync(x => x.CompanyId == currentUser.CompanyId && x.BranchId == branchId && x.Vehicle.NormalizedPlate == normalizedPlate && x.Status != TicketStatus.Delivered && x.Status != TicketStatus.Cancelled, cancellationToken);
         if (hasActiveTicket) throw new ApiException(StatusCodes.Status409Conflict, "Araç zaten içeride", "Bu plakaya ait açık bir vale kaydı bulunuyor.");
 
         var vehicle = await UpsertVehicleAsync(normalizedPlate, request.LicensePlate, request.Brand, request.Model, request.Color, request.Year, request.FuelType, request.Transmission, request.PhotoBase64, false, cancellationToken);
         var customer = await UpsertCustomerAsync(request.CustomerName, request.CustomerPhone, cancellationToken);
         var ticket = new ParkingTicket
         {
-            TicketNumber = GenerateTicketNumber(), BranchId = branchId, Branch = branch, Vehicle = vehicle, Customer = customer,
+            CompanyId = currentUser.CompanyId, TicketNumber = GenerateTicketNumber(), BranchId = branchId, Branch = branch, Vehicle = vehicle, Customer = customer,
             AssignedUserId = currentUser.UserId, CreatedByUserId = currentUser.UserId,
             KeyTag = Clean(request.KeyTag), ParkingSpot = Clean(request.ParkingSpot), Notes = Clean(request.Notes),
             HourlyRate = request.HourlyRate ?? _rules.DefaultHourlyRate, Status = TicketStatus.Received, EntryAt = DateTimeOffset.UtcNow
@@ -78,7 +78,7 @@ public sealed class TicketService(
         if (normalizedPlate.Length < 3) throw new ApiException(StatusCodes.Status400BadRequest, "Plaka geçersiz", "Geçerli bir araç plakası girin.");
         if (normalizedPlate != ticket.Vehicle.NormalizedPlate)
         {
-            var duplicate = await db.ParkingTickets.AnyAsync(x => x.Id != ticket.Id && x.BranchId == ticket.BranchId && x.Vehicle.NormalizedPlate == normalizedPlate && x.Status != TicketStatus.Delivered && x.Status != TicketStatus.Cancelled, cancellationToken);
+            var duplicate = await db.ParkingTickets.AnyAsync(x => x.CompanyId == currentUser.CompanyId && x.Id != ticket.Id && x.BranchId == ticket.BranchId && x.Vehicle.NormalizedPlate == normalizedPlate && x.Status != TicketStatus.Delivered && x.Status != TicketStatus.Cancelled, cancellationToken);
             if (duplicate) throw new ApiException(StatusCodes.Status409Conflict, "Plaka kullanımda", "Bu plakaya ait başka bir açık vale kaydı var.");
             ticket.Vehicle.LicensePlate = request.LicensePlate.Trim().ToUpperInvariant();
             ticket.Vehicle.NormalizedPlate = normalizedPlate;
@@ -152,7 +152,7 @@ public sealed class TicketService(
         var amount = feeCalculator.Calculate(ticket.EntryAt, exitAt, ticket.HourlyRate);
         ticket.AmountDue = amount; ticket.PaidAmount = amount; ticket.ExitAt = exitAt; ticket.Status = TicketStatus.Delivered;
         ticket.UpdatedByUserId = currentUser.UserId; ticket.UpdatedAt = exitAt;
-        ticket.Payments.Add(new Payment { Amount = amount, Method = paymentMethod, PaidAt = exitAt, RecordedByUserId = currentUser.UserId });
+        ticket.Payments.Add(new Payment { CompanyId = currentUser.CompanyId, Amount = amount, Method = paymentMethod, PaidAt = exitAt, RecordedByUserId = currentUser.UserId });
         await db.SaveChangesAsync(cancellationToken);
         await audit.RecordAsync(currentUser.UserId, ticket.BranchId, "ticket.checkout", "ParkingTicket", ticket.Id.ToString(), $"Teslim tamamlandı. {amount:N2} TL, yöntem: {paymentMethod}", cancellationToken: cancellationToken);
         return new CheckoutResponse(Map(ticket), amount);
@@ -160,40 +160,38 @@ public sealed class TicketService(
 
     public async Task<DashboardDto> GetDashboardAsync(Guid? requestedBranchId, CancellationToken cancellationToken)
     {
-        var branchId = currentUser.ResolveBranchId(requestedBranchId);
+        var branchId = await tenantAccess.ResolveBranchIdAsync(requestedBranchId, cancellationToken);
         var branch = await db.Branches.AsNoTracking().SingleOrDefaultAsync(x => x.Id == branchId && x.CompanyId == currentUser.CompanyId, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Şube bulunamadı", "Seçilen şube firmanıza ait değil veya bulunamadı.");
         var localDayStartUtc = GetLocalDayStartUtc();
-        var activeVehicles = await db.ParkingTickets.CountAsync(x => x.BranchId == branchId && x.Status != TicketStatus.Delivered && x.Status != TicketStatus.Cancelled, cancellationToken);
-        var waiting = await db.ParkingTickets.CountAsync(x => x.BranchId == branchId && x.Status == TicketStatus.Requested, cancellationToken);
-        var deliveredToday = await db.ParkingTickets.CountAsync(x => x.BranchId == branchId && x.Status == TicketStatus.Delivered && x.ExitAt >= localDayStartUtc, cancellationToken);
+        var activeVehicles = await db.ParkingTickets.CountAsync(x => x.CompanyId == currentUser.CompanyId && x.BranchId == branchId && x.Status != TicketStatus.Delivered && x.Status != TicketStatus.Cancelled, cancellationToken);
+        var waiting = await db.ParkingTickets.CountAsync(x => x.CompanyId == currentUser.CompanyId && x.BranchId == branchId && x.Status == TicketStatus.Requested, cancellationToken);
+        var deliveredToday = await db.ParkingTickets.CountAsync(x => x.CompanyId == currentUser.CompanyId && x.BranchId == branchId && x.Status == TicketStatus.Delivered && x.ExitAt >= localDayStartUtc, cancellationToken);
         var revenueToday = currentUser.CanViewFinancials
-            ? await db.Payments.Where(x => x.Ticket.BranchId == branchId && x.PaidAt >= localDayStartUtc).SumAsync(x => (decimal?)x.Amount, cancellationToken) ?? 0m
+            ? await db.Payments.Where(x => x.CompanyId == currentUser.CompanyId && x.Ticket.BranchId == branchId && x.PaidAt >= localDayStartUtc).SumAsync(x => (decimal?)x.Amount, cancellationToken) ?? 0m
             : 0m;
-        var recent = await db.ParkingTickets.AsNoTracking().Include(x => x.Branch).Include(x => x.Vehicle).Include(x => x.Customer).Where(x => x.BranchId == branchId).OrderByDescending(x => x.EntryAt).Take(8).ToListAsync(cancellationToken);
+        var recent = await db.ParkingTickets.AsNoTracking().Include(x => x.Branch).Include(x => x.Vehicle).Include(x => x.Customer).Where(x => x.CompanyId == currentUser.CompanyId && x.BranchId == branchId).OrderByDescending(x => x.EntryAt).Take(8).ToListAsync(cancellationToken);
         return new DashboardDto(branch.Id, branch.Name, activeVehicles, waiting, deliveredToday, revenueToday, recent.Select(Map).ToList());
     }
 
     private async Task<ParkingTicket> GetTicketAsync(Guid ticketId, CancellationToken cancellationToken)
     {
-        var ticket = await db.ParkingTickets.Include(x => x.Branch).Include(x => x.Vehicle).Include(x => x.Customer).Include(x => x.Payments).SingleOrDefaultAsync(x => x.Id == ticketId, cancellationToken)
-            ?? throw new ApiException(StatusCodes.Status404NotFound, "Kayıt bulunamadı", "Vale kaydı bulunamadı.");
-        if (ticket.Branch.CompanyId != currentUser.CompanyId)
-            throw new ApiException(StatusCodes.Status403Forbidden, "Firma yetkisi yok", "Bu kayıt başka bir firmaya ait.");
-        currentUser.EnsureBranchAccess(ticket.BranchId);
+        var ticket = await db.ParkingTickets.Include(x => x.Branch).Include(x => x.Vehicle).Include(x => x.Customer).Include(x => x.Payments)
+            .SingleOrDefaultAsync(x => x.Id == ticketId && x.CompanyId == currentUser.CompanyId, cancellationToken)
+            ?? throw new ApiException(StatusCodes.Status404NotFound, "Kayıt bulunamadı", "Vale kaydı bulunamadı veya erişiminiz yok.");
+        await tenantAccess.EnsureBranchAccessAsync(ticket.BranchId, cancellationToken);
         return ticket;
-    }
-
-    private async Task EnsureTenantBranchAsync(Guid branchId, CancellationToken cancellationToken)
-    {
-        if (!await db.Branches.AsNoTracking().AnyAsync(x => x.Id == branchId && x.CompanyId == currentUser.CompanyId && x.IsActive, cancellationToken))
-            throw new ApiException(StatusCodes.Status403Forbidden, "Şube yetkisi yok", "Bu şube firmanıza ait değil veya aktif değil.");
     }
 
     private async Task<IReadOnlyList<Guid>> AddBranchNotificationsAsync(Guid branchId, string title, string body, string type, CancellationToken cancellationToken)
     {
         var recipients = await db.Users.AsNoTracking()
-            .Where(x => x.IsActive && x.CompanyId == currentUser.CompanyId && x.BranchId == branchId)
+            .Where(x => x.IsActive && x.CompanyId == currentUser.CompanyId &&
+                (x.BranchId == branchId || db.UserBranchMemberships.Any(membership =>
+                    membership.CompanyId == currentUser.CompanyId &&
+                    membership.UserId == x.Id &&
+                    membership.BranchId == branchId &&
+                    membership.IsActive)))
             .Select(x => x.Id).ToListAsync(cancellationToken);
         foreach (var userId in recipients)
             db.Notifications.Add(new ValeNotification { CompanyId = currentUser.CompanyId, BranchId = branchId, UserId = userId, Title = title, Body = body, Type = type });

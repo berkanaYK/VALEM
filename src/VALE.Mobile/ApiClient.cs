@@ -25,12 +25,18 @@ public sealed class ApiClient : IDisposable
     private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
     private HttpClient _httpClient;
     private string? _accessToken;
+    private readonly SemaphoreSlim _branchContextGate = new(1, 1);
+    private IReadOnlyList<BranchDto> _accessibleBranches = Array.Empty<BranchDto>();
+    private Guid? _activeBranchId;
 
     public ApiClient() => _httpClient = CreateHttpClient(EffectiveBaseUrl);
     public bool CustomServerEnabled => Preferences.Default.Get(CustomEnabledPreference, false);
     public string CustomServerUrl => Preferences.Default.Get(CustomUrlPreference, ProductionBaseUrl);
     public string EffectiveBaseUrl => CustomServerEnabled ? NormalizeBaseUrl(CustomServerUrl) : ProductionBaseUrl;
     public bool IsAuthenticated => !string.IsNullOrWhiteSpace(_accessToken);
+    public Guid? ActiveBranchId => _activeBranchId;
+    public string? ActiveBranchName => _accessibleBranches.FirstOrDefault(x => x.Id == _activeBranchId)?.Name;
+    public IReadOnlyList<BranchDto> AccessibleBranches => _accessibleBranches;
 
     public void UseProductionServer()
     {
@@ -197,12 +203,14 @@ public sealed class ApiClient : IDisposable
         return await response.Content.ReadFromJsonAsync<TwoFactorRecoveryCodesDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Kurtarma kodları oluşturulamadı.");
     }
 
-    public Task<DashboardDto> GetDashboardAsync(CancellationToken ct = default) => GetAsync<DashboardDto>("api/dashboard", true, ct);
+    public Task<DashboardDto> GetDashboardAsync(CancellationToken ct = default) =>
+        GetAsync<DashboardDto>(WithActiveBranch("api/dashboard"), true, ct);
 
     public Task<PagedResponse<TicketSummaryDto>> GetTicketsAsync(string? search = null, bool includeClosed = false, CancellationToken ct = default)
     {
         var path = $"api/tickets?page=1&pageSize=100&includeClosed={includeClosed.ToString().ToLowerInvariant()}";
         if (!string.IsNullOrWhiteSpace(search)) path += "&search=" + Uri.EscapeDataString(search.Trim());
+        path = WithActiveBranch(path);
         return GetAsync<PagedResponse<TicketSummaryDto>>(path, true, ct);
     }
 
@@ -210,7 +218,10 @@ public sealed class ApiClient : IDisposable
 
     public async Task<TicketSummaryDto> CreateTicketAsync(CreateTicketRequest request, CancellationToken ct = default)
     {
-        using var response = await SendJsonAsync(HttpMethod.Post, "api/tickets", request, true, ct, TimeSpan.FromSeconds(45));
+        var scopedRequest = request.BranchId.HasValue || !_activeBranchId.HasValue
+            ? request
+            : request with { BranchId = _activeBranchId };
+        using var response = await SendJsonAsync(HttpMethod.Post, "api/tickets", scopedRequest, true, ct, TimeSpan.FromSeconds(45));
         await EnsureSuccessAsync(response, ct);
         return await response.Content.ReadFromJsonAsync<TicketSummaryDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Araç kaydı oluşturulamadı.");
     }
@@ -243,11 +254,39 @@ public sealed class ApiClient : IDisposable
     }
 
     public Task<ReportSummaryDto> GetReportAsync(DateTimeOffset from, DateTimeOffset to, CancellationToken ct = default) =>
-        GetAsync<ReportSummaryDto>($"api/reports/summary?from={Uri.EscapeDataString(from.ToString("O"))}&to={Uri.EscapeDataString(to.ToString("O"))}", true, ct);
+        GetAsync<ReportSummaryDto>(WithActiveBranch($"api/reports/summary?from={Uri.EscapeDataString(from.ToString("O"))}&to={Uri.EscapeDataString(to.ToString("O"))}"), true, ct);
 
     public Task<IReadOnlyList<BranchDto>> GetBranchesAsync(CancellationToken ct = default) => GetAsync<IReadOnlyList<BranchDto>>("api/branches", true, ct);
+
+    public async Task<IReadOnlyList<BranchDto>> EnsureBranchContextAsync(CancellationToken ct = default)
+    {
+        if (_accessibleBranches.Count > 0) return _accessibleBranches;
+
+        await _branchContextGate.WaitAsync(ct);
+        try
+        {
+            if (_accessibleBranches.Count > 0) return _accessibleBranches;
+            _accessibleBranches = (await GetBranchesAsync(ct)).Where(x => x.IsActive).ToList();
+            if (!_activeBranchId.HasValue || _accessibleBranches.All(x => x.Id != _activeBranchId.Value))
+                _activeBranchId = _accessibleBranches.FirstOrDefault()?.Id;
+            return _accessibleBranches;
+        }
+        finally
+        {
+            _branchContextGate.Release();
+        }
+    }
+
+    public bool SelectActiveBranch(Guid branchId)
+    {
+        if (_accessibleBranches.All(x => x.Id != branchId)) return false;
+        _activeBranchId = branchId;
+        return true;
+    }
     public Task<IReadOnlyList<AdminUserDto>> GetAdminUsersAsync(CancellationToken ct = default) => GetAsync<IReadOnlyList<AdminUserDto>>("api/admin/users", true, ct);
     public Task<AdminUserDetailDto> GetAdminUserAsync(Guid id, CancellationToken ct = default) => GetAsync<AdminUserDetailDto>($"api/admin/users/{id}", true, ct);
+    public Task<IReadOnlyList<UserBranchMembershipDto>> GetUserBranchMembershipsAsync(Guid id, CancellationToken ct = default) =>
+        GetAsync<IReadOnlyList<UserBranchMembershipDto>>($"api/admin/users/{id}/branches", true, ct);
 
     public async Task<AdminUserDto> CreateAdminUserAsync(CreateUserRequest request, CancellationToken ct = default)
     {
@@ -268,6 +307,17 @@ public sealed class ApiClient : IDisposable
         using var response = await SendJsonAsync(HttpMethod.Patch, $"api/admin/users/{id}/status", new UpdateUserStatusRequest(active), true, ct);
         await EnsureSuccessAsync(response, ct);
         return await response.Content.ReadFromJsonAsync<AdminUserDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Kullanıcı durumu güncellenemedi.");
+    }
+
+    public async Task<IReadOnlyList<UserBranchMembershipDto>> UpdateUserBranchMembershipsAsync(
+        Guid id,
+        UpdateUserBranchMembershipsRequest request,
+        CancellationToken ct = default)
+    {
+        using var response = await SendJsonAsync(HttpMethod.Put, $"api/admin/users/{id}/branches", request, true, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<IReadOnlyList<UserBranchMembershipDto>>(JsonOptions, ct)
+            ?? throw new InvalidOperationException("Şube erişimleri güncellenemedi.");
     }
 
     public async Task<BranchDto> CreateBranchAsync(CreateBranchRequest request, CancellationToken ct = default)
@@ -333,12 +383,17 @@ public sealed class ApiClient : IDisposable
         return await response.Content.ReadFromJsonAsync<PushTestResponse>(JsonOptions, ct) ?? throw new InvalidOperationException("Push test yanıtı alınamadı.");
     }
 
-    public void Logout() => _accessToken = null;
+    public void Logout()
+    {
+        _accessToken = null;
+        ResetBranchContext();
+    }
 
     private async Task<LoginResponse> AcceptLoginAsync(HttpResponseMessage response, CancellationToken ct)
     {
         var login = await response.Content.ReadFromJsonAsync<LoginResponse>(JsonOptions, ct) ?? throw new InvalidOperationException("Sunucudan geçerli giriş yanıtı alınamadı.");
         _accessToken = login.AccessToken;
+        ResetBranchContext(login.User.BranchId);
         return login;
     }
 
@@ -427,7 +482,21 @@ public sealed class ApiClient : IDisposable
         var old = _httpClient;
         _httpClient = CreateHttpClient(baseUrl);
         _accessToken = null;
+        ResetBranchContext();
         old.Dispose();
+    }
+
+    private string WithActiveBranch(string path)
+    {
+        if (!_activeBranchId.HasValue) return path;
+        var separator = path.Contains('?') ? '&' : '?';
+        return $"{path}{separator}branchId={_activeBranchId.Value:D}";
+    }
+
+    private void ResetBranchContext(Guid? preferredBranchId = null)
+    {
+        _accessibleBranches = Array.Empty<BranchDto>();
+        _activeBranchId = preferredBranchId;
     }
 
     private static HttpClient CreateHttpClient(string baseUrl)
@@ -476,5 +545,9 @@ public sealed class ApiClient : IDisposable
         return options;
     }
 
-    public void Dispose() => _httpClient.Dispose();
+    public void Dispose()
+    {
+        _httpClient.Dispose();
+        _branchContextGate.Dispose();
+    }
 }

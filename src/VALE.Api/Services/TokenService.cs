@@ -27,8 +27,9 @@ public sealed class TokenService(IOptions<JwtOptions> options)
             new("security_stamp", user.SecurityStamp ?? string.Empty)
         };
 
-        var companyId = user.CompanyId ?? user.Branch?.CompanyId;
-        if (companyId.HasValue) claims.Add(new Claim("company_id", companyId.Value.ToString()));
+        var companyId = user.CompanyId ?? user.Branch?.CompanyId
+            ?? throw new InvalidOperationException("Firma kapsamı olmayan kullanıcı için erişim belirteci üretilemez.");
+        claims.Add(new Claim("company_id", companyId.ToString()));
         if (user.BranchId.HasValue) claims.Add(new Claim("branch_id", user.BranchId.Value.ToString()));
         claims.AddRange(roles.Select(role => new Claim("role", role)));
 

@@ -10,6 +10,8 @@ Temel yol: `/api`
 | POST | `/admin/branches` | Yeni şube oluştur | Admin |
 | GET | `/admin/users` | Kullanıcıları listele | Admin |
 | POST | `/admin/users` | Şubeye bağlı kullanıcı oluştur | Admin |
+| GET | `/admin/users/{id}/branches` | Kullanıcının erişebildiği şube gruplarını listele | Kullanıcı yöneticisi |
+| PUT | `/admin/users/{id}/branches` | Varsayılan şube ve çoklu şube grubu erişimini güncelle | Firma-geneli yönetici |
 | GET | `/dashboard?branchId=` | Şube özeti | Personel |
 | GET | `/tickets` | Aktif/geçmiş kayıt arama | Personel |
 | POST | `/tickets` | Yeni araç kabulü | Admin/Manager/Valet/Cashier |

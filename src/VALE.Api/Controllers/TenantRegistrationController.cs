@@ -20,6 +20,7 @@ public sealed class TenantRegistrationController(
     ValeDbContext db,
     UserManager<AppUser> userManager,
     CurrentUserContext currentUser,
+    TenantAccessService tenantAccess,
     AuditService audit,
     FirebasePushSender pushSender,
     IValeEmailSender emailSender,
@@ -86,6 +87,17 @@ public sealed class TenantRegistrationController(
             throw new ApiException(StatusCodes.Status500InternalServerError, "Yetki atanamadı", string.Join(" ", role.Errors.Select(x => x.Description)));
 
         company.OwnerUserId = user.Id;
+        db.UserBranchMemberships.Add(new UserBranchMembership
+        {
+            CompanyId = company.Id,
+            Company = company,
+            UserId = user.Id,
+            User = user,
+            BranchId = branch.Id,
+            Branch = branch,
+            IsPrimary = true,
+            IsActive = true
+        });
         db.Notifications.Add(new ValeNotification
         {
             CompanyId = company.Id,
@@ -138,7 +150,7 @@ public sealed class TenantRegistrationController(
             throw new ApiException(StatusCodes.Status404NotFound, "Firma / şube bulunamadı", "Davet kodunu veya firma ve şube kodlarını kontrol edin.");
 
         var employeeCode = Clean(request.EmployeeCode)?.ToUpperInvariant();
-        if (employeeCode is not null && await userManager.Users.AnyAsync(x => x.EmployeeCode == employeeCode, cancellationToken))
+        if (employeeCode is not null && await userManager.Users.AnyAsync(x => x.CompanyId == branch.CompanyId && x.EmployeeCode == employeeCode, cancellationToken))
             throw new ApiException(StatusCodes.Status409Conflict, "Personel kodu kullanımda", "Bu personel kodu başka bir hesapta kayıtlı.");
 
         var user = new AppUser
@@ -177,6 +189,17 @@ public sealed class TenantRegistrationController(
             Status = "Pending"
         };
         db.RegistrationRequests.Add(registration);
+        db.UserBranchMemberships.Add(new UserBranchMembership
+        {
+            CompanyId = branch.CompanyId,
+            Company = branch.Company,
+            UserId = user.Id,
+            User = user,
+            BranchId = branch.Id,
+            Branch = branch,
+            IsPrimary = true,
+            IsActive = true
+        });
         var managerIds = await AddApprovalNotificationsAsync(user, branch, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
 
@@ -207,10 +230,10 @@ public sealed class TenantRegistrationController(
         var companyId = currentUser.CompanyId;
         var query = db.RegistrationRequests.AsNoTracking()
             .Include(x => x.ApplicantUser).Include(x => x.Company).Include(x => x.Branch)
-            .Where(x => x.CompanyId == companyId && x.Status == "Pending");
+            .Where(x => x.CompanyId == companyId && x.ApplicantUser.CompanyId == companyId && x.Branch.CompanyId == companyId && x.Status == "Pending");
         if (!currentUser.CanAccessAllBranches)
         {
-            var branchId = currentUser.ResolveBranchId(null);
+            var branchId = await tenantAccess.ResolveBranchIdAsync(null, cancellationToken);
             query = query.Where(x => x.BranchId == branchId);
         }
         var rows = await query.OrderBy(x => x.CreatedAt).ToListAsync(cancellationToken);
@@ -227,7 +250,11 @@ public sealed class TenantRegistrationController(
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Başvuru bulunamadı", "Bu firmaya ait başvuru bulunamadı.");
         if (registration.Status != "Pending")
             throw new ApiException(StatusCodes.Status409Conflict, "Başvuru sonuçlanmış", "Bu başvuru daha önce incelenmiş.");
-        currentUser.EnsureBranchAccess(registration.BranchId);
+        if (registration.Branch.CompanyId != currentUser.CompanyId ||
+            registration.ApplicantUser.CompanyId != currentUser.CompanyId ||
+            registration.ApplicantUser.BranchId != registration.BranchId)
+            throw new ApiException(StatusCodes.Status404NotFound, "Başvuru bulunamadı", "Başvuru firma veya şube kapsamıyla eşleşmiyor.");
+        await tenantAccess.EnsureBranchAccessAsync(registration.BranchId, cancellationToken);
 
         registration.Status = request.Approve ? "Approved" : "Rejected";
         registration.ReviewedByUserId = currentUser.UserId;
@@ -300,7 +327,11 @@ public sealed class TenantRegistrationController(
         {
             var roles = await userManager.GetRolesAsync(manager);
             if (!roles.Any(r => Roles.ManageUsersRoles.Contains(r, StringComparer.OrdinalIgnoreCase))) continue;
-            if (roles.Contains(Roles.BranchManager, StringComparer.OrdinalIgnoreCase) && manager.BranchId != branch.Id) continue;
+            if (roles.Contains(Roles.BranchManager, StringComparer.OrdinalIgnoreCase) &&
+                manager.BranchId != branch.Id &&
+                !await db.UserBranchMemberships.AsNoTracking().AnyAsync(x =>
+                    x.CompanyId == branch.CompanyId && x.UserId == manager.Id && x.BranchId == branch.Id && x.IsActive,
+                    cancellationToken)) continue;
             managerIds.Add(manager.Id);
             db.Notifications.Add(new ValeNotification
             {

@@ -17,6 +17,7 @@ public sealed class TenantRegisterPage : ContentPage
     private readonly Label _loginHint = UiKit.Label(string.Empty, 11.5, false, true);
     private readonly VerticalStackLayout _ownerFields = new() { Spacing = 10 };
     private readonly VerticalStackLayout _staffFields = new() { Spacing = 10 };
+    private readonly VerticalStackLayout _staffCodeFields = new() { Spacing = 10 };
     private readonly Entry _companyName = UiKit.Entry("Firma adı");
     private readonly Entry _companyCode = UiKit.Entry("Firma kodu (örn. ACME)");
     private readonly Entry _branchName = UiKit.Entry("İlk şube adı");
@@ -40,7 +41,7 @@ public sealed class TenantRegisterPage : ContentPage
         _loginMethod.ItemsSource = new[]
         {
             "E-posta + parola",
-            "E-posta koduyla giriş",
+            "E-posta koduyla giriş (personel için önerilen)",
             "Parola + Authenticator (2FA)"
         };
         _loginMethod.SelectedIndex = 0;
@@ -56,14 +57,34 @@ public sealed class TenantRegisterPage : ContentPage
         _ownerFields.Children.Add(_branchCode);
         _ownerFields.Children.Add(_city);
 
-        _staffFields.Children.Add(UiKit.Label("Yöneticiniz size davet kodu verdiyse yalnızca davet kodunu kullanabilirsiniz. Davet kodunuz yoksa firma ve şube kodunu birlikte girin.", 11.5, false, true));
+        _inviteCode.Placeholder = "Yöneticinizden aldığınız davet kodu";
+        _staffFields.Children.Add(UiKit.Label("En hızlı katılım", 13, true));
+        _staffFields.Children.Add(UiKit.Label("Yöneticinizden aldığınız tek davet kodu yeterlidir. Firma ve şube hesabınıza otomatik bağlanır.", 11.5, false, true));
         _staffFields.Children.Add(_inviteCode);
-        _staffFields.Children.Add(_staffCompanyCode);
-        _staffFields.Children.Add(_staffBranchCode);
-        _staffFields.Children.Add(_employeeCode);
+        _staffCodeFields.Children.Add(UiKit.Label("Davet kodunuz yoksa firma ve şube kodunu birlikte girin. Personel kodu isteğe bağlıdır.", 11, false, true));
+        _staffCodeFields.Children.Add(_staffCompanyCode);
+        _staffCodeFields.Children.Add(_staffBranchCode);
+        _staffCodeFields.Children.Add(_employeeCode);
+        var staffCodeCard = UiKit.Card(_staffCodeFields, new Thickness(12), 14);
+        staffCodeCard.IsVisible = false;
+        var staffCodeToggle = UiKit.TextButton("Davet kodum yok");
+        staffCodeToggle.Clicked += (_, _) =>
+        {
+            staffCodeCard.IsVisible = !staffCodeCard.IsVisible;
+            staffCodeToggle.Text = staffCodeCard.IsVisible ? "Firma / şube alanlarını kapat" : "Davet kodum yok";
+        };
+        _staffFields.Children.Add(staffCodeToggle);
+        _staffFields.Children.Add(staffCodeCard);
 
         var save = UiKit.PrimaryButton("Hesabı Oluştur");
         save.Clicked += async (_, _) => await SaveAsync(save);
+        _phone.IsVisible = false;
+        var phoneToggle = UiKit.TextButton("＋ Telefon ekle (isteğe bağlı)");
+        phoneToggle.Clicked += (_, _) =>
+        {
+            _phone.IsVisible = !_phone.IsVisible;
+            phoneToggle.Text = _phone.IsVisible ? "− Telefon alanını kapat" : "＋ Telefon ekle (isteğe bağlı)";
+        };
 
         Content = new ScrollView
         {
@@ -84,6 +105,7 @@ public sealed class TenantRegisterPage : ContentPage
                             _accountType,
                             _name,
                             _email,
+                            phoneToggle,
                             _phone,
                             _ownerFields,
                             _staffFields,
@@ -108,6 +130,8 @@ public sealed class TenantRegisterPage : ContentPage
         var owner = _accountType.SelectedIndex != 1;
         _ownerFields.IsVisible = owner;
         _staffFields.IsVisible = !owner;
+        if (!owner && _loginMethod.SelectedIndex == 0)
+            _loginMethod.SelectedIndex = 1;
     }
 
     private void UpdateLoginMethod()
@@ -170,14 +194,17 @@ public sealed class TenantRegisterPage : ContentPage
             }
             else
             {
-                if (string.IsNullOrWhiteSpace(_inviteCode.Text) && (string.IsNullOrWhiteSpace(_staffCompanyCode.Text) || string.IsNullOrWhiteSpace(_staffBranchCode.Text)))
+                var inviteCode = N(_inviteCode.Text);
+                var companyCode = inviteCode is null ? N(_staffCompanyCode.Text) : null;
+                var branchCode = inviteCode is null ? N(_staffBranchCode.Text) : null;
+                if (inviteCode is null && (companyCode is null || branchCode is null))
                 {
                     await DisplayAlertAsync("Firma / şube", "Davet kodu veya firma kodu + şube kodu girin.", "Tamam");
                     return;
                 }
                 result = await _api.RegisterStaffAsync(new StaffRegisterRequest(
                     _name.Text.Trim(), _email.Text.Trim(), loginMethod == LoginMethods.EmailCode ? null : _password.Text, N(_phone.Text),
-                    N(_staffCompanyCode.Text), N(_staffBranchCode.Text), N(_inviteCode.Text), N(_employeeCode.Text), loginMethod));
+                    companyCode, branchCode, inviteCode, N(_employeeCode.Text), loginMethod));
             }
 
             await DisplayAlertAsync(result.RequiresApproval ? "Başvuru ve e-posta doğrulama" : "E-posta doğrulama gerekli", result.Message, "Tamam");
