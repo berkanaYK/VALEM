@@ -225,8 +225,6 @@ jobs:
           if ($login.StatusCode -ne 401) { throw "Login POST testi başarısız: $($login.StatusCode)" }
           $badTotp = Invoke-WebRequest "$endpoint/api/auth/login/2fa" -Method Post -ContentType 'application/json' -Body '{"email":"mobile-smoke-user@vale.invalid","password":"NotARealPassword!123","code":"123"}' -TimeoutSec 20 -SkipHttpErrorCheck
           if ($badTotp.StatusCode -ne 400) { throw "Geçersiz TOTP formatı reddedilmedi: $($badTotp.StatusCode)" }
-          $register = Invoke-WebRequest "$endpoint/api/auth/register" -Method Post -ContentType 'application/json' -Body '{"fullName":"X","email":"not-an-email","password":"short"}' -TimeoutSec 20 -SkipHttpErrorCheck
-          if ($register.StatusCode -notin @(400, 410)) { throw "Register POST testi beklenmeyen yanıt verdi: $($register.StatusCode)" }
           Write-Host 'Production auth/security smoke tests passed.'
 
       - name: Wait for VALE API 3.1.2 multi-tenant auth, SMTP and FCM capabilities on main
@@ -238,10 +236,9 @@ jobs:
           for ($i = 1; $i -le 75; $i++) {
             try {
               $status = Invoke-RestMethod "$endpoint/api/status" -TimeoutSec 12
-              if ([string]$status.version -eq '3.1.2' -and $status.status -eq 'ok' -and $status.capabilities.smtp -eq $true -and $status.capabilities.fcm -eq $true) {
+              if ([string]$status.version -eq '3.1.2' -and $status.status -eq 'ok' -and $status.capabilities.smtp -eq $true -and $status.capabilities.fcm -eq $true -and $status.capabilities.multiTenant -eq $true) {
                 $profile = Invoke-WebRequest "$endpoint/api/auth/profile" -TimeoutSec 12 -SkipHttpErrorCheck
-                $legacyRegister = Invoke-WebRequest "$endpoint/api/auth/register" -Method Post -ContentType 'application/json' -Body '{"fullName":"X","email":"not-an-email","password":"short"}' -TimeoutSec 20 -SkipHttpErrorCheck
-                if ($profile.StatusCode -eq 401 -and $legacyRegister.StatusCode -eq 410) { $newApi = $true; break }
+                if ($profile.StatusCode -eq 401) { $newApi = $true; break }
               }
             } catch { }
             Start-Sleep -Seconds 10

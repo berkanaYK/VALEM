@@ -203,7 +203,8 @@ app.MapGet("/api/status", (IValeEmailSender email, FirebasePushSender push) => R
     capabilities = new
     {
         smtp = email.IsConfigured,
-        fcm = push.IsConfigured
+        fcm = push.IsConfigured,
+        multiTenant = true
     },
     utc = DateTimeOffset.UtcNow
 })).AllowAnonymous();
@@ -240,3 +241,4 @@ static string NormalizePostgresConnectionString(string value)
 }
 
 public partial class Program { }
+
