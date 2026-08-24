@@ -28,20 +28,18 @@ jobs:
           for i in {1..60}; do
             echo "Production readiness check $i/60"
             if curl -fsS --max-time 12 "$endpoint/health/ready" > ready.json; then
-              legacy_status=$(curl -sS --max-time 20 -o legacy-register.json -w '%{http_code}' \
-                -H 'Content-Type: application/json' \
-                -d '{"fullName":"X","email":"not-an-email","password":"short"}' \
-                "$endpoint/api/auth/register" || true)
-              if [ "$legacy_status" = '410' ]; then
+              status_json=$(curl -fsS --max-time 12 "$endpoint/api/status" || true)
+              if printf '%s' "$status_json" | grep -q '"multiTenant":true'; then
                 ready=1
                 cat ready.json
                 break
               fi
-              echo "Render henüz multi-tenant auth sürümünde değil: legacy register HTTP $legacy_status"
+              echo 'Render henüz multi-tenant capability sürümünde değil.'
             fi
             sleep 10
           done
           test "$ready" = "1"
           curl -fsS --max-time 12 "$endpoint/api/status" | tee status.json
           grep -q 'VALE.Api' status.json
+          grep -q '"multiTenant":true' status.json
 
