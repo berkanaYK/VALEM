@@ -380,7 +380,7 @@ public sealed class CompanyProfilePage : ContentPage
             if (action == "Fotoğrafı kaldır") _profile = await _api.DeleteProfilePhotoAsync();
             else if (action is "Kamerayla çek" or "Galeriden seç")
             {
-                var file = action == "Kamerayla çek" ? await MediaPicker.Default.CapturePhotoAsync() : await MediaPicker.Default.PickPhotoAsync();
+                var file = action == "Kamerayla çek" ? await MediaPicker.Default.CapturePhotoAsync() : await PickSinglePhotoAsync();
                 if (file is null) return;
                 await using var stream = await file.OpenReadAsync();
                 var bytes = await ImageTools.NormalizeJpegAsync(stream, 720, 82);
@@ -397,7 +397,7 @@ public sealed class CompanyProfilePage : ContentPage
         try
         {
             button.IsEnabled = false;
-            var file = await MediaPicker.Default.PickPhotoAsync();
+            var file = await PickSinglePhotoAsync();
             if (file is null) return;
             await using var stream = await file.OpenReadAsync();
             var bytes = await ImageTools.NormalizeJpegAsync(stream, 1440, 84);
@@ -410,6 +410,12 @@ public sealed class CompanyProfilePage : ContentPage
         }
         catch (Exception ex) { await DisplayAlertAsync("Arka plan seçilemedi", ex.Message, "Tamam"); }
         finally { button.IsEnabled = true; }
+    }
+
+    private static async Task<FileResult?> PickSinglePhotoAsync()
+    {
+        var files = await MediaPicker.Default.PickPhotosAsync();
+        return files.FirstOrDefault();
     }
 
     private void SetAvatar(AccountProfileDto profile)
