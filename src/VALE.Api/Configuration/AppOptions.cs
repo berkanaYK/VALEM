@@ -10,6 +10,22 @@ public sealed class JwtOptions
     public int ExpiryMinutes { get; init; } = 480;
 }
 
+public sealed class DeviceSessionOptions
+{
+    public const string SectionName = "DeviceSessions";
+
+    public int LifetimeDays { get; init; } = 30;
+}
+
+public sealed class PlatformAdminOptions
+{
+    public const string SectionName = "PlatformAdmin";
+
+    public string Email { get; init; } = string.Empty;
+    public string Password { get; init; } = string.Empty;
+    public string FullName { get; init; } = "VALEM Platform Yöneticisi";
+}
+
 public sealed class SeedOptions
 {
     public const string SectionName = "Seed";

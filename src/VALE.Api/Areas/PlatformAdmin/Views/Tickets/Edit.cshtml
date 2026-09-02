@@ -1,0 +1,22 @@
+@model PlatformTicketEditModel
+@{
+    ViewData["Title"] = "Vale kaydı düzenle";
+}
+<div class="page-heading"><div><a class="back-link" asp-action="Index">← Vale kayıtları</a><h1>@Model.LicensePlate</h1><p>@Model.CompanyName · @Model.BranchName · @Model.TicketNumber</p></div><span class="status-pill @(Model.IsDeleted ? "muted" : "good")">@(Model.IsDeleted ? "Silinmiş" : Model.Status.ToString())</span></div>
+@if (Model.IsDeleted) { <div class="alert warn">Bu kayıt @Model.DeletedReason gerekçesiyle silinmiş. Önce geri yüklemeden alanlar değiştirilebilir; yapılan her işlem kayıt altındadır.</div> }
+<section class="panel form-panel"><form asp-action="Edit" method="post" class="form-stack">
+    @Html.AntiForgeryToken()<input asp-for="Id" type="hidden" />
+    <div asp-validation-summary="ModelOnly" class="validation"></div>
+    <div class="field-grid"><div><label asp-for="LicensePlate">Plaka</label><input asp-for="LicensePlate" /><span asp-validation-for="LicensePlate" class="validation"></span></div><div><label asp-for="Status">Durum</label><select asp-for="Status">@foreach (var status in Enum.GetValues<TicketStatus>()) { <option value="@status">@status</option> }</select><span asp-validation-for="Status" class="validation"></span></div><div><label asp-for="Brand">Marka</label><input asp-for="Brand" /></div><div><label asp-for="Model">Model</label><input asp-for="Model" /></div><div><label asp-for="Color">Renk</label><input asp-for="Color" /></div><div><label asp-for="KeyTag">Anahtar etiketi</label><input asp-for="KeyTag" /></div><div><label asp-for="ParkingSpot">Park yeri</label><input asp-for="ParkingSpot" /></div><div><label asp-for="HourlyRate">Saatlik ücret</label><input asp-for="HourlyRate" inputmode="decimal" /></div><div><label asp-for="AmountDue">Borç tutarı</label><input asp-for="AmountDue" inputmode="decimal" /><span asp-validation-for="AmountDue" class="validation"></span></div><div><label>Tahsil edilen</label><input value="@Model.PaidAmount.ToString("N2") ₺" readonly /></div></div>
+    <label asp-for="Notes">Operasyon notu</label><textarea asp-for="Notes" rows="4"></textarea>
+    <div class="info-row"><span>Giriş / Çıkış</span><strong>@Model.EntryAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm") · @(Model.ExitAt?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "devam ediyor")</strong></div>
+    <div class="form-actions"><button class="button primary" type="submit">Değişiklikleri kaydet</button><a class="button ghost" asp-action="Index">Vazgeç</a></div>
+</form></section>
+@if (Model.IsDeleted)
+{
+    <section class="panel danger-zone"><div><h2>Kaydı geri yükle</h2><p>Kayıt normal firma görünümüne yeniden alınır.</p></div><form asp-action="Restore" method="post">@Html.AntiForgeryToken()<input name="id" value="@Model.Id" type="hidden" /><button class="button secondary" type="submit">Geri yükle</button></form></section>
+}
+else
+{
+    <section class="panel danger-zone"><div><h2>Kaydı geri alınabilir biçimde sil</h2><p>Tahsilatı bulunan kayıtlar silinemez. İşlem geliştirici denetimine yazılır.</p></div><form asp-action="Delete" method="post" class="inline-form">@Html.AntiForgeryToken()<input name="id" value="@Model.Id" type="hidden" /><input name="reason" maxlength="300" required placeholder="Silme nedeni" /><button class="button danger" type="submit">Kaydı sil</button></form></section>
+}

@@ -786,9 +786,9 @@ public sealed class ProfilePage : ContentPage
         var password = UiKit.SecondaryButton("Parolayı Değiştir");
         password.Clicked += async (_, _) => await Navigation.PushAsync(new ChangePasswordPage(_api));
         var logout = UiKit.SecondaryButton("Oturumu Kapat");
-        logout.Clicked += (_, _) =>
+        logout.Clicked += async (_, _) =>
         {
-            _api.Logout();
+            await _api.LogoutAsync();
             App.ShowLogin();
         };
 

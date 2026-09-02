@@ -1,8 +1,9 @@
 using Android.App;
 using Android.Content.PM;
 using Android.OS;
+using Android.Runtime;
 using Android.Widget;
-using Android.Gms.Tasks;
+using AndroidX.Activity;
 using Firebase.Messaging;
 using Microsoft.Maui;
 using Microsoft.Maui.ApplicationModel;
@@ -13,20 +14,22 @@ namespace VALE.Mobile;
 [Activity(Theme = "@style/Maui.SplashTheme", MainLauncher = true, LaunchMode = LaunchMode.SingleTop,
     ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode |
                            ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize | ConfigChanges.Density)]
-public sealed class MainActivity : MauiAppCompatActivity, IOnSuccessListener
+[Register("com.berkanayk.vale.MainActivity")]
+public sealed class MainActivity : MauiAppCompatActivity
 {
     private DateTimeOffset _lastBackPress = DateTimeOffset.MinValue;
 
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
+        OnBackPressedDispatcher.AddCallback(new ValeBackPressedCallback(this));
         ValeFirebaseMessagingService.EnsureChannel(this);
 
         try
         {
             var app = Firebase.FirebaseApp.InitializeApp(this);
             if (app is not null)
-                FirebaseMessaging.Instance.GetToken().AddOnSuccessListener(this);
+                FirebaseMessaging.Instance.Register();
         }
         catch
         {
@@ -34,15 +37,7 @@ public sealed class MainActivity : MauiAppCompatActivity, IOnSuccessListener
         }
     }
 
-    public void OnSuccess(Java.Lang.Object? result)
-    {
-        if (result?.ToString() is { Length: > 20 } token)
-            _ = PushTokenManager.UpdateTokenAsync(token);
-    }
-
-#pragma warning disable CS0672
-    public override void OnBackPressed()
-#pragma warning restore CS0672
+    private void HandleBackPressed()
     {
         var root = Microsoft.Maui.Controls.Application.Current?.Windows.FirstOrDefault()?.Page;
         var navigation = root switch
@@ -61,11 +56,16 @@ public sealed class MainActivity : MauiAppCompatActivity, IOnSuccessListener
         var now = DateTimeOffset.UtcNow;
         if (now - _lastBackPress <= TimeSpan.FromSeconds(2))
         {
-            base.OnBackPressed();
+            FinishAfterTransition();
             return;
         }
 
         _lastBackPress = now;
         Toast.MakeText(this, "Uygulamadan çıkmak için geri tuşuna tekrar basın", ToastLength.Short)?.Show();
+    }
+
+    private sealed class ValeBackPressedCallback(MainActivity activity) : OnBackPressedCallback(true)
+    {
+        public override void HandleOnBackPressed() => activity.HandleBackPressed();
     }
 }

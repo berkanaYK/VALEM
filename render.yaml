@@ -18,6 +18,14 @@ services:
         value: VALE.Client
       - key: Jwt__ExpiryMinutes
         value: "480"
+      - key: DeviceSessions__LifetimeDays
+        value: "30"
+      - key: PlatformAdmin__Email
+        sync: false
+      - key: PlatformAdmin__Password
+        sync: false
+      - key: PlatformAdmin__FullName
+        value: VALEM Platform Yöneticisi
       - key: Seed__AdminEmail
         sync: false
       - key: Seed__AdminPassword

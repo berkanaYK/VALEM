@@ -12,10 +12,12 @@ public sealed class AuthenticatorLoginPage : ContentPage
     private readonly Entry _password = UiKit.Entry("Parolanız", password: true);
     private readonly Entry _code = UiKit.Entry("6 haneli Authenticator kodu", Keyboard.Numeric);
     private readonly Label _status = UiKit.Label("Authenticator seçeneği yalnızca hesabınızda TOTP kurulumu etkinse kullanılır.", 11.5, false, true);
+    private readonly bool _rememberDevice;
 
-    public AuthenticatorLoginPage(ApiClient api, string? email = null, string? password = null)
+    public AuthenticatorLoginPage(ApiClient api, string? email = null, string? password = null, bool rememberDevice = false)
     {
         _api = api;
+        _rememberDevice = rememberDevice;
         Title = "Authenticator ile Giriş";
         UiKit.StylePage(this);
         _email.Text = email;
@@ -75,7 +77,7 @@ public sealed class AuthenticatorLoginPage : ContentPage
         {
             button.IsEnabled = false;
             _status.Text = "Authenticator kodu doğrulanıyor…";
-            var login = await _api.LoginWithTwoFactorAsync(_email.Text ?? string.Empty, _password.Text ?? string.Empty, code);
+            var login = await _api.LoginWithTwoFactorAsync(_email.Text ?? string.Empty, _password.Text ?? string.Empty, code, _rememberDevice);
             _status.Text = "Giriş başarılı";
             App.ShowAuthenticated(_api, login.User);
         }

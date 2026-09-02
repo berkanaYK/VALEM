@@ -34,6 +34,23 @@ public sealed class TenantRegisterPage : ContentPage
         Title = "Hesap Oluştur";
         UiKit.StylePage(this);
 
+        _accountType.AutomationId = "register-account-type";
+        _loginMethod.AutomationId = "register-login-method";
+        _name.AutomationId = "register-name";
+        _email.AutomationId = "register-email";
+        _phone.AutomationId = "register-phone";
+        _password.AutomationId = "register-password";
+        _repeat.AutomationId = "register-password-repeat";
+        _companyName.AutomationId = "register-company-name";
+        _companyCode.AutomationId = "register-company-code";
+        _branchName.AutomationId = "register-branch-name";
+        _branchCode.AutomationId = "register-branch-code";
+        _city.AutomationId = "register-city";
+        _staffCompanyCode.AutomationId = "register-staff-company-code";
+        _staffBranchCode.AutomationId = "register-staff-branch-code";
+        _inviteCode.AutomationId = "register-invite-code";
+        _employeeCode.AutomationId = "register-employee-code";
+
         _accountType.ItemsSource = new[] { "Firma sahibi / yönetici", "Personel / mevcut firmaya katıl" };
         _accountType.SelectedIndex = 0;
         _accountType.SelectedIndexChanged += (_, _) => UpdateMode();
@@ -44,7 +61,7 @@ public sealed class TenantRegisterPage : ContentPage
             "E-posta koduyla giriş (personel için önerilen)",
             "Parola + Authenticator (2FA)"
         };
-        _loginMethod.SelectedIndex = 0;
+        _loginMethod.SelectedIndex = 1;
         _loginMethod.SelectedIndexChanged += (_, _) => UpdateLoginMethod();
 
         _passwordFields.Add(_password);
@@ -52,10 +69,27 @@ public sealed class TenantRegisterPage : ContentPage
         _passwordFields.Add(UiKit.Label("Parola en az 10 karakter olmalı; büyük/küçük harf, rakam ve özel karakter içermeli.", 11, false, true));
 
         _ownerFields.Children.Add(_companyName);
-        _ownerFields.Children.Add(_companyCode);
-        _ownerFields.Children.Add(_branchName);
-        _ownerFields.Children.Add(_branchCode);
-        _ownerFields.Children.Add(_city);
+        _ownerFields.Children.Add(UiKit.Label("Firma kodu ve Merkez şubesi otomatik oluşturulur.", 11, false, true));
+        var ownerAdvancedFields = new VerticalStackLayout
+        {
+            Spacing = 10,
+            Children =
+            {
+                UiKit.Label("Yalnızca özel kodlandırma kullanıyorsanız doldurun.", 11, false, true),
+                _companyCode, _branchName, _branchCode, _city
+            }
+        };
+        var ownerAdvancedCard = UiKit.Card(ownerAdvancedFields, new Thickness(12), 14);
+        ownerAdvancedCard.IsVisible = false;
+        var ownerAdvancedToggle = UiKit.TextButton("Firma ayrıntılarını özelleştir");
+        ownerAdvancedToggle.AutomationId = "register-owner-advanced-toggle";
+        ownerAdvancedToggle.Clicked += (_, _) =>
+        {
+            ownerAdvancedCard.IsVisible = !ownerAdvancedCard.IsVisible;
+            ownerAdvancedToggle.Text = ownerAdvancedCard.IsVisible ? "Firma ayrıntılarını kapat" : "Firma ayrıntılarını özelleştir";
+        };
+        _ownerFields.Children.Add(ownerAdvancedToggle);
+        _ownerFields.Children.Add(ownerAdvancedCard);
 
         _inviteCode.Placeholder = "Yöneticinizden aldığınız davet kodu";
         _staffFields.Children.Add(UiKit.Label("En hızlı katılım", 13, true));
@@ -68,6 +102,7 @@ public sealed class TenantRegisterPage : ContentPage
         var staffCodeCard = UiKit.Card(_staffCodeFields, new Thickness(12), 14);
         staffCodeCard.IsVisible = false;
         var staffCodeToggle = UiKit.TextButton("Davet kodum yok");
+        staffCodeToggle.AutomationId = "register-staff-code-toggle";
         staffCodeToggle.Clicked += (_, _) =>
         {
             staffCodeCard.IsVisible = !staffCodeCard.IsVisible;
@@ -77,13 +112,28 @@ public sealed class TenantRegisterPage : ContentPage
         _staffFields.Children.Add(staffCodeCard);
 
         var save = UiKit.PrimaryButton("Hesabı Oluştur");
+        save.AutomationId = "register-submit";
         save.Clicked += async (_, _) => await SaveAsync(save);
-        _phone.IsVisible = false;
-        var phoneToggle = UiKit.TextButton("＋ Telefon ekle (isteğe bağlı)");
-        phoneToggle.Clicked += (_, _) =>
+        var signInFields = new VerticalStackLayout
         {
-            _phone.IsVisible = !_phone.IsVisible;
-            phoneToggle.Text = _phone.IsVisible ? "− Telefon alanını kapat" : "＋ Telefon ekle (isteğe bağlı)";
+            Spacing = 10,
+            Children =
+            {
+                UiKit.Label("Giriş yöntemi", 11, true, true),
+                _loginMethod,
+                _loginHint,
+                _passwordFields,
+                _phone
+            }
+        };
+        var signInCard = UiKit.Card(signInFields, new Thickness(12), 14);
+        signInCard.IsVisible = false;
+        var signInToggle = UiKit.TextButton("Giriş yöntemini veya telefonu değiştir");
+        signInToggle.AutomationId = "register-login-options-toggle";
+        signInToggle.Clicked += (_, _) =>
+        {
+            signInCard.IsVisible = !signInCard.IsVisible;
+            signInToggle.Text = signInCard.IsVisible ? "Ek seçenekleri kapat" : "Giriş yöntemini veya telefonu değiştir";
         };
 
         Content = new ScrollView
@@ -95,7 +145,7 @@ public sealed class TenantRegisterPage : ContentPage
                 Children =
                 {
                     UiKit.Label("VALE hesabı oluşturun", 27, true),
-                    UiKit.Label("Hesap türünü ve kullanmak istediğiniz giriş yöntemini seçin. İlk kurulumda e-posta adresinize sahiplik doğrulama bağlantısı gönderilir.", 12.5, false, true),
+                    UiKit.Label("Sadece temel bilgileri yazın. Varsayılan olarak parola gerekmez; e-posta koduyla giriş yaparsınız ve daha sonra bu cihazı hatırlatabilirsiniz.", 12.5, false, true),
                     UiKit.Card(new VerticalStackLayout
                     {
                         Spacing = 10,
@@ -105,15 +155,10 @@ public sealed class TenantRegisterPage : ContentPage
                             _accountType,
                             _name,
                             _email,
-                            phoneToggle,
-                            _phone,
                             _ownerFields,
                             _staffFields,
-                            UiKit.Divider(),
-                            UiKit.Label("Giriş yöntemi", 11, true, true),
-                            _loginMethod,
-                            _loginHint,
-                            _passwordFields,
+                            signInToggle,
+                            signInCard,
                             UiKit.Label("Kayıttan sonra e-postanıza 'Bu e-posta sizin mi?' doğrulama bağlantısı gönderilir. E-posta onaylanmadan hesap girişe açılmaz.", 11, false, true),
                             save
                         }
@@ -178,19 +223,18 @@ public sealed class TenantRegisterPage : ContentPage
         try
         {
             save.IsEnabled = false;
-            await _api.EnsureServerReadyAsync();
             RegisterResponse result;
             if (_accountType.SelectedIndex != 1)
             {
-                if (string.IsNullOrWhiteSpace(_companyName.Text) || string.IsNullOrWhiteSpace(_companyCode.Text) || string.IsNullOrWhiteSpace(_branchName.Text) || string.IsNullOrWhiteSpace(_branchCode.Text))
+                if (string.IsNullOrWhiteSpace(_companyName.Text))
                 {
-                    await DisplayAlertAsync("Firma bilgileri", "Firma adı/kodu ve ilk şube adı/kodu zorunludur.", "Tamam");
+                    await DisplayAlertAsync("Firma bilgileri", "Yalnızca firma adını yazmanız yeterli.", "Tamam");
                     return;
                 }
                 result = await _api.RegisterOwnerAsync(new OwnerRegisterRequest(
                     _name.Text.Trim(), _email.Text.Trim(), loginMethod == LoginMethods.EmailCode ? null : _password.Text,
-                    N(_phone.Text), _companyName.Text.Trim(), _companyCode.Text.Trim(),
-                    _branchName.Text.Trim(), _branchCode.Text.Trim(), N(_city.Text), loginMethod));
+                    N(_phone.Text), _companyName.Text.Trim(), N(_companyCode.Text),
+                    N(_branchName.Text), N(_branchCode.Text), N(_city.Text), loginMethod));
             }
             else
             {

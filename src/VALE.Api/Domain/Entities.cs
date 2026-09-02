@@ -107,6 +107,22 @@ public sealed class PushRegistration
     public DateTimeOffset LastSeenAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
+public sealed class DeviceSession
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CompanyId { get; set; }
+    public Company Company { get; set; } = null!;
+    public Guid UserId { get; set; }
+    public AppUser User { get; set; } = null!;
+    public string TokenHash { get; set; } = string.Empty;
+    public string SecurityStamp { get; set; } = string.Empty;
+    public string? DeviceName { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset LastUsedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset ExpiresAt { get; set; }
+    public DateTimeOffset? RevokedAt { get; set; }
+}
+
 public sealed class Customer
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -137,6 +153,7 @@ public sealed class ParkingTicket
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid CompanyId { get; set; }
+    public Company Company { get; set; } = null!;
     public string TicketNumber { get; set; } = string.Empty;
     public Guid BranchId { get; set; }
     public Branch Branch { get; set; } = null!;
@@ -185,6 +202,7 @@ public sealed class AuditEntry
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid CompanyId { get; set; }
+    public Company Company { get; set; } = null!;
     public Guid? UserId { get; set; }
     public AppUser? User { get; set; }
     public Guid? BranchId { get; set; }
@@ -195,5 +213,18 @@ public sealed class AuditEntry
     public string Detail { get; set; } = string.Empty;
     public string? IpAddress { get; set; }
     public bool Success { get; set; } = true;
+    public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class PlatformAuditEntry
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid AdminUserId { get; set; }
+    public AppUser AdminUser { get; set; } = null!;
+    public string Action { get; set; } = string.Empty;
+    public string EntityType { get; set; } = string.Empty;
+    public string? EntityId { get; set; }
+    public string Detail { get; set; } = string.Empty;
+    public string? IpAddress { get; set; }
     public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 }

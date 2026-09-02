@@ -1,0 +1,12 @@
+@model IReadOnlyList<PlatformTicketRow>
+@{
+    ViewData["Title"] = "Vale kayıtları";
+}
+<div class="page-heading"><div><div class="eyebrow">Müşteri desteği ve operasyon</div><h1>Vale kayıtları</h1><p>Aktif, kapanmış ve geri alınabilir biçimde silinmiş kayıtları inceleyin.</p></div></div>
+<form method="get" class="searchbar"><input name="search" value="@ViewBag.Search" placeholder="Fiş, plaka veya firma" aria-label="Kayıt ara" /><select name="state" aria-label="Durum filtresi"><option value="">Tümü</option><option value="active" selected="@(ViewBag.State == "active")">Açık</option><option value="closed" selected="@(ViewBag.State == "closed")">Kapalı</option><option value="deleted" selected="@(ViewBag.State == "deleted")">Silinmiş</option></select><button class="button secondary">Filtrele</button><a class="button ghost" asp-action="Index">Temizle</a></form>
+<section class="panel table-wrap"><table><thead><tr><th>Fiş / Plaka</th><th>Firma / Şube</th><th>Durum</th><th>Giriş</th><th>Borç</th><th>Tahsilat</th><th></th></tr></thead><tbody>
+@foreach (var row in Model)
+{
+    <tr class="@(row.IsDeleted ? "row-muted" : "")"><td><strong>@row.LicensePlate</strong><small class="cell-subtitle">@row.TicketNumber</small></td><td>@row.CompanyName<small class="cell-subtitle">@row.BranchName</small></td><td><span class="status-pill @(row.IsDeleted ? "muted" : "good")">@(row.IsDeleted ? "Silinmiş" : row.Status.ToString())</span></td><td>@row.EntryAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td><td>@row.AmountDue.ToString("N2") ₺</td><td>@row.PaidAmount.ToString("N2") ₺</td><td><a asp-action="Edit" asp-route-id="@row.Id">İncele</a></td></tr>
+}
+</tbody></table>@if (Model.Count == 0) { <div class="empty-inline">Arama ölçütüne uyan vale kaydı yok.</div> }</section>

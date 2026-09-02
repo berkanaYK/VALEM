@@ -585,6 +585,10 @@ internal sealed class MultiTenantHarness : IAsyncDisposable
             DefaultHourlyRate = 100m,
             TimeZoneId = "UTC"
         }));
+        services.AddSingleton<IOptions<DeviceSessionOptions>>(Options.Create(new DeviceSessionOptions
+        {
+            LifetimeDays = 30
+        }));
         services.AddSingleton<IOptions<FirebaseOptions>>(Options.Create(new FirebaseOptions()));
         services.AddSingleton<IOptions<EmailOptions>>(Options.Create(new EmailOptions()));
         services.AddSingleton<IOptions<SeedOptions>>(Options.Create(new SeedOptions()));
@@ -600,6 +604,7 @@ internal sealed class MultiTenantHarness : IAsyncDisposable
         services.AddScoped<AuditService>();
         services.AddScoped<TicketService>();
         services.AddScoped<TokenService>();
+        services.AddScoped<DeviceSessionService>();
         services.AddScoped<PasswordResetCodeService>();
         services.AddScoped<OneTimeCodeService>();
         services.AddSingleton<IFeeCalculator, FeeCalculator>();

@@ -42,11 +42,19 @@ Seed__DefaultBranchName
 Seed__DefaultBranchCity
 ```
 
+Geliştirici web paneli için ayrıca:
+
+```text
+PlatformAdmin__Email
+PlatformAdmin__Password
+PlatformAdmin__FullName
+```
+
 İlk yönetici oluşturulduktan sonra `Seed__AdminPassword` değerini barındırma ortamından kaldırın. Var olan yönetici silinmediği sürece API yeniden yönetici oluşturmaya çalışmaz.
 
 ## Sağlık kontrolü
 
-Barındırma hizmetinde sağlık yolu olarak `/health`, port olarak `8080` kullanın.
+Barındırma hizmetinde sağlık yolu olarak `/health/ready`, container portu olarak `10000` kullanın.
 
 ## HTTPS ve proxy
 
@@ -54,18 +62,8 @@ TLS, container önündeki güvenilir ters proxy/load balancer tarafından sonlan
 
 ## Veritabanı şeması
 
-MVP ilk çalıştırmada EF Core `EnsureCreated` ile şemayı oluşturur. Üretim sonrası şema değişikliklerinde sürümlü EF Core migration modeline geçin; `EnsureCreated` ile migration aynı veritabanında karıştırılmamalıdır.
+VALEM 3.2 sürümlü EF Core migration kullanır. API başlangıçta PostgreSQL advisory lock alır, doğrulanmış eski 3.1.2 şemasını güvenli biçimde başlangıç migration’ına bağlar ve bekleyen migration’ları uygular. Eski şemada tablo/kolon eksikse veri kaybını önlemek için deploy durur. Production kodunda `EnsureCreated` veya elle `ALTER TABLE` kullanılmaz.
 
-## İstemci
+## Android istemci
 
-API yayınlandıktan sonra her şube paketinde:
-
-```powershell
-.\scripts\configure-client.ps1 -ApiBaseUrl "https://api.ornekalanadi.com/"
-```
-
-Ardından Release derlemesi:
-
-```powershell
-dotnet publish .\src\VALE.Client\VALE.Client.csproj -c Release -r win-x64 -p:Platform=x64 --self-contained true
-```
+Android uygulaması varsayılan canlı API adresini kullanır. Özel HTTPS sunucusu gerekiyorsa uygulamadaki `Bağlantı ayarları` ekranından seçilir. APK üretme ve fiziksel cihaz testi komutları ana README’de belgelenmiştir.

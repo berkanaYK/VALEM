@@ -1,0 +1,12 @@
+@model IReadOnlyList<PlatformBranchRow>
+@{
+    ViewData["Title"] = "Şubeler";
+}
+<div class="page-heading"><div><div class="eyebrow">Operasyon noktaları</div><h1>Şubeler</h1><p>Şube erişimini, konum bilgisini ve personel davet kodunu yönetin.</p></div></div>
+<form method="get" class="searchbar"><input name="search" value="@ViewBag.Search" placeholder="Şube, firma, kod veya şehir" aria-label="Şube ara" /><button class="button secondary">Ara</button><a class="button ghost" asp-action="Index">Temizle</a></form>
+<section class="panel table-wrap"><table><thead><tr><th>Şube</th><th>Firma</th><th>Şehir</th><th>Davet kodu</th><th>Durum</th><th>Açık kayıt</th><th></th></tr></thead><tbody>
+@foreach (var row in Model)
+{
+    <tr><td><strong>@row.Name</strong><small class="cell-subtitle">@row.Code</small></td><td>@row.CompanyName</td><td>@(string.IsNullOrWhiteSpace(row.City) ? "—" : row.City)</td><td><code>@(row.InviteCode ?? "—")</code></td><td><span class="status-pill @(row.IsActive ? "good" : "muted")">@(row.IsActive ? "Aktif" : "Pasif")</span></td><td>@row.ActiveTickets</td><td><a asp-action="Edit" asp-route-id="@row.Id">Yönet</a></td></tr>
+}
+</tbody></table>@if (Model.Count == 0) { <div class="empty-inline">Arama ölçütüne uyan şube yok.</div> }</section>

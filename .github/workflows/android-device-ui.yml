@@ -1,0 +1,72 @@
+name: Android Real Device UI
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vale-android-real-device
+  cancel-in-progress: false
+
+jobs:
+  physical-device:
+    runs-on: [self-hosted, Windows, X64, vale-android-device]
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git init .
+          git remote add origin "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY.git"
+          $basic = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("x-access-token:$env:GH_TOKEN"))
+          git -c "http.extraheader=AUTHORIZATION: basic $basic" fetch --depth=1 origin $env:GITHUB_SHA
+          git checkout --detach FETCH_HEAD
+
+      - name: Verify real-device runner prerequisites
+        shell: pwsh
+        run: |
+          dotnet --info
+          adb version
+          appium --version
+          appium driver list --installed
+          if (-not (dotnet --list-sdks | Select-String '^10\.')) { throw '.NET 10 SDK eksik.' }
+          if (-not ((appium driver list --installed 2>&1 | Out-String) -match 'uiautomator2')) { throw 'UiAutomator2 sürücüsü eksik.' }
+
+      - name: Inject Firebase Android configuration when available
+        shell: pwsh
+        env:
+          FIREBASE_GOOGLE_SERVICES_JSON_B64: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON_B64 }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:FIREBASE_GOOGLE_SERVICES_JSON_B64)) {
+            Write-Warning 'Firebase secret yok; misafir ekranı UI testi FCM kaynağı olmadan devam edecek.'
+            exit 0
+          }
+          $target = Join-Path $env:GITHUB_WORKSPACE 'src/VALE.Mobile/Platforms/Android/google-services.json'
+          [IO.File]::WriteAllBytes($target, [Convert]::FromBase64String($env:FIREBASE_GOOGLE_SERVICES_JSON_B64.Trim()))
+
+      - name: Build test APK
+        shell: pwsh
+        run: |
+          dotnet workload install maui-android
+          dotnet restore src/VALE.Mobile/VALE.Mobile.csproj -warnaserror
+          dotnet publish src/VALE.Mobile/VALE.Mobile.csproj -f net10.0-android -c Release --no-restore -p:AndroidPackageFormats=apk -p:RunAOTCompilation=false
+          $apk = Get-ChildItem 'src/VALE.Mobile/bin/Release/net10.0-android' -Filter '*-Signed.apk' -Recurse | Select-Object -First 1
+          if (-not $apk) { $apk = Get-ChildItem 'src/VALE.Mobile/bin/Release/net10.0-android' -Filter '*.apk' -Recurse | Select-Object -First 1 }
+          if (-not $apk) { throw 'Test APK dosyası bulunamadı.' }
+          "VALE_TEST_APK=$($apk.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Run Appium UI tests on physical Android device
+        shell: pwsh
+        run: ./scripts/run-android-device-tests.ps1 -ApkPath $env:VALE_TEST_APK
+
+      - name: List test evidence
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path TestResults/android-real-device) {
+            Get-ChildItem TestResults/android-real-device -Recurse | Select-Object FullName,Length
+          }

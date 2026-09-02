@@ -1,0 +1,14 @@
+@model PlatformBranchEditModel
+@{
+    ViewData["Title"] = "Şube düzenle";
+}
+<div class="page-heading"><div><a class="back-link" asp-action="Index">← Şubeler</a><h1>@Model.Name</h1><p>@Model.CompanyName · @Model.UserCount varsayılan kullanıcı · @Model.ActiveTicketCount açık kayıt</p></div></div>
+<section class="panel form-panel"><form asp-action="Edit" method="post" class="form-stack">
+    @Html.AntiForgeryToken()<input asp-for="Id" type="hidden" />
+    <div asp-validation-summary="ModelOnly" class="validation"></div>
+    <div class="field-grid"><div><label asp-for="Name"></label><input asp-for="Name" /><span asp-validation-for="Name" class="validation"></span></div><div><label asp-for="Code"></label><input asp-for="Code" /><span asp-validation-for="Code" class="validation"></span></div><div><label asp-for="City"></label><input asp-for="City" /></div><div><label asp-for="Address"></label><input asp-for="Address" /></div></div>
+    <label class="check-row"><input asp-for="IsActive" /><span><strong>Şube aktif</strong><small>Açık vale kaydı olan şube pasife alınamaz.</small></span></label>
+    <div class="info-row"><span>Personel davet kodu</span><code>@(Model.InviteCode ?? "Henüz yok")</code></div>
+    <div class="form-actions"><button class="button primary" type="submit">Değişiklikleri kaydet</button><a class="button ghost" asp-action="Index">Vazgeç</a></div>
+</form></section>
+<section class="panel danger-zone"><div><h2>Davet kodunu yenile</h2><p>Eski kod anında geçersiz olur. Bunu yalnızca kod paylaşılmışsa veya sızmışsa kullanın.</p></div><form asp-action="RegenerateInvite" method="post">@Html.AntiForgeryToken()<input name="id" value="@Model.Id" type="hidden" /><button class="button danger" type="submit">Kodu yenile</button></form></section>

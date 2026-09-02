@@ -87,11 +87,20 @@ jobs:
 
       - name: Build API release
         shell: pwsh
-        run: dotnet build src/VALE.Api/VALE.Api.csproj -c Release --no-restore
+        run: dotnet build src/VALE.Api/VALE.Api.csproj -c Release --no-restore -warnaserror
 
       - name: Run API tests
         shell: pwsh
         run: dotnet test tests/VALE.Api.Tests/VALE.Api.Tests.csproj -c Release --no-restore --logger "console;verbosity=normal"
+
+      - name: Verify EF Core migration model and script
+        shell: pwsh
+        run: |
+          dotnet tool install --tool-path .tools dotnet-ef --version 10.0.4
+          & .\.tools\dotnet-ef migrations has-pending-model-changes --project src/VALE.Api/VALE.Api.csproj --startup-project src/VALE.Api/VALE.Api.csproj --configuration Release --no-build
+          if ($LASTEXITCODE -ne 0) { throw 'EF Core modelinde migration olarak kaydedilmemiş değişiklik var.' }
+          & .\.tools\dotnet-ef migrations script --idempotent --project src/VALE.Api/VALE.Api.csproj --startup-project src/VALE.Api/VALE.Api.csproj --configuration Release --no-build --output "$env:RUNNER_TEMP\vale-migrations.sql"
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path "$env:RUNNER_TEMP\vale-migrations.sql")) { throw 'Idempotent production migration betiği üretilemedi.' }
 
       - name: Verify security policies
         shell: pwsh
@@ -110,4 +119,12 @@ jobs:
           if ($auth -notmatch 'VerifyTwoFactorTokenAsync' -or $auth -notmatch 'ResetAuthenticatorKeyAsync') { throw 'TOTP doğrulama/anahtar yaşam döngüsü eksik.' }
           $admin = Get-Content 'src/VALE.Api/Controllers/AdminController.cs' -Raw
           if ($admin -notmatch 'UpdateSecurityStampAsync') { throw 'Yetki değişikliklerinde aktif oturum iptali eksik.' }
-          Write-Host 'VALE API security policy source checks passed.'
+          $migrator = Get-Content 'src/VALE.Api/Data/DatabaseMigrator.cs' -Raw
+          if ($migrator -notmatch 'MigrateAsync' -or $migrator -notmatch 'pg_advisory_lock' -or $program -notmatch 'DatabaseSeeder.InitializeAsync') { throw 'Sürümlü ve kilitli EF Core migration başlangıcı eksik.' }
+          $productionData = Get-ChildItem 'src/VALE.Api' -Filter '*.cs' -Recurse | Where-Object { $_.FullName -notmatch '[\\/]Migrations[\\/]' } | ForEach-Object { Get-Content $_.FullName -Raw } | Out-String
+          if ($productionData -match 'EnsureCreatedAsync?\(' -or $productionData -match 'ALTER\s+TABLE') { throw 'Production kodunda EnsureCreated veya elle ALTER TABLE şema yönetimi bulundu.' }
+          $firebase = Get-Content 'src/VALE.Api/Services/FirebasePushSender.cs' -Raw
+          if ($firebase -match 'GoogleCredential\.FromJson' -or $firebase -notmatch 'CredentialFactory' -or $firebase -notmatch '\.Fid') { throw 'Güvenli Google credential/FID geçişi eksik.' }
+          $platformBase = Get-Content 'src/VALE.Api/Areas/PlatformAdmin/Controllers/PlatformAdminControllerBase.cs' -Raw
+          if ($platformBase -notmatch 'AutoValidateAntiforgeryToken' -or $platformBase -notmatch 'Roles\.PlatformAdmin' -or $program -notmatch 'VALEM\.PlatformAdmin') { throw 'Platform yönetim paneli CSRF/rol/ayrı cookie koruması eksik.' }
+          Write-Host 'VALE API 3.2 security, migration, remembered-session and platform-admin checks passed.'

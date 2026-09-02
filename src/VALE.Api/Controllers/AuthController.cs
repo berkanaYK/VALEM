@@ -14,6 +14,7 @@ namespace VALE.Api.Controllers;
 public sealed class AuthController(
     UserManager<AppUser> userManager,
     TokenService tokenService,
+    DeviceSessionService deviceSessions,
     PasswordResetCodeService resetCodes,
     OneTimeCodeService oneTimeCodes,
     IValeEmailSender emailSender,
@@ -27,7 +28,7 @@ public sealed class AuthController(
         var user = await FindUserAsync(request.Email, cancellationToken);
         await ValidatePasswordAsync(user, request.Password);
         if (user.TwoFactorEnabled) return TwoFactorRequired();
-        return Ok(await CompleteLoginAsync(user, "password", cancellationToken));
+        return Ok(await CompleteLoginAsync(user, "password", request.RememberDevice, request.DeviceName, cancellationToken));
     }
 
     [HttpPost("login/2fa")]
@@ -39,7 +40,7 @@ public sealed class AuthController(
         await ValidatePasswordAsync(user, request.Password);
         if (!user.TwoFactorEnabled || !await userManager.VerifyTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider, NormalizeCode(request.Code)))
             throw new ApiException(StatusCodes.Status401Unauthorized, "Kod doğrulanamadı", "Authenticator uygulamasındaki 6 haneli kodu kontrol edin.");
-        return Ok(await CompleteLoginAsync(user, "password+totp", cancellationToken));
+        return Ok(await CompleteLoginAsync(user, "password+totp", request.RememberDevice, request.DeviceName, cancellationToken));
     }
 
     [HttpPost("email-code/request")]
@@ -74,7 +75,31 @@ public sealed class AuthController(
             throw new ApiException(StatusCodes.Status401Unauthorized, "Kod doğrulanamadı", "Giriş kodu hatalı veya süresi dolmuş.");
         if (user.TwoFactorEnabled && !await userManager.VerifyTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider, NormalizeCode(request.TwoFactorCode!)))
             throw new ApiException(StatusCodes.Status401Unauthorized, "Kod doğrulanamadı", "Authenticator kodunu kontrol edin.");
-        return Ok(await CompleteLoginAsync(user, user.TwoFactorEnabled ? "email+totp" : "email", cancellationToken));
+        return Ok(await CompleteLoginAsync(user, user.TwoFactorEnabled ? "email+totp" : "email", request.RememberDevice, request.DeviceName, cancellationToken));
+    }
+
+    [HttpPost("refresh")]
+    [AllowAnonymous]
+    [EnableRateLimiting("session")]
+    public async Task<ActionResult<LoginResponse>> Refresh(RefreshSessionRequest request, CancellationToken cancellationToken)
+    {
+        var session = await deviceSessions.RotateAsync(request.RefreshToken, request.DeviceName, cancellationToken);
+        if (session is null)
+            throw new ApiException(StatusCodes.Status401Unauthorized, "Oturum yenilenemedi", "Hatırlanan cihaz oturumu sona ermiş veya iptal edilmiş. Lütfen tekrar giriş yapın.");
+
+        var roles = await userManager.GetRolesAsync(session.User);
+        var token = tokenService.Create(session.User, roles);
+        await audit.RecordAsync(session.User.Id, session.User.BranchId, "security.session.refreshed", "DeviceSession", null, "Hatırlanan cihaz oturumu güvenli biçimde yenilendi.", cancellationToken: cancellationToken);
+        return Ok(new LoginResponse(token.Value, token.ExpiresAt, MapUser(session.User, roles), session.Token, session.ExpiresAt));
+    }
+
+    [HttpPost("logout")]
+    [AllowAnonymous]
+    [EnableRateLimiting("session")]
+    public async Task<IActionResult> Logout(RefreshSessionRequest request, CancellationToken cancellationToken)
+    {
+        await deviceSessions.RevokeAsync(request.RefreshToken, cancellationToken);
+        return NoContent();
     }
 
     [HttpPost("register")]
@@ -268,14 +293,22 @@ public sealed class AuthController(
         throw new ApiException(StatusCodes.Status401Unauthorized, "Giriş başarısız", "E-posta adresi veya parola hatalı.");
     }
 
-    private async Task<LoginResponse> CompleteLoginAsync(AppUser user, string method, CancellationToken cancellationToken)
+    private async Task<LoginResponse> CompleteLoginAsync(
+        AppUser user,
+        string method,
+        bool rememberDevice,
+        string? deviceName,
+        CancellationToken cancellationToken)
     {
         user.LastLoginAt = DateTimeOffset.UtcNow;
         await userManager.UpdateAsync(user);
         var roles = await userManager.GetRolesAsync(user);
         var token = tokenService.Create(user, roles);
+        var deviceSession = rememberDevice
+            ? await deviceSessions.CreateAsync(user, deviceName, cancellationToken)
+            : null;
         await audit.RecordAsync(user.Id, user.BranchId, "security.login", "User", user.Id.ToString(), $"Giriş yöntemi: {method}", cancellationToken: cancellationToken);
-        return new LoginResponse(token.Value, token.ExpiresAt, MapUser(user, roles));
+        return new LoginResponse(token.Value, token.ExpiresAt, MapUser(user, roles), deviceSession?.Token, deviceSession?.ExpiresAt);
     }
 
     private ActionResult<LoginResponse> TwoFactorRequired()

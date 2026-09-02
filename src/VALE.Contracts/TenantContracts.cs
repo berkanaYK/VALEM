@@ -16,11 +16,11 @@ public sealed record OwnerRegisterRequest(
     [param: MaxLength(128)] string? Password,
     [param: MaxLength(30)] string? PhoneNumber,
     [param: Required, MinLength(2), MaxLength(160)] string CompanyName,
-    [param: Required, MinLength(2), MaxLength(40)] string CompanyCode,
-    [param: Required, MinLength(2), MaxLength(120)] string FirstBranchName,
-    [param: Required, MinLength(1), MaxLength(20)] string FirstBranchCode,
+    [param: MinLength(2), MaxLength(40)] string? CompanyCode = null,
+    [param: MinLength(2), MaxLength(120)] string? FirstBranchName = null,
+    [param: MinLength(1), MaxLength(20)] string? FirstBranchCode = null,
     [param: MaxLength(80)] string? City = null,
-    [param: Required] string LoginMethod = LoginMethods.Password);
+    [param: Required] string LoginMethod = LoginMethods.EmailCode);
 
 public sealed record StaffRegisterRequest(
     [param: Required, MinLength(2), MaxLength(120)] string FullName,
@@ -31,7 +31,7 @@ public sealed record StaffRegisterRequest(
     [param: MaxLength(20)] string? BranchCode,
     [param: MaxLength(40)] string? InviteCode,
     [param: MaxLength(40)] string? EmployeeCode = null,
-    [param: Required] string LoginMethod = LoginMethods.Password);
+    [param: Required] string LoginMethod = LoginMethods.EmailCode);
 
 public sealed record RegistrationRequestDto(
     Guid Id,

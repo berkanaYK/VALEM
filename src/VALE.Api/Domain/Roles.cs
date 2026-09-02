@@ -2,6 +2,7 @@ namespace VALE.Api.Domain;
 
 public static class Roles
 {
+    public const string PlatformAdmin = "PlatformAdmin";
     public const string Owner = "Owner";
     public const string Admin = "Admin";
     public const string OperationsManager = "OperationsManager";
@@ -16,6 +17,8 @@ public static class Roles
     [
         Owner, Admin, OperationsManager, Manager, BranchManager, Supervisor, Cashier, Valet, Auditor
     ];
+
+    public static readonly string[] SeedRoles = [PlatformAdmin, .. All];
 
     public const string StaffPolicy = "Staff";
     public const string ManageUsersPolicy = "ManageUsers";

@@ -242,7 +242,7 @@ public sealed class AdvancedRegisterPage : ContentPage
 
 public sealed class EmailCodeLoginPage : ContentPage
 {
-    public EmailCodeLoginPage(ApiClient api)
+    public EmailCodeLoginPage(ApiClient api, bool rememberDevice = false)
     {
         Title = "E-posta Koduyla Giriş"; UiKit.StylePage(this);
         var email = UiKit.Entry("E-posta adresiniz", Keyboard.Email);
@@ -271,12 +271,12 @@ public sealed class EmailCodeLoginPage : ContentPage
             {
                 verify.IsEnabled = false;
                 LoginResponse login;
-                try { login = await api.VerifyEmailLoginCodeAsync(email.Text ?? "", code.Text ?? ""); }
+                try { login = await api.VerifyEmailLoginCodeAsync(email.Text ?? "", code.Text ?? "", rememberDevice: rememberDevice); }
                 catch (TwoFactorRequiredException)
                 {
                     var totp = await DisplayPromptAsync("İki adımlı doğrulama", "Authenticator uygulamanızdaki 6 haneli kodu girin.", "Devam Et", "Vazgeç", keyboard: Keyboard.Numeric, maxLength: 6);
                     if (string.IsNullOrWhiteSpace(totp)) return;
-                    login = await api.VerifyEmailLoginCodeAsync(email.Text ?? "", code.Text ?? "", totp);
+                    login = await api.VerifyEmailLoginCodeAsync(email.Text ?? "", code.Text ?? "", totp, rememberDevice);
                 }
                 App.ShowAuthenticated(api, login.User);
             }
@@ -318,7 +318,13 @@ public sealed class CompanyProfilePage : ContentPage
         var save = UiKit.PrimaryButton("Değişiklikleri Kaydet"); save.Clicked += async (_, _) => await SaveAsync(save, avatarBox);
         var security = UiKit.SecondaryButton("İki Adımlı Doğrulama"); security.Clicked += async (_, _) => await Navigation.PushAsync(new TwoFactorPage(_api));
         var password = UiKit.SecondaryButton("Parolayı Değiştir"); password.Clicked += async (_, _) => await Navigation.PushAsync(new ChangePasswordPage(_api));
-        var logout = UiKit.TextButton("Oturumu Kapat"); logout.TextColor = ThemeService.Palette.Danger; logout.Clicked += (_, _) => { _api.Logout(); App.ShowLogin(); };
+        var logout = UiKit.TextButton("Oturumu Kapat");
+        logout.TextColor = ThemeService.Palette.Danger;
+        logout.Clicked += async (_, _) =>
+        {
+            await _api.LogoutAsync();
+            App.ShowLogin();
+        };
 
         Content = new ScrollView { Content = new VerticalStackLayout { Padding = 16, Spacing = 14, Children = {
             avatarBox, UiKit.Label("Profilim", 27, true),

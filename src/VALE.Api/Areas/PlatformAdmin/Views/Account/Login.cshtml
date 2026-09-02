@@ -1,0 +1,23 @@
+@model PlatformLoginModel
+@{
+    ViewData["Title"] = "Güvenli giriş";
+}
+
+<section class="auth-card">
+    <div class="eyebrow">Yalnızca geliştirici erişimi</div>
+    <h1>VALEM yönetim paneli</h1>
+    <p>Firma, kullanıcı ve operasyon desteği için ayrı platform yöneticisi hesabınızla giriş yapın.</p>
+    <form asp-action="Login" method="post" class="form-stack">
+        @Html.AntiForgeryToken()
+        <input asp-for="ReturnUrl" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="validation"></div>
+        <label asp-for="Email"></label>
+        <input asp-for="Email" autocomplete="username" inputmode="email" autofocus />
+        <span asp-validation-for="Email" class="validation"></span>
+        <label asp-for="Password"></label>
+        <input asp-for="Password" autocomplete="current-password" />
+        <span asp-validation-for="Password" class="validation"></span>
+        <button class="button primary full" type="submit">Güvenli giriş</button>
+    </form>
+    <p class="fine-print">Oturum iki saat içinde sona erer. Her değişiklik geliştirici denetim günlüğüne yazılır.</p>
+</section>

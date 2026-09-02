@@ -29,17 +29,42 @@ jobs:
             echo "Production readiness check $i/60"
             if curl -fsS --max-time 12 "$endpoint/health/ready" > ready.json; then
               status_json=$(curl -fsS --max-time 12 "$endpoint/api/status" || true)
-              if printf '%s' "$status_json" | grep -q '"multiTenant":true'; then
+              if printf '%s' "$status_json" | grep -q '"version":"3.2.0"' && \
+                 printf '%s' "$status_json" | grep -q '"rememberedDevices":true' && \
+                 printf '%s' "$status_json" | grep -q '"platformAdmin":true' && \
+                 printf '%s' "$status_json" | grep -q '"migrations":true'; then
                 ready=1
                 cat ready.json
                 break
               fi
-              echo 'Render henüz multi-tenant capability sürümünde değil.'
+              echo 'Render henüz VALE API 3.2.0 capability sürümünde değil.'
             fi
             sleep 10
           done
           test "$ready" = "1"
           curl -fsS --max-time 12 "$endpoint/api/status" | tee status.json
           grep -q 'VALE.Api' status.json
+          grep -q '"version":"3.2.0"' status.json
           grep -q '"multiTenant":true' status.json
+          grep -q '"rememberedDevices":true' status.json
+          grep -q '"platformAdmin":true' status.json
+          grep -q '"migrations":true' status.json
+
+      - name: Verify email, auth boundaries and platform admin surface
+        shell: bash
+        run: |
+          endpoint='https://vale-api-5fvb.onrender.com'
+          curl -fsS --max-time 30 "$endpoint/health/email" | tee email.json
+          grep -q '"status":"ready"' email.json
+          grep -q '"smtp":true' email.json
+          profile_code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 12 "$endpoint/api/auth/profile")
+          test "$profile_code" = '401'
+          admin_login_code=$(curl -sS -o admin-login.html -w '%{http_code}' --max-time 12 "$endpoint/platform-admin/Account/Login")
+          test "$admin_login_code" = '200'
+          grep -q 'VALEM yönetim paneli' admin-login.html
+          admin_dashboard_code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 12 "$endpoint/platform-admin")
+          case "$admin_dashboard_code" in
+            302|307) ;;
+            *) echo "Yetkisiz platform admin erişimi yönlendirilmedi: $admin_dashboard_code"; exit 1 ;;
+          esac
 

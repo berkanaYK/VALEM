@@ -48,4 +48,13 @@ public sealed class RoleHierarchyTests
         Assert.DoesNotContain(Roles.Valet, Roles.ManageUsersRoles);
         Assert.DoesNotContain(Roles.Valet, Roles.ReportRoles);
     }
+
+    [Fact]
+    public void Platform_admin_is_never_a_tenant_role()
+    {
+        Assert.DoesNotContain(Roles.PlatformAdmin, Roles.All);
+        Assert.Contains(Roles.PlatformAdmin, Roles.SeedRoles);
+        Assert.False(Roles.CanAssignRoles([Roles.Owner], [Roles.PlatformAdmin]));
+        Assert.DoesNotContain(Roles.PlatformAdmin, Roles.CrossBranchRoles);
+    }
 }

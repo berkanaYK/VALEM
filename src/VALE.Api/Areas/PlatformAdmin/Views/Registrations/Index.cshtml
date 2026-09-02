@@ -1,0 +1,18 @@
+@model IReadOnlyList<PlatformRegistrationRow>
+@{
+    ViewData["Title"] = "Personel başvuruları";
+}
+<div class="page-heading"><div><div class="eyebrow">Hesap onay desteği</div><h1>Personel başvuruları</h1><p>Firma yöneticisinin ulaşamadığı durumlarda başvuruyu güvenli biçimde sonuçlandırın.</p></div></div>
+<form method="get" class="searchbar"><input name="search" value="@ViewBag.Search" placeholder="Ad, e-posta, firma veya şube" aria-label="Başvuru ara" /><select name="status" aria-label="Başvuru durumu"><option value="Pending" selected="@(ViewBag.Status == "Pending")">Bekleyen</option><option value="Approved" selected="@(ViewBag.Status == "Approved")">Onaylanan</option><option value="Rejected" selected="@(ViewBag.Status == "Rejected")">Reddedilen</option><option value="All" selected="@(ViewBag.Status == "All")">Tümü</option></select><button class="button secondary">Filtrele</button><a class="button ghost" asp-action="Index">Temizle</a></form>
+<section class="panel table-wrap"><table><thead><tr><th>Başvuran</th><th>Firma / Şube</th><th>Rol</th><th>E-posta</th><th>Durum / Zaman</th><th>Karar</th></tr></thead><tbody>
+@foreach (var row in Model)
+{
+    <tr><td><strong>@row.ApplicantName</strong><small class="cell-subtitle">@row.ApplicantEmail</small></td><td>@row.CompanyName<small class="cell-subtitle">@row.BranchName</small></td><td>@row.RequestedRole</td><td><span class="status-pill @(row.EmailConfirmed ? "good" : "warn")">@(row.EmailConfirmed ? "Doğrulandı" : "Bekliyor")</span></td><td><span class="status-pill @(row.Status == "Approved" ? "good" : row.Status == "Pending" ? "warn" : "muted")">@row.Status</span><small class="cell-subtitle">@row.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</small>@if (!string.IsNullOrWhiteSpace(row.Note)) { <small class="cell-subtitle">Not: @row.Note</small> }</td><td>
+    @if (row.Status == "Pending")
+    {
+        <div class="decision-actions"><form asp-action="Decide" method="post">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@row.Id" /><input type="hidden" name="approve" value="true" /><input name="note" maxlength="500" placeholder="İsteğe bağlı not" /><button class="button primary" type="submit">Onayla</button></form><form asp-action="Decide" method="post">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@row.Id" /><input type="hidden" name="approve" value="false" /><input name="note" maxlength="500" placeholder="Ret nedeni" /><button class="button danger" type="submit">Reddet</button></form></div>
+    }
+    else { <a asp-controller="Users" asp-action="Edit" asp-route-id="@row.ApplicantUserId">Kullanıcıyı aç</a> }
+    </td></tr>
+}
+</tbody></table>@if (Model.Count == 0) { <div class="empty-inline">Bu filtrede başvuru bulunamadı.</div> }</section>

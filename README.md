@@ -1,138 +1,281 @@
-# VALE
+# VALEM
 
-VALE; farklı konumlardaki şubelerin aynı sistem üzerinden araç kabulü, park durumu, teslim isteği, tahsilat ve işlem geçmişini yönetmesi için hazırlanmış bir WinUI 3 masaüstü uygulaması ve merkezi ASP.NET Core API'sidir.
+VALEM, vale işletmelerinin araç kabulünden teslim ve tahsilata kadar günlük operasyonunu telefondan yönetmesini sağlayan çok firmalı bir platformdur. Güncel ürün; .NET MAUI Android uygulaması, ASP.NET Core API, PostgreSQL veritabanı ve yalnızca geliştiriciye açık web yönetim panelinden oluşur.
 
-## İlk sürümde bulunanlar
+Güncel sürüm: **3.2.0** (`Android build 14`)
 
-- E-posta/parola ile güvenli kullanıcı girişi
-- Şube bazlı veri yetkilendirmesi
-- Yönetici için yeni şube ve personel hesabı oluşturma
-- Yönetici için aktif şube seçerek şubeler arası geçiş
-- Araç, müşteri, anahtar etiketi ve park yeri kaydı
-- `Teslim alındı → Park edildi → Araç isteniyor → Teslim edildi` iş akışı
-- Saatlik ücret üzerinden otomatik ücret hesaplama
-- Nakit, kart ve havale/EFT tahsilat kaydı
-- Günlük aktif araç, teslim bekleyen araç, teslim sayısı ve ciro özeti
-- Plaka, fiş numarası veya telefonla arama
-- Açık, koyu ve sistem teması
-- PostgreSQL/Supabase uyumlu ortak bulut veritabanı
+Canlı API: [vale-api-5fvb.onrender.com](https://vale-api-5fvb.onrender.com/api/status)
+
+## Bu sürümde neler var?
+
+- Plaka dışında ayrıntı zorunlu tutmayan hızlı araç kabulü
+- Firma sahibi için ad, e-posta ve firma adıyla başlayan sade kayıt
+- Personel için tek davet koduyla katılım; firma/şube kodu yalnızca alternatif yol
+- Varsayılan parolasız e-posta kodu, isteğe bağlı parola veya Authenticator girişi
+- Güvenli cihazı hatırlama; 30 günlük dönen ve sunucuda yalnızca özeti saklanan oturum anahtarı
+- Firma ve şube sınırlarını API ile zorlayan çok kiracılı yetkilendirme
+- Araç durumu, teslim isteği, tahsilat, rapor, bildirim, FCM ve denetim kaydı
+- Geliştirici için ayrı kimlik doğrulamalı VALEM web yönetim paneli
+- `EnsureCreated` yerine sürümlü EF Core migration ve eski 3.1.2 şemasını güvenli devralma
+- .NET MAUI 10.0.100, uyumlu AndroidX bağımlılıkları ve Firebase Messaging 125.1.1
+- AndroidX geri hareketi, Firebase FID kaydı ve güvenli Google service-account yükleme API’leri
+- API için 63 otomatik test; gerçek Android cihazı için Appium/UiAutomator2 senaryosu
+
+## Kullanıcı açısından akış
+
+### Firma sahibi
+
+1. `Yeni Hesap Oluştur` seçilir.
+2. Ad soyad, e-posta ve firma adı yazılır.
+3. Firma kodu ile `Merkez` şubesi otomatik üretilir; özel kodlar gelişmiş bölümde isteğe bağlıdır.
+4. E-posta sahipliği doğrulanır.
+5. Seçilen tek giriş yöntemiyle uygulamaya girilir.
+
+### Personel
+
+1. Ad soyad ve e-posta yazılır.
+2. Yöneticiden alınan tek davet kodu girilir.
+3. E-posta doğrulaması ve yönetici onayı tamamlanır.
+4. Varsayılan e-posta kodu veya kullanıcının seçtiği giriş yöntemiyle devam edilir.
+
+### Günlük vale işlemi
+
+Yeni araç kabulünde yalnızca plaka zorunludur. Marka, model, renk, müşteri, anahtar etiketi, park yeri, not ve ücret gibi alanlar gerektiğinde açılan ayrıntı bölümündedir. Durum akışı şöyledir:
+
+```mermaid
+flowchart LR
+    A["Teslim alındı"] --> B["Park edildi"]
+    B --> C["Araç istendi"]
+    C --> D["Ödeme ve teslim"]
+    A --> E["İptal"]
+    B --> E
+    C --> E
+```
 
 ## Mimari
 
-```text
-Şube bilgisayarları (VALE WinUI 3)
-                │ HTTPS + JWT
-                ▼
-       VALE ASP.NET Core API
-                │ TLS
-                ▼
-        Bulut PostgreSQL veritabanı
+```mermaid
+flowchart TD
+    A["VALEM Android"] -->|"HTTPS + JWT"| B["ASP.NET Core 10 API"]
+    C["Geliştirici web paneli"] -->|"Ayrı güvenli cookie"| B
+    B -->|"EF Core 10 + TLS"| D["Neon PostgreSQL"]
+    B --> E["Brevo/SMTP + Firebase FCM"]
 ```
 
-İstemci uygulama PostgreSQL'e doğrudan bağlanmaz. Veritabanı parolası yalnızca bulutta çalışan API'de tutulur.
+Telefon ve web paneli veritabanına doğrudan bağlanmaz. Bağlantı dizesi, JWT anahtarı, e-posta parolası ve Firebase service-account yalnızca API ortamında tutulur.
 
-## Teknoloji seçimi
+PostgreSQL/Neon korunmuştur. Mevcut ilişkisel veri, tenant sınırları, ödeme tutarlılığı ve rapor sorguları için en kompakt ve düşük riskli seçenek budur; başka bir veritabanına geçiş uygulamayı hızlandırmak yerine veri taşıma ve yetkilendirme riskini büyütecekti. Asıl eksik olan şema sürümlemesiydi ve 3.2.0 ile EF Core migration’a geçirildi.
 
-- İstemci: C#, .NET 10, WinUI 3, Windows App SDK 2.4, CommunityToolkit.Mvvm
-- API: ASP.NET Core 10 controller API, JWT, ASP.NET Core Identity
-- Veri: EF Core 10 + Npgsql + PostgreSQL
-- Dağıtım: API için Linux container; istemci için ilk aşamada `unpackaged` x64 Windows uygulaması
+## Proje yapısı
 
-İstemci bilinçli olarak `unpackaged` seçildi: şubelerde doğrudan `.exe`/kurulum paketiyle dağıtmak ve geliştirme sırasında tekrarlanabilir CLI çalıştırma döngüsü sağlamak daha kolaydır. İstenirse daha sonra MSIX/Store paketine dönüştürülebilir.
+| Yol | İçerik |
+| --- | --- |
+| `src/VALE.Mobile` | .NET MAUI Android uygulaması |
+| `src/VALE.Api` | ASP.NET Core API ve Razor tabanlı geliştirici paneli |
+| `src/VALE.Contracts` | Mobil/API ortak sözleşmeleri |
+| `src/VALE.Client` | Korunan eski WinUI istemcisi; aktif geliştirme hedefi değil |
+| `tests/VALE.Api.Tests` | İş kuralı, tenant/BOLA ve güvenli oturum testleri |
+| `tests/VALE.Mobile.UITests` | Appium ile fiziksel Android cihaz senaryosu |
+| `scripts` | Kurulum, doğrulama ve gerçek cihaz test betikleri |
+| `.github/workflows` | API, APK, production smoke ve fiziksel cihaz iş akışları |
 
-## 1. Windows geliştirme ortamını hazırlama
+## Gereksinimler
 
-Windows 11 önerilir. PowerShell'i yönetici olarak açın, proje klasörüne geçin ve çalıştırın:
+- .NET 10 SDK
+- Android derlemek için Java 17, Android SDK ve `maui-android` workload
+- Yerel API için PostgreSQL 17 veya Neon bağlantısı
+- İsteğe bağlı Docker Desktop (`docker-compose.dev.yml` için)
+- Fiziksel cihaz testi için Node.js, Appium, UiAutomator2, `adb` ve USB hata ayıklaması açık bir Android telefon
+
+## Yerel kurulum
+
+### 1. PostgreSQL’i başlatın
+
+Docker kullanıyorsanız:
+
+```powershell
+docker compose -f .\docker-compose.dev.yml up -d
+```
+
+Yerel örnek bağlantı dizesi:
+
+```text
+Host=localhost;Port=5432;Database=vale;Username=vale;Password=vale-dev-only
+```
+
+Bu parola yalnızca yerel geliştirme içindir.
+
+### 2. API sırlarını kaydedin
+
+Windows PowerShell’de:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
-.\scripts\setup-windows.ps1
+.\scripts\configure-api.ps1
 ```
 
-Betik; Geliştirici Modu, Visual Studio Community 2026, .NET/WinUI bileşenleri ve resmi WinUI şablonunu denetler; ardından API, testler ve WinUI istemcisini derler.
+Betik değerleri repoya değil .NET User Secrets alanına yazar. İki farklı yönetici hesabı ister:
 
-## 2. Bulut PostgreSQL hazırlama
+- `PlatformAdmin`: geliştiricinin web paneli hesabı; herhangi bir firmaya bağlı değildir.
+- `Seed Admin`: örnek/ilk firmanın mobil operasyon yöneticisidir.
 
-Supabase veya yönetilen başka bir PostgreSQL hizmeti kullanılabilir. Hizmetten alınan bağlantı dizesinde TLS etkin olmalıdır. Örnek biçim:
-
-```text
-Host=SUNUCU;Port=5432;Database=postgres;Username=KULLANICI;Password=PAROLA;SSL Mode=VerifyFull
-```
-
-Bu bağlantı dizesini WinUI istemcisine kesinlikle koymayın.
-
-## 3. Yerel geliştirme API'sini yapılandırma
+### 3. API’yi çalıştırın
 
 ```powershell
-.\scripts\configure-api.ps1
 .\scripts\run-api.ps1
 ```
 
-İlk komut bağlantı dizesini, rastgele üretilen JWT anahtarını ve ilk yönetici hesabını .NET User Secrets içinde tutar. API ilk başlangıçta tabloları, rolleri, ilk şubeyi ve yönetici hesabını oluşturur.
+Geliştirme adresi `https://localhost:7247/` olur. Kontrol yolları:
 
-Geliştirme API'si varsayılan olarak `https://localhost:7247/` adresindedir.
+- `GET /health/ready`: API ve veritabanı hazır mı?
+- `GET /health/email`: e-posta taşıyıcısı kimlik doğrulaması hazır mı?
+- `GET /api/status`: sürüm ve etkin yetenekler
+- Geliştirmede `GET /openapi/v1.json`: OpenAPI belgesi
 
-## 4. İnternet üzerinden erişim için API'yi yayınlama
-
-Ortak veritabanı tek başına yeterli değildir; API'nin de internette erişilebilen bir container hizmetinde çalışması gerekir. Kök dizindeki `Dockerfile` doğrudan kullanılabilir.
-
-Bulut ortamına şu sırları ortam değişkeni olarak ekleyin:
-
-- `ConnectionStrings__ValeDatabase`
-- `Jwt__Key` (en az 32 bayt rastgele değer)
-- `Jwt__Issuer=VALE.Api`
-- `Jwt__Audience=VALE.Client`
-- İlk kurulumda `Seed__AdminEmail` ve `Seed__AdminPassword`
-
-API yalnızca HTTPS üzerinden yayınlanmalıdır. Sağlık kontrolü: `GET /health`.
-
-Ayrıntılar: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
-
-## 5. Şube istemcisini API'ye bağlama
-
-Buluttaki HTTPS API adresini ayarlayın:
+### 4. Android uygulamasını derleyin
 
 ```powershell
-.\scripts\configure-client.ps1 -ApiBaseUrl "https://api.ornekalanadi.com/"
-.\scripts\run-client.ps1
+dotnet workload install maui-android
+dotnet restore .\src\VALE.Mobile\VALE.Mobile.csproj
+dotnet build .\src\VALE.Mobile\VALE.Mobile.csproj -f net10.0-android -c Release -warnaserror
 ```
 
-## 6. Son doğrulama
+APK üretmek için:
+
+```powershell
+dotnet publish .\src\VALE.Mobile\VALE.Mobile.csproj -f net10.0-android -c Release `
+  -p:AndroidPackageFormats=apk -p:RunAOTCompilation=false
+```
+
+Firebase bildirimi kullanılacaksa `src/VALE.Mobile/Platforms/Android/google-services.json` dosyasını yerel olarak ekleyin. Dosya `.gitignore` kapsamındadır ve kesinlikle commit edilmez. Dosya yokken uygulamanın geri kalanı çalışır, FCM devre dışı kalır.
+
+Uygulama varsayılan olarak canlı Render API’sine bağlanır. Yerel/özel HTTPS API için giriş ekranındaki `Bağlantı ayarları` kullanılabilir.
+
+## Geliştirici web yönetim paneli
+
+Adres:
+
+```text
+https://SUNUCU/platform-admin/Account/Login
+```
+
+Hesap `PlatformAdmin__Email`, `PlatformAdmin__Password` ve `PlatformAdmin__FullName` ile ilk çalıştırmada oluşturulur. Platform hesabı bir firma kullanıcısıyla aynı e-postayı kullanamaz.
+
+Panelden şunlar yapılabilir:
+
+- Tüm firma, şube, kullanıcı ve personel başvurularını arama
+- Firma/şube durumunu ve temel bilgilerini düzenleme
+- Ana firma sahipliğini aynı firmadaki aktif bir kullanıcıya güvenli biçimde devretme
+- Şube davet kodunu yenileme
+- Kullanıcı rollerini ve aktif durumunu düzenleme
+- Kullanıcının hatırlanan cihaz oturumlarını kapatma
+- Kullanıcının Authenticator ayarını destek amacıyla sıfırlama
+- Kullanıcıya uygulama içi destek bildirimi gönderme
+- Vale kayıtlarını inceleme, düzeltme, kontrollü silme ve geri alma
+- Platform denetim günlüğünü inceleme
+- Uygulanan/bekleyen migration, veritabanı, e-posta, Firebase ve aktif oturum durumunu görme
+
+Panel bilinçli olarak serbest SQL çalıştırmaz ve sırları göstermez. Ayrı `PlatformAdmin` rolü, iki saatlik ayrı cookie oturumu, güvenlik damgası kontrolü, giriş hız sınırı, CSRF koruması ve işlem denetim kaydı kullanır.
+
+## Veritabanı migration sistemi
+
+API her başlangıçta PostgreSQL advisory lock alır ve bekleyen migration’ları uygular. Böylece aynı anda birden fazla instance açılırse şema yarışı oluşmaz.
+
+Eski 3.1.2 veritabanında migration geçmişi yoksa sistem önce beklenen tabloları ve kritik kolonları doğrular. Şema eksik veya belirsizse veri kaybı riski almadan başlangıcı durdurur; doğrulama geçerse başlangıç migration’ını geçmişe işler ve yalnızca yeni 3.2 migration’larını uygular.
+
+Yeni model değişikliği ekleme:
+
+```powershell
+dotnet tool install --global dotnet-ef --version 10.0.4
+dotnet ef migrations add AciklayiciMigrationAdi `
+  --project .\src\VALE.Api\VALE.Api.csproj `
+  --startup-project .\src\VALE.Api\VALE.Api.csproj
+dotnet ef migrations has-pending-model-changes `
+  --project .\src\VALE.Api\VALE.Api.csproj `
+  --startup-project .\src\VALE.Api\VALE.Api.csproj
+```
+
+CI ayrıca idempotent PostgreSQL migration betiği üretir. Migration dosyaları uygulama modeliyle birlikte commit edilmelidir; production’da `EnsureCreated` veya elle `ALTER TABLE` kullanılmaz.
+
+## Testler
+
+### API ve Android kaynak doğrulaması
 
 ```powershell
 .\scripts\verify.ps1
 ```
 
-Betik API'yi derler, ücret hesaplama testlerini çalıştırır ve WinUI istemcisini x64 Release olarak derler. Sonrasında gerçek pencere açılışını doğrulamak için:
+Bu komut API’yi uyarıları hata sayarak derler, 63 API testini çalıştırır, Appium test paketini derler, Android Release build alır ve `dotnet-ef` kuruluysa bekleyen model farkını kontrol eder.
+
+### Fiziksel Android cihaz testi
+
+Bir kez hazırlayın:
 
 ```powershell
-.\scripts\run-client.ps1
+npm install --global appium
+appium driver install uiautomator2
+adb devices
 ```
 
-## Güvenlik notları
+Telefon USB ile bağlı, kilidi açık ve `adb devices` çıktısında `device` durumunda olmalıdır. Sonra ürettiğiniz Release APK ile:
 
-- Veritabanı bağlantı dizesi, JWT anahtarı ve yönetici parolası kaynak kodda bulunmaz.
-- Personel yalnızca hesabına atanmış şubeyi görebilir; `Admin` uygulamadaki şube seçicisinden tüm şubeler arasında geçebilir.
-- Giriş endpoint'i hız sınırlıdır.
-- Token uygulama belleğinde tutulur; uygulama kapatılınca silinir.
-- Üretimde API HTTPS arkasında çalıştırılmalıdır.
-- İlk yönetici oluşturulduktan sonra üretim ortamındaki `Seed__AdminPassword` değişkeni kaldırılmalıdır.
+```powershell
+.\scripts\run-android-device-tests.ps1 -ApkPath "C:\tam\yol\VALE.apk"
+```
 
-## Proje dizini
+Senaryo gerçek ekranda şunları doğrular:
 
-- `src/VALE.Client`: WinUI 3 masaüstü uygulaması
-- `src/VALE.Api`: Merkezi HTTPS API
-- `src/VALE.Contracts`: İstemci/API ortak veri sözleşmeleri
-- `tests/VALE.Api.Tests`: İş kuralı testleri
-- `scripts`: Windows kurulum, yapılandırma, çalıştırma ve doğrulama betikleri
-- `docs`: Mimari, API ve yayınlama notları
+- Giriş alanları ve düğmelerinin kullanılabilir olması
+- `Bu güvenli cihazda oturumu açık tut` anahtarının çalışması
+- Alternatif e-posta kodu girişinin açılması
+- Kayıt ekranında yalnızca temel alanların görünmesi
+- Parola ve gelişmiş firma alanlarının varsayılan olarak kapalı olması
+- Android sistem geri hareketinin kayıt ekranından giriş ekranına dönmesi
+- Başarı veya hata ekran görüntüsü ile `.trx` test kanıtı
 
-## MVP sonrası önerilen geliştirmeler
+GitHub’daki `Android Real Device UI` workflow’u, `vale-android-device` etiketli Windows self-hosted runner ve bağlı telefon üzerinde aynı betiği elle çalıştırır. Bulut runner’ında telefon olmadığı için bu iş akışı otomatik release kapısına bağlanmamıştır.
 
-- Kullanıcı devre dışı bırakma, parola sıfırlama ve ayrıntılı yetki politikaları
-- QR kodlu müşteri teslim fişi
-- SMS/WhatsApp araç hazır bildirimi
-- İndirim, sabit tarife ve kayıp bilet işlemleri
-- Denetim kaydı (audit log) ve ayrıntılı raporlama
-- İnternet kesintisi için kontrollü çevrimdışı kuyruk/senkronizasyon
-- İmzalı MSIX kurulum paketi ve otomatik güncelleme
+## CI/CD ve yayın
+
+| İş akışı | Ne yapar? |
+| --- | --- |
+| `VALE API CI` | Release build, 63 test, bağımlılık/secret kontrolü, migration model+SQL doğrulaması ve güvenlik kaynak kapıları |
+| `Build Android APK` | AndroidX/Firebase kontrolleri, production API/e-posta smoke testleri, Appium paket derlemesi, APK üretimi ve GitHub Release |
+| `Verify Production VALE API` | Render deploy sonrası 3.2.0, veritabanı, e-posta, auth ve web paneli erişim sınırlarını doğrular |
+| `Android Real Device UI` | Bağlı fiziksel telefonda Appium senaryosunu elle çalıştırır |
+
+`main` dalındaki başarılı Android workflow’u `VALE.apk` dosyasını yeni GitHub Release’e ekler. Kalıcı özel release keystore/Play Store imzası ürün geliştirmeleri bittikten sonra ayrıca yapılandırılacaktır; mevcut GitHub APK yayını Play Store güncelleme anahtarı yerine geçmez.
+
+## Üretim ortam değişkenleri
+
+| Değişken | Zorunluluk | Açıklama |
+| --- | --- | --- |
+| `ConnectionStrings__ValeDatabase` | Zorunlu | Neon pooled PostgreSQL bağlantısı |
+| `Jwt__Key` | Zorunlu | En az 32 bayt rastgele JWT anahtarı |
+| `PlatformAdmin__Email` | Panel için | Geliştirici hesabı e-postası |
+| `PlatformAdmin__Password` | İlk oluşturma için | Güçlü geliştirici hesabı parolası |
+| `PlatformAdmin__FullName` | İsteğe bağlı | Panelde görünen ad |
+| `Seed__AdminEmail`, `Seed__AdminPassword` | İlk firma için | Mobil firma yöneticisi başlangıç hesabı |
+| `Email__*` | E-posta için | Brevo API veya SMTP yapılandırması |
+| `Firebase__ProjectId` | FCM için | Firebase proje kimliği |
+| `Firebase__ServiceAccountJson` | FCM için | Service-account JSON; dosya olarak commit edilmez |
+| `DeviceSessions__LifetimeDays` | İsteğe bağlı | Varsayılan `30` |
+
+Render Blueprint ayrıntıları `render.yaml` dosyasındadır. Canlı sağlık kontrolü `/health/ready` yolunu kullanır. Render ücretsiz servis uykuya geçtiğinde ilk istek gecikebilir; mobil giriş ve izleme akışı kısa tekrarlarla bunu karşılar.
+
+## Güvenlik özeti
+
+- API, firma kimliğini istemciden kabul etmez; JWT ve sunucu tarafı ilişkiler üzerinden çözer.
+- Yabancı tenant nesneleri kimlik sızıntısını azaltmak için bulunamadı gibi yanıtlanır; BOLA negatif testleri bunu doğrular.
+- Hatırlanan cihaz anahtarı telefonda `SecureStorage` içinde, sunucuda SHA-256 özetiyle tutulur ve her yenilemede döndürülür.
+- Parola, JWT anahtarı, veritabanı parolası, Firebase service-account ve `google-services.json` repoya yazılmaz.
+- Hassas web paneli işlemleri rol, ayrı cookie, CSRF ve denetim günlüğüyle korunur.
+- Firebase’in kaldırılacak `getToken`/`onNewToken` ve sunucudaki eski `Message.Token` yolu yeni cihazlarda FID akışına geçirilmiştir; yalnızca eski 3.1.x kayıtları geçiş süresince uyumluluk yolunda tutulur.
+- Android’in eski geri tuşu override’ı yerine AndroidX `OnBackPressedDispatcher` kullanılır.
+- Google service-account JSON’u önce tür/proje kontrolünden geçirilir ve `CredentialFactory` ile yüklenir; güvenlik nedeniyle kaldırılacak `GoogleCredential.FromJson` kullanılmaz.
+
+## Bilinçli olarak sonraya bırakılanlar
+
+- Play Store için kalıcı özel keystore, uygulamadaki geliştirmeler tamamlandığında oluşturulacak.
+- WinUI/Windows masaüstü yayını şu an ürün hedefi değildir; eski proje yalnızca geçmiş çalışma kaybı olmaması için repoda tutulur.
+- Gerçek cihaz testi bu depoda hazırdır; belirli telefon/Android sürümüne ait sonuç, cihazın bağlı olduğu Windows makinede çalıştırıldığında oluşur.

@@ -4,12 +4,20 @@ namespace VALE.Contracts;
 
 public sealed record LoginRequest(
     [param: Required, EmailAddress, MaxLength(256)] string Email,
-    [param: Required, MinLength(8), MaxLength(128)] string Password);
+    [param: Required, MinLength(8), MaxLength(128)] string Password,
+    bool RememberDevice = false,
+    [param: MaxLength(120)] string? DeviceName = null);
 
 public sealed record LoginResponse(
     string AccessToken,
     DateTimeOffset ExpiresAt,
-    UserDto User);
+    UserDto User,
+    string? RefreshToken = null,
+    DateTimeOffset? RefreshTokenExpiresAt = null);
+
+public sealed record RefreshSessionRequest(
+    [param: Required, MinLength(40), MaxLength(256)] string RefreshToken,
+    [param: MaxLength(120)] string? DeviceName = null);
 
 public sealed record RegisterRequest(
     [param: Required, MinLength(2), MaxLength(120)] string FullName,

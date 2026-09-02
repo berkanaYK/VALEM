@@ -1,0 +1,15 @@
+@model IReadOnlyList<PlatformCompanyRow>
+@{
+    ViewData["Title"] = "Firmalar";
+}
+<div class="page-heading"><div><div class="eyebrow">Müşteri kuruluşları</div><h1>Firmalar</h1><p>Firma erişimini ve temel kurumsal bilgileri yönetin.</p></div></div>
+<form method="get" class="searchbar"><input name="search" value="@ViewBag.Search" placeholder="Firma adı veya kodu" aria-label="Firma ara" /><button class="button secondary">Ara</button><a class="button ghost" asp-action="Index">Temizle</a></form>
+<section class="panel table-wrap">
+<table><thead><tr><th>Firma</th><th>Kod</th><th>Durum</th><th>Şube</th><th>Kullanıcı</th><th>Açık kayıt</th><th>Oluşturuldu</th><th></th></tr></thead><tbody>
+@foreach (var row in Model)
+{
+    <tr><td><strong>@row.Name</strong></td><td><code>@row.Code</code></td><td><span class="status-pill @(row.IsActive ? "good" : "muted")">@(row.IsActive ? "Aktif" : "Pasif")</span></td><td>@row.Branches</td><td>@row.Users</td><td>@row.ActiveTickets</td><td>@row.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy")</td><td><a asp-action="Edit" asp-route-id="@row.Id">Yönet</a></td></tr>
+}
+</tbody></table>
+@if (Model.Count == 0) { <div class="empty-inline">Arama ölçütüne uyan firma yok.</div> }
+</section>

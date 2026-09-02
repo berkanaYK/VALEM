@@ -1,0 +1,12 @@
+@model PlatformAuditIndexModel
+@{
+    ViewData["Title"] = "Denetim günlükleri";
+}
+<div class="page-heading"><div><div class="eyebrow">İzlenebilir destek</div><h1>Denetim günlükleri</h1><p>Geliştirici paneli işlemleri ile firma içi kullanıcı işlemlerini yan yana inceleyin.</p></div></div>
+<form method="get" class="searchbar"><input name="search" value="@ViewBag.Search" placeholder="İşlem, varlık, firma veya ayrıntı" aria-label="Denetim kaydı ara" /><button class="button secondary">Ara</button><a class="button ghost" asp-action="Index">Temizle</a></form>
+<section class="panel"><div class="panel-heading"><div><h2>Geliştirici işlemleri</h2><p>Platform yöneticisinin destek panelinden yaptığı değişiklikler.</p></div></div><div class="table-wrap"><table><thead><tr><th>Zaman</th><th>Yönetici</th><th>İşlem / Varlık</th><th>Ayrıntı</th><th>IP</th></tr></thead><tbody>
+@foreach (var row in Model.PlatformActions) { <tr><td>@row.OccurredAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td><td>@row.AdminName</td><td><code>@row.Action</code><small class="cell-subtitle">@row.EntityType @row.EntityId</small></td><td>@row.Detail</td><td>@(row.IpAddress ?? "—")</td></tr> }
+</tbody></table>@if (Model.PlatformActions.Count == 0) { <div class="empty-inline">Geliştirici işlemi bulunamadı.</div> }</div></section>
+<section class="panel"><div class="panel-heading"><div><h2>Firma içi işlemler</h2><p>Mobil uygulama ve firma yönetiminden gelen son hareketler.</p></div></div><div class="table-wrap"><table><thead><tr><th>Zaman</th><th>Firma / Kullanıcı</th><th>İşlem / Varlık</th><th>Ayrıntı</th><th>Sonuç</th></tr></thead><tbody>
+@foreach (var row in Model.TenantActions) { <tr><td>@row.OccurredAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td><td>@row.CompanyName<small class="cell-subtitle">@(row.UserName ?? "Sistem")</small></td><td><code>@row.Action</code><small class="cell-subtitle">@row.EntityType @row.EntityId</small></td><td>@row.Detail</td><td><span class="status-pill @(row.Success ? "good" : "warn")">@(row.Success ? "Başarılı" : "Başarısız")</span></td></tr> }
+</tbody></table>@if (Model.TenantActions.Count == 0) { <div class="empty-inline">Firma işlemi bulunamadı.</div> }</div></section>

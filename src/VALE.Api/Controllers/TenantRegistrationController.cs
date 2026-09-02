@@ -36,12 +36,10 @@ public sealed class TenantRegistrationController(
         var email = request.Email.Trim();
         var loginMethod = NormalizeLoginMethod(request.LoginMethod);
         ValidatePasswordForMethod(loginMethod, request.Password);
-        var companyCode = Normalize(request.CompanyCode);
-        var branchCode = Normalize(request.FirstBranchCode);
+        var companyCode = await ResolveCompanyCodeAsync(request.CompanyCode, request.CompanyName, cancellationToken);
+        var branchCode = string.IsNullOrWhiteSpace(request.FirstBranchCode) ? "MRKZ" : Normalize(request.FirstBranchCode);
         if (await userManager.FindByEmailAsync(email) is not null)
             throw new ApiException(StatusCodes.Status409Conflict, "E-posta kullanımda", "Bu e-posta adresiyle bir hesap zaten bulunuyor.");
-        if (await db.Companies.AnyAsync(x => x.Code == companyCode, cancellationToken))
-            throw new ApiException(StatusCodes.Status409Conflict, "Firma kodu kullanımda", "Farklı ve size özel bir firma kodu seçin.");
 
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         var company = new Company
@@ -55,7 +53,7 @@ public sealed class TenantRegistrationController(
         {
             Company = company,
             CompanyId = company.Id,
-            Name = request.FirstBranchName.Trim(),
+            Name = Clean(request.FirstBranchName) ?? "Merkez",
             Code = branchCode,
             City = Clean(request.City) ?? string.Empty,
             Address = string.Empty,
@@ -374,4 +372,39 @@ public sealed class TenantRegistrationController(
     private static string Normalize(string value) => value.Trim().ToUpperInvariant();
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private static string GenerateInviteCode(string companyCode, string branchCode) => $"{companyCode}-{branchCode}-{Guid.NewGuid():N}"[..Math.Min(40, companyCode.Length + branchCode.Length + 10)].ToUpperInvariant();
+
+    private async Task<string> ResolveCompanyCodeAsync(string? requestedCode, string companyName, CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(requestedCode))
+        {
+            var requested = Normalize(requestedCode);
+            if (await db.Companies.AnyAsync(x => x.Code == requested, cancellationToken))
+                throw new ApiException(StatusCodes.Status409Conflict, "Firma kodu kullanımda", "Firma kodunu boş bırakarak otomatik kod oluşturabilir veya farklı bir kod seçebilirsiniz.");
+            return requested;
+        }
+
+        var baseCode = BuildCode(companyName);
+        var candidate = baseCode;
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            if (!await db.Companies.AnyAsync(x => x.Code == candidate, cancellationToken)) return candidate;
+            candidate = $"{baseCode[..Math.Min(baseCode.Length, 32)]}-{Guid.NewGuid():N}"[..40].ToUpperInvariant();
+        }
+        throw new ApiException(StatusCodes.Status409Conflict, "Firma kodu oluşturulamadı", "Lütfen gelişmiş seçeneklerden size özel bir firma kodu girin.");
+    }
+
+    private static string BuildCode(string value)
+    {
+        var transliterated = value
+            .Replace('ç', 'c').Replace('Ç', 'C')
+            .Replace('ğ', 'g').Replace('Ğ', 'G')
+            .Replace('ı', 'i').Replace('İ', 'I')
+            .Replace('ö', 'o').Replace('Ö', 'O')
+            .Replace('ş', 's').Replace('Ş', 'S')
+            .Replace('ü', 'u').Replace('Ü', 'U');
+        var code = string.Concat(transliterated.Where(character => character is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9'))
+            .ToUpperInvariant();
+        if (code.Length < 2) code = "VALE";
+        return code[..Math.Min(code.Length, 40)];
+    }
 }

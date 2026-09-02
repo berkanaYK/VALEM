@@ -1,0 +1,52 @@
+@model PlatformSystemModel
+@{
+    ViewData["Title"] = "Sistem ve veritabanı";
+}
+<div class="page-heading">
+    <div>
+        <div class="eyebrow">Canlı altyapı görünürlüğü</div>
+        <h1>Sistem ve veritabanı</h1>
+        <p>Gizli bağlantı bilgilerini göstermeden servis, şema ve kalıcı kayıt durumunu doğrular.</p>
+    </div>
+    <a class="button secondary" asp-action="Index">Yeniden kontrol et</a>
+</div>
+<section class="metric-grid">
+    <div class="metric"><span>Veritabanı</span><strong>@(Model.DatabaseConnected ? "Hazır" : "Ulaşılamıyor")</strong><small>@Model.DatabaseProvider</small></div>
+    <div class="metric"><span>Migration</span><strong>@Model.AppliedMigrations.Count</strong><small>@(Model.PendingMigrations.Count == 0 ? "Şema güncel" : $"{Model.PendingMigrations.Count} bekliyor")</small></div>
+    <div class="metric"><span>E-posta</span><strong>@(Model.EmailConfigured ? "Yapılandırıldı" : "Eksik")</strong><small>SMTP / HTTPS gönderici</small></div>
+    <div class="metric"><span>Firebase</span><strong>@(Model.FirebaseConfigured ? "Yapılandırıldı" : "Eksik")</strong><small>Push bildirimleri</small></div>
+    <div class="metric"><span>Cihaz oturumları</span><strong>@Model.ActiveDeviceSessions</strong><small>Etkin ve süresi dolmamış</small></div>
+    <div class="metric"><span>Push cihazları</span><strong>@Model.ActivePushRegistrations</strong><small>Etkin kayıt</small></div>
+</section>
+@if (!Model.DatabaseConnected)
+{
+    <div class="alert error" role="alert">Veritabanı bağlantısı kurulamadı. Servis günlüklerini ve Neon bağlantı bilgisini kontrol edin.</div>
+}
+else if (Model.PendingMigrations.Count > 0)
+{
+    <div class="alert warn" role="alert">Bekleyen migration var. Üretim başlangıç işlemi tamamlanmadan şemaya elle müdahale etmeyin.</div>
+}
+else
+{
+    <div class="alert success" role="status">Veritabanı bağlı ve EF Core şeması güncel.</div>
+}
+<div class="field-grid system-grid">
+    <section class="panel form-panel">
+        <div class="panel-heading flush"><div><h2>Migration geçmişi</h2><p>Uygulanan sürümlü şema adımları.</p></div></div>
+        @if (Model.AppliedMigrations.Count == 0)
+        {
+            <div class="empty-inline">Uygulanmış migration okunamadı.</div>
+        }
+        else
+        {
+            <ol class="migration-list">@foreach (var migration in Model.AppliedMigrations) { <li><code>@migration</code></li> }</ol>
+        }
+    </section>
+    <section class="panel form-panel">
+        <div class="panel-heading flush"><div><h2>Kayıt özeti</h2><p>Destek ve izleme açısından önemli sistem tabloları.</p></div></div>
+        <div class="info-row"><span>Okunmamış uygulama bildirimi</span><strong>@Model.UnreadNotifications</strong></div>
+        <div class="info-row"><span>Firma denetim kaydı</span><strong>@Model.TenantAuditEntries</strong></div>
+        <div class="info-row"><span>Platform denetim kaydı</span><strong>@Model.PlatformAuditEntries</strong></div>
+        <p class="fine-print">Son kontrol: @Model.CheckedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss")</p>
+    </section>
+</div>

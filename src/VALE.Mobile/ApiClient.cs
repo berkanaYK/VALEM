@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Maui.Networking;
+using Microsoft.Maui.Devices;
 using Microsoft.Maui.Storage;
 using VALE.Contracts;
 
@@ -20,6 +21,7 @@ public sealed class ApiClient : IDisposable
 {
     private const string CustomEnabledPreference = "vale_custom_server_v2_enabled";
     private const string CustomUrlPreference = "vale_custom_server_v2_url";
+    private const string RefreshTokenStorageKey = "vale_refresh_token_v1";
     public const string ProductionBaseUrl = "https://vale-api-5fvb.onrender.com/";
 
     private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
@@ -87,18 +89,18 @@ public sealed class ApiClient : IDisposable
         if (!response.IsSuccessStatusCode) throw new InvalidOperationException("Sunucu henüz hazır değil. Tekrar deneyin.");
     }
 
-    public async Task<LoginResponse> LoginAsync(string email, string password, CancellationToken ct = default)
+    public async Task<LoginResponse> LoginAsync(string email, string password, bool rememberDevice = false, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password)) throw new InvalidOperationException("E-posta ve parola alanlarını doldurun.");
-        using var response = await SendJsonAsync(HttpMethod.Post, "api/auth/login", new LoginRequest(email.Trim(), password), false, ct);
+        using var response = await SendJsonAsync(HttpMethod.Post, "api/auth/login", new LoginRequest(email.Trim(), password, rememberDevice, DeviceName), false, ct);
         if (await IsTwoFactorRequiredAsync(response, ct)) throw new TwoFactorRequiredException();
         await EnsureSuccessAsync(response, ct);
         return await AcceptLoginAsync(response, ct);
     }
 
-    public async Task<LoginResponse> LoginWithTwoFactorAsync(string email, string password, string code, CancellationToken ct = default)
+    public async Task<LoginResponse> LoginWithTwoFactorAsync(string email, string password, string code, bool rememberDevice = false, CancellationToken ct = default)
     {
-        using var response = await SendJsonAsync(HttpMethod.Post, "api/auth/login/2fa", new TwoFactorLoginRequest(email.Trim(), password, code.Trim()), false, ct);
+        using var response = await SendJsonAsync(HttpMethod.Post, "api/auth/login/2fa", new TwoFactorLoginRequest(email.Trim(), password, code.Trim(), rememberDevice, DeviceName), false, ct);
         await EnsureSuccessAsync(response, ct);
         return await AcceptLoginAsync(response, ct);
     }
@@ -109,9 +111,9 @@ public sealed class ApiClient : IDisposable
         await EnsureSuccessAsync(response, ct);
     }
 
-    public async Task<LoginResponse> VerifyEmailLoginCodeAsync(string email, string code, string? twoFactorCode = null, CancellationToken ct = default)
+    public async Task<LoginResponse> VerifyEmailLoginCodeAsync(string email, string code, string? twoFactorCode = null, bool rememberDevice = false, CancellationToken ct = default)
     {
-        using var response = await SendJsonAsync(HttpMethod.Post, "api/auth/email-code/verify", new EmailCodeVerifyRequest(email.Trim(), code.Trim(), string.IsNullOrWhiteSpace(twoFactorCode) ? null : twoFactorCode.Trim()), false, ct);
+        using var response = await SendJsonAsync(HttpMethod.Post, "api/auth/email-code/verify", new EmailCodeVerifyRequest(email.Trim(), code.Trim(), string.IsNullOrWhiteSpace(twoFactorCode) ? null : twoFactorCode.Trim(), rememberDevice, DeviceName), false, ct);
         if (await IsTwoFactorRequiredAsync(response, ct)) throw new TwoFactorRequiredException();
         await EnsureSuccessAsync(response, ct);
         return await AcceptLoginAsync(response, ct);
@@ -126,14 +128,14 @@ public sealed class ApiClient : IDisposable
 
     public async Task<RegisterResponse> RegisterOwnerAsync(OwnerRegisterRequest request, CancellationToken ct = default)
     {
-        using var response = await SendJsonAsync(HttpMethod.Post, "api/registration/owner", request, false, ct);
+        using var response = await SendJsonAsync(HttpMethod.Post, "api/registration/owner", request, false, ct, TimeSpan.FromSeconds(60));
         await EnsureSuccessAsync(response, ct);
         return await response.Content.ReadFromJsonAsync<RegisterResponse>(JsonOptions, ct) ?? throw new InvalidOperationException("Firma hesabı oluşturma yanıtı alınamadı.");
     }
 
     public async Task<RegisterResponse> RegisterStaffAsync(StaffRegisterRequest request, CancellationToken ct = default)
     {
-        using var response = await SendJsonAsync(HttpMethod.Post, "api/registration/staff", request, false, ct);
+        using var response = await SendJsonAsync(HttpMethod.Post, "api/registration/staff", request, false, ct, TimeSpan.FromSeconds(60));
         await EnsureSuccessAsync(response, ct);
         return await response.Content.ReadFromJsonAsync<RegisterResponse>(JsonOptions, ct) ?? throw new InvalidOperationException("Personel başvurusu yanıtı alınamadı.");
     }
@@ -383,9 +385,65 @@ public sealed class ApiClient : IDisposable
         return await response.Content.ReadFromJsonAsync<PushTestResponse>(JsonOptions, ct) ?? throw new InvalidOperationException("Push test yanıtı alınamadı.");
     }
 
+    public async Task<LoginResponse?> TryRestoreSessionAsync(CancellationToken ct = default)
+    {
+        var refreshToken = await TryReadRefreshTokenAsync();
+        if (string.IsNullOrWhiteSpace(refreshToken)) return null;
+
+        try
+        {
+            using var response = await SendJsonAsync(HttpMethod.Post, "api/auth/refresh", new RefreshSessionRequest(refreshToken, DeviceName), false, ct);
+            if (response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Unauthorized)
+            {
+                TryRemoveRefreshToken();
+                return null;
+            }
+            await EnsureSuccessAsync(response, ct);
+            return await AcceptLoginAsync(response, ct);
+        }
+        catch (InvalidOperationException)
+        {
+            // Network/cold-start errors must not destroy a still-valid remembered session.
+            return null;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            // A malformed/transient server response must not crash application startup or
+            // destroy a token that can be retried after the service is healthy again.
+            return null;
+        }
+    }
+
+    public async Task LogoutAsync(CancellationToken ct = default)
+    {
+        await PushTokenManager.DetachAsync(ct);
+        var refreshToken = await TryReadRefreshTokenAsync();
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(refreshToken))
+            {
+                using var response = await SendJsonAsync(HttpMethod.Post, "api/auth/logout", new RefreshSessionRequest(refreshToken, DeviceName), false, ct, TimeSpan.FromSeconds(10));
+            }
+        }
+        catch
+        {
+            // Local logout always succeeds; an unreachable server session expires naturally.
+        }
+        finally
+        {
+            Logout();
+        }
+    }
+
     public void Logout()
     {
         _accessToken = null;
+        TryRemoveRefreshToken();
         ResetBranchContext();
     }
 
@@ -393,9 +451,41 @@ public sealed class ApiClient : IDisposable
     {
         var login = await response.Content.ReadFromJsonAsync<LoginResponse>(JsonOptions, ct) ?? throw new InvalidOperationException("Sunucudan geçerli giriş yanıtı alınamadı.");
         _accessToken = login.AccessToken;
+        if (string.IsNullOrWhiteSpace(login.RefreshToken))
+            TryRemoveRefreshToken();
+        else
+            await TryWriteRefreshTokenAsync(login.RefreshToken);
         ResetBranchContext(login.User.BranchId);
         return login;
     }
+
+    private static async Task<string?> TryReadRefreshTokenAsync()
+    {
+        try { return await SecureStorage.Default.GetAsync(RefreshTokenStorageKey); }
+        catch
+        {
+            TryRemoveRefreshToken();
+            return null;
+        }
+    }
+
+    private static async Task TryWriteRefreshTokenAsync(string token)
+    {
+        try { await SecureStorage.Default.SetAsync(RefreshTokenStorageKey, token); }
+        catch
+        {
+            // Bozulmuş veya kullanılamayan Android keystore girişi normal oturumu engellememeli.
+            TryRemoveRefreshToken();
+        }
+    }
+
+    private static void TryRemoveRefreshToken()
+    {
+        try { SecureStorage.Default.Remove(RefreshTokenStorageKey); } catch { }
+    }
+
+    private static string DeviceName =>
+        $"{DeviceInfo.Current.Manufacturer} {DeviceInfo.Current.Model}".Trim();
 
     private async Task<T> GetAsync<T>(string path, bool authorized, CancellationToken ct)
     {
@@ -482,6 +572,9 @@ public sealed class ApiClient : IDisposable
         var old = _httpClient;
         _httpClient = CreateHttpClient(baseUrl);
         _accessToken = null;
+        // Refresh tokens are issued by one API origin. Never forward a production token
+        // to a user-selected custom server (or the reverse) after an endpoint change.
+        TryRemoveRefreshToken();
         ResetBranchContext();
         old.Dispose();
     }
@@ -519,8 +612,11 @@ public sealed class ApiClient : IDisposable
 
     private static string NormalizeBaseUrl(string baseUrl)
     {
-        if (!Uri.TryCreate(baseUrl.Trim(), UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp))
-            throw new InvalidOperationException("Geçerli bir http/https sunucu adresi girin.");
+        if (!Uri.TryCreate(baseUrl.Trim(), UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp))
+            throw new InvalidOperationException("Geçerli bir HTTPS sunucu adresi girin.");
+        if (uri.Scheme == Uri.UriSchemeHttp && !uri.IsLoopback)
+            throw new InvalidOperationException("HTTP yalnızca localhost geliştirme sunucusunda kullanılabilir. Uzak sunucular HTTPS olmalıdır.");
         var builder = new UriBuilder(uri);
         if (!builder.Path.EndsWith('/')) builder.Path += "/";
         return builder.Uri.AbsoluteUri;

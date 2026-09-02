@@ -218,8 +218,7 @@ public sealed class LogoutPage : ContentPage
         base.OnAppearing();
         if (_done) return;
         _done = true;
-        await PushTokenManager.DetachAsync();
-        _api.Logout();
+        await _api.LogoutAsync();
         App.ShowLogin();
     }
 }

@@ -3,6 +3,7 @@ using FirebaseAdmin.Messaging;
 using Google.Apis.Auth.OAuth2;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using System.Text.Json;
 using VALE.Api.Configuration;
 using VALE.Api.Data;
 
@@ -34,7 +35,17 @@ public sealed class FirebaseAppProvider(IOptions<FirebaseOptions> options, ILogg
 
             try
             {
-                var credential = GoogleCredential.FromJson(_options.ServiceAccountJson);
+                using var credentialJson = JsonDocument.Parse(_options.ServiceAccountJson);
+                var root = credentialJson.RootElement;
+                if (!root.TryGetProperty("type", out var type) || type.GetString() != "service_account")
+                    throw new InvalidOperationException("Firebase kimlik bilgisi service_account türünde olmalıdır.");
+                if (root.TryGetProperty("project_id", out var projectId) &&
+                    !string.Equals(projectId.GetString(), _options.ProjectId.Trim(), StringComparison.Ordinal))
+                    throw new InvalidOperationException("Firebase service account ProjectId yapılandırmayla eşleşmiyor.");
+
+                var credential = CredentialFactory
+                    .FromJson<ServiceAccountCredential>(_options.ServiceAccountJson)
+                    .ToGoogleCredential();
                 var existing = FirebaseApp.GetInstance("VALE.Push");
                 var app = existing ?? FirebaseApp.Create(new AppOptions
                 {
@@ -96,7 +107,6 @@ public sealed class FirebasePushSender(
 
                 var message = new Message
                 {
-                    Token = registration.Token,
                     Notification = new Notification
                     {
                         Title = title,
@@ -115,6 +125,7 @@ public sealed class FirebasePushSender(
                         }
                     }
                 };
+                SetTarget(message, registration.Token);
 
                 await messaging.SendAsync(message, cancellationToken);
                 delivered++;
@@ -139,4 +150,23 @@ public sealed class FirebasePushSender(
 
         return (registrations.Count, delivered);
     }
+
+    private static void SetTarget(Message message, string registrationId)
+    {
+        if (IsFirebaseInstallationId(registrationId))
+        {
+            message.Fid = registrationId;
+            return;
+        }
+
+        // 3.1.x clients uploaded legacy FCM registration tokens. Keep them working
+        // during the 3.2 rollout; all new Android clients register a FID instead.
+#pragma warning disable CS0618
+        message.Token = registrationId;
+#pragma warning restore CS0618
+    }
+
+    private static bool IsFirebaseInstallationId(string value) =>
+        value.Length is >= 20 and <= 64 &&
+        value.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_');
 }

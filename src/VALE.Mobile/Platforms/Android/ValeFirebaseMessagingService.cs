@@ -4,6 +4,7 @@ using Android.Content.PM;
 using Android.OS;
 using AndroidX.Core.App;
 using Firebase.Messaging;
+using System.Runtime.Versioning;
 
 namespace VALE.Mobile;
 
@@ -13,10 +14,10 @@ public sealed class ValeFirebaseMessagingService : FirebaseMessagingService
 {
     public const string ChannelId = "vale_general";
 
-    public override void OnNewToken(string token)
+    public override void OnRegistered(string installationId)
     {
-        base.OnNewToken(token);
-        _ = PushTokenManager.UpdateTokenAsync(token);
+        base.OnRegistered(installationId);
+        _ = PushTokenManager.UpdateTokenAsync(installationId);
     }
 
     public override void OnMessageReceived(RemoteMessage message)
@@ -31,7 +32,13 @@ public sealed class ValeFirebaseMessagingService : FirebaseMessagingService
 
     public static void EnsureChannel(Context context)
     {
-        if (Build.VERSION.SdkInt < BuildVersionCodes.O) return;
+        if (!OperatingSystem.IsAndroidVersionAtLeast(26)) return;
+        EnsureChannelForAndroidO(context);
+    }
+
+    [SupportedOSPlatform("android26.0")]
+    private static void EnsureChannelForAndroidO(Context context)
+    {
         var manager = (NotificationManager?)context.GetSystemService(NotificationService);
         if (manager is null || manager.GetNotificationChannel(ChannelId) is not null) return;
 
@@ -45,7 +52,7 @@ public sealed class ValeFirebaseMessagingService : FirebaseMessagingService
 
     private void ShowNotification(string title, string body, IDictionary<string, string> data)
     {
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu &&
+        if (OperatingSystem.IsAndroidVersionAtLeast(33) &&
             CheckSelfPermission(Android.Manifest.Permission.PostNotifications) != Permission.Granted)
             return;
 
@@ -57,19 +64,25 @@ public sealed class ValeFirebaseMessagingService : FirebaseMessagingService
             intent.PutExtra(item.Key, item.Value);
 
         var flags = PendingIntentFlags.UpdateCurrent;
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.M) flags |= PendingIntentFlags.Immutable;
+        if (OperatingSystem.IsAndroidVersionAtLeast(23)) flags |= PendingIntentFlags.Immutable;
         var pendingIntent = PendingIntent.GetActivity(this, 0, intent, flags);
+        if (pendingIntent is null) return;
 
-        var builder = new NotificationCompat.Builder(this, ChannelId)
-            .SetSmallIcon(Android.Resource.Drawable.IcDialogInfo)
-            .SetContentTitle(title)
-            .SetContentText(body)
-            .SetStyle(new NotificationCompat.BigTextStyle().BigText(body))
-            .SetPriority(NotificationCompat.PriorityHigh)
-            .SetAutoCancel(true)
-            .SetContentIntent(pendingIntent);
+        using var style = new NotificationCompat.BigTextStyle();
+        style.BigText(body);
+        using var builder = new NotificationCompat.Builder(this, ChannelId);
+        builder.SetSmallIcon(Android.Resource.Drawable.IcDialogInfo);
+        builder.SetContentTitle(title);
+        builder.SetContentText(body);
+        builder.SetStyle(style);
+        builder.SetPriority(NotificationCompat.PriorityHigh);
+        builder.SetAutoCancel(true);
+        builder.SetContentIntent(pendingIntent);
 
-        NotificationManagerCompat.From(this).Notify((int)(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() % int.MaxValue), builder.Build());
+        var builtNotification = builder.Build();
+        var manager = NotificationManagerCompat.From(this);
+        if (builtNotification is null || manager is null) return;
+        manager.Notify((int)(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() % int.MaxValue), builtNotification);
     }
 
     private static string? GetData(RemoteMessage message, string key) =>

@@ -5,7 +5,9 @@ namespace VALE.Contracts;
 public sealed record TwoFactorLoginRequest(
     [param: Required, EmailAddress, MaxLength(256)] string Email,
     [param: Required, MinLength(8), MaxLength(128)] string Password,
-    [param: Required, RegularExpression("^[0-9]{6}$")] string Code);
+    [param: Required, RegularExpression("^[0-9]{6}$")] string Code,
+    bool RememberDevice = false,
+    [param: MaxLength(120)] string? DeviceName = null);
 
 public sealed record EmailCodeRequest(
     [param: Required, EmailAddress, MaxLength(256)] string Email);
@@ -13,7 +15,9 @@ public sealed record EmailCodeRequest(
 public sealed record EmailCodeVerifyRequest(
     [param: Required, EmailAddress, MaxLength(256)] string Email,
     [param: Required, RegularExpression("^[0-9]{6}$")] string Code,
-    [param: RegularExpression("^[0-9]{6}$")] string? TwoFactorCode = null);
+    [param: RegularExpression("^[0-9]{6}$")] string? TwoFactorCode = null,
+    bool RememberDevice = false,
+    [param: MaxLength(120)] string? DeviceName = null);
 
 public sealed record TwoFactorCodeRequest(
     [param: Required, RegularExpression("^[0-9]{6}$")] string Code);

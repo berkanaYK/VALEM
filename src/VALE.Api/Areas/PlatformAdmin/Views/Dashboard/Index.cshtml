@@ -1,0 +1,35 @@
+@model PlatformDashboardModel
+@{
+    ViewData["Title"] = "Genel durum";
+}
+
+<div class="page-heading">
+    <div><div class="eyebrow">Canlı operasyon görünümü</div><h1>Genel durum</h1></div>
+    <span class="status-pill good">Yönetim erişimi etkin</span>
+</div>
+
+<section class="metric-grid" aria-label="Sistem özeti">
+    <article class="metric"><span>Firmalar</span><strong>@Model.ActiveCompanies / @Model.Companies</strong><small>aktif / toplam</small></article>
+    <article class="metric"><span>Kullanıcılar</span><strong>@Model.ActiveUsers / @Model.Users</strong><small>aktif / toplam</small></article>
+    <article class="metric"><span>Şubeler</span><strong>@Model.Branches</strong><small>kayıtlı şube</small></article>
+    <article class="metric"><span>İçerideki araç</span><strong>@Model.ActiveTickets</strong><small>açık vale kaydı</small></article>
+    <article class="metric"><span>Bekleyen başvuru</span><strong>@Model.PendingRegistrations</strong><small>inceleme bekliyor</small></article>
+    <article class="metric"><span>Son 24 saat</span><strong>@Model.PaymentsLast24Hours.ToString("N2") ₺</strong><small>kaydedilen tahsilat</small></article>
+</section>
+
+<section class="panel">
+    <div class="panel-heading"><div><h2>Son geliştirici işlemleri</h2><p>Panelden yapılan değişikliklerin ayrı ve değiştirilemez görünümü.</p></div><a asp-controller="Audit" asp-action="Index">Tümünü gör</a></div>
+    @if (Model.RecentActions.Count == 0)
+    {
+        <div class="empty-inline">Henüz geliştirici işlemi kaydedilmedi.</div>
+    }
+    else
+    {
+        <div class="table-wrap"><table><thead><tr><th>Zaman</th><th>Yönetici</th><th>İşlem</th><th>Ayrıntı</th></tr></thead><tbody>
+        @foreach (var row in Model.RecentActions)
+        {
+            <tr><td><time datetime="@row.OccurredAt.ToString("O")">@row.OccurredAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</time></td><td>@row.AdminName</td><td><code>@row.Action</code></td><td>@row.Detail</td></tr>
+        }
+        </tbody></table></div>
+    }
+</section>

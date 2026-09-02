@@ -18,7 +18,10 @@ function Read-SecretText([string]$Prompt) {
     }
 }
 
-$connectionString = Read-SecretText 'Bulut PostgreSQL bağlantı dizesi'
+$connectionString = Read-SecretText 'PostgreSQL/Neon bağlantı dizesi'
+$platformAdminEmail = Read-Host 'Geliştirici web paneli e-posta adresi (firma hesaplarından farklı olmalı)'
+$platformAdminPassword = Read-SecretText 'Geliştirici web paneli parolası (en az 10 karakter, büyük/küçük harf, rakam ve sembol)'
+$platformAdminName = Read-Host 'Geliştirici web panelinde görünecek ad'
 $adminEmail = Read-Host 'İlk yönetici e-posta adresi'
 $adminPassword = Read-SecretText 'İlk yönetici parolası (en az 10 karakter, büyük/küçük harf, rakam ve sembol)'
 $adminName = Read-Host 'İlk yöneticinin adı soyadı'
@@ -32,6 +35,9 @@ $jwtKey = [Convert]::ToBase64String($jwtBytes)
 
 dotnet user-secrets set 'ConnectionStrings:ValeDatabase' $connectionString --project $apiProject
 dotnet user-secrets set 'Jwt:Key' $jwtKey --project $apiProject
+dotnet user-secrets set 'PlatformAdmin:Email' $platformAdminEmail --project $apiProject
+dotnet user-secrets set 'PlatformAdmin:Password' $platformAdminPassword --project $apiProject
+dotnet user-secrets set 'PlatformAdmin:FullName' $platformAdminName --project $apiProject
 dotnet user-secrets set 'Seed:AdminEmail' $adminEmail --project $apiProject
 dotnet user-secrets set 'Seed:AdminPassword' $adminPassword --project $apiProject
 dotnet user-secrets set 'Seed:AdminFullName' $adminName --project $apiProject
@@ -40,10 +46,10 @@ dotnet user-secrets set 'Seed:DefaultBranchCode' $branchCode --project $apiProje
 dotnet user-secrets set 'Seed:DefaultBranchCity' $branchCity --project $apiProject
 
 $connectionString = $null
+$platformAdminPassword = $null
 $adminPassword = $null
 $jwtKey = $null
 [GC]::Collect()
 
 Write-Host 'API sırları güvenli geliştirme deposuna kaydedildi.' -ForegroundColor Green
 Write-Host 'API başlatmak için: .\scripts\run-api.ps1'
-

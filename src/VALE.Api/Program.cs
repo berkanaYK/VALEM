@@ -1,7 +1,10 @@
 using System.Text;
+using System.Security.Claims;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -27,6 +30,11 @@ builder.Services.AddOptions<JwtOptions>()
     .Validate(x => x.ExpiryMinutes is >= 15 and <= 1440, "JWT süresi 15-1440 dakika arasında olmalıdır.")
     .ValidateOnStart();
 builder.Services.AddOptions<SeedOptions>().Bind(builder.Configuration.GetSection(SeedOptions.SectionName));
+builder.Services.AddOptions<DeviceSessionOptions>()
+    .Bind(builder.Configuration.GetSection(DeviceSessionOptions.SectionName))
+    .Validate(x => x.LifetimeDays is >= 1 and <= 90, "Hatırlanan cihaz süresi 1-90 gün arasında olmalıdır.")
+    .ValidateOnStart();
+builder.Services.AddOptions<PlatformAdminOptions>().Bind(builder.Configuration.GetSection(PlatformAdminOptions.SectionName));
 builder.Services.AddOptions<BusinessRulesOptions>()
     .Bind(builder.Configuration.GetSection(BusinessRulesOptions.SectionName))
     .Validate(x => x.DefaultHourlyRate > 0, "Varsayılan saatlik ücret sıfırdan büyük olmalıdır.")
@@ -37,7 +45,8 @@ builder.Services.AddOptions<FirebaseOptions>().Bind(builder.Configuration.GetSec
 var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
 if (Encoding.UTF8.GetByteCount(jwt.Key) < 32) throw new InvalidOperationException("Jwt:Key en az 32 bayt olmalıdır.");
 
-builder.Services.AddDbContext<ValeDbContext>(options => options.UseNpgsql(connectionString));
+builder.Services.AddDbContext<ValeDbContext>(options => options.UseNpgsql(connectionString, npgsql =>
+    npgsql.EnableRetryOnFailure(3, TimeSpan.FromSeconds(2), null)));
 builder.Services.AddIdentityCore<AppUser>(options =>
     {
         options.Password.RequiredLength = 10;
@@ -107,6 +116,30 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
             if (!companyActive || !branchActive) context.Fail("Firma veya varsayılan şube artık aktif değil.");
         }
     };
+}).AddCookie(PlatformAdminSecurity.CookieScheme, options =>
+{
+    options.Cookie.Name = "__Host-VALEM-Platform";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.LoginPath = "/platform-admin/account/login";
+    options.AccessDeniedPath = "/platform-admin/account/access-denied";
+    options.ExpireTimeSpan = TimeSpan.FromHours(2);
+    options.SlidingExpiration = true;
+    options.Events.OnValidatePrincipal = async context =>
+    {
+        var userIdValue = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+        var securityStamp = context.Principal?.FindFirstValue("security_stamp");
+        var userManager = context.HttpContext.RequestServices.GetRequiredService<UserManager<AppUser>>();
+        var user = Guid.TryParse(userIdValue, out var userId) ? await userManager.FindByIdAsync(userId.ToString()) : null;
+        if (user is null || !user.IsActive || user.CompanyId.HasValue || user.BranchId.HasValue ||
+            string.IsNullOrWhiteSpace(securityStamp) || !string.Equals(user.SecurityStamp, securityStamp, StringComparison.Ordinal) ||
+            !await userManager.IsInRoleAsync(user, Roles.PlatformAdmin))
+        {
+            context.RejectPrincipal();
+            await context.HttpContext.SignOutAsync(PlatformAdminSecurity.CookieScheme);
+        }
+    };
 });
 
 var auth = builder.Services.AddAuthorizationBuilder();
@@ -124,6 +157,7 @@ builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.AddPolicy("login", context => Fixed(context, 10, TimeSpan.FromMinutes(1)));
+    options.AddPolicy("session", context => Fixed(context, 20, TimeSpan.FromMinutes(1)));
     options.AddPolicy("register", context => Fixed(context, 5, TimeSpan.FromMinutes(10)));
     options.AddPolicy("password-reset", context => Fixed(context, 5, TimeSpan.FromMinutes(15)));
     options.AddPolicy("email-code", context => Fixed(context, 5, TimeSpan.FromMinutes(10)));
@@ -133,13 +167,15 @@ builder.Services.AddRateLimiter(options =>
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
-builder.Services.AddControllers().AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+builder.Services.AddControllersWithViews().AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<CurrentUserContext>();
 builder.Services.AddScoped<TenantAccessService>();
 builder.Services.AddScoped<TokenService>();
+builder.Services.AddScoped<DeviceSessionService>();
+builder.Services.AddScoped<PlatformAuditService>();
 builder.Services.AddScoped<TicketService>();
 builder.Services.AddScoped<PasswordResetCodeService>();
 builder.Services.AddScoped<OneTimeCodeService>();
@@ -159,11 +195,13 @@ app.Use(async (context, next) =>
     context.Response.Headers["X-Frame-Options"] = "DENY";
     context.Response.Headers["Referrer-Policy"] = "no-referrer";
     context.Response.Headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
+    context.Response.Headers["Content-Security-Policy"] = "default-src 'self'; img-src 'self' data:; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'";
     context.Response.Headers["Cache-Control"] = "no-store";
     await next();
 });
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -198,16 +236,23 @@ app.MapGet("/health/email", async (IValeEmailSender email, CancellationToken ct)
 app.MapGet("/api/status", (IValeEmailSender email, FirebasePushSender push) => Results.Ok(new
 {
     service = "VALE.Api",
-    version = "3.1.2",
+    version = "3.2.0",
     status = "ok",
     capabilities = new
     {
         smtp = email.IsConfigured,
         fcm = push.IsConfigured,
-        multiTenant = true
+        multiTenant = true,
+        rememberedDevices = true,
+        platformAdmin = true,
+        migrations = true
     },
     utc = DateTimeOffset.UtcNow
 })).AllowAnonymous();
+app.MapControllerRoute(
+    name: "platform-admin",
+    pattern: "platform-admin/{controller=Dashboard}/{action=Index}/{id?}",
+    defaults: new { area = PlatformAdminSecurity.AreaName });
 app.MapControllers();
 
 await using (var scope = app.Services.CreateAsyncScope()) await DatabaseSeeder.InitializeAsync(scope.ServiceProvider);

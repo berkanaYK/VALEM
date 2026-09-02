@@ -1,0 +1,23 @@
+@model PlatformCompanyEditModel
+@{
+    ViewData["Title"] = "Firma düzenle";
+}
+<div class="page-heading"><div><a class="back-link" asp-action="Index">← Firmalar</a><h1>@Model.Name</h1><p>@Model.BranchCount şube · @Model.UserCount kullanıcı · @Model.ActiveTicketCount açık kayıt</p></div></div>
+<section class="panel form-panel">
+<form asp-action="Edit" method="post" class="form-stack">
+    @Html.AntiForgeryToken()<input asp-for="Id" type="hidden" />
+    <div asp-validation-summary="ModelOnly" class="validation"></div>
+    <label asp-for="Name"></label><input asp-for="Name" /><span asp-validation-for="Name" class="validation"></span>
+    <label asp-for="Code"></label><input asp-for="Code" autocomplete="off" /><span asp-validation-for="Code" class="validation"></span>
+    <label asp-for="OwnerUserId"></label>
+    <select asp-for="OwnerUserId">
+        <option value="">Ana sahip seçin</option>
+        @for (var i = 0; i < Model.OwnerCandidateIds.Count; i++) { <option value="@Model.OwnerCandidateIds[i]">@Model.OwnerCandidateNames[i]</option> }
+    </select>
+    <span asp-validation-for="OwnerUserId" class="validation"></span>
+    <p class="fine-print">Sahipliği devrettiğiniz kullanıcıya Owner rolü otomatik eklenir. Önceki sahibin rolünü gerekiyorsa Kullanıcılar ekranından ayrıca düzenleyin.</p>
+    <label class="check-row"><input asp-for="IsActive" /><span><strong>Firma aktif</strong><small>Pasif firma kullanıcıları uygulamaya giriş yapamaz.</small></span></label>
+    @if (!string.IsNullOrWhiteSpace(Model.OwnerName)) { <div class="info-row"><span>Mevcut ana sahip</span><strong>@Model.OwnerName</strong></div> }
+    <div class="form-actions"><button class="button primary" type="submit">Değişiklikleri kaydet</button><a class="button ghost" asp-action="Index">Vazgeç</a></div>
+</form>
+</section>

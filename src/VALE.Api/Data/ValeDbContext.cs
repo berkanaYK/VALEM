@@ -14,11 +14,13 @@ public sealed class ValeDbContext(DbContextOptions<ValeDbContext> options)
     public DbSet<RegistrationRequest> RegistrationRequests => Set<RegistrationRequest>();
     public DbSet<ValeNotification> Notifications => Set<ValeNotification>();
     public DbSet<PushRegistration> PushRegistrations => Set<PushRegistration>();
+    public DbSet<DeviceSession> DeviceSessions => Set<DeviceSession>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Vehicle> Vehicles => Set<Vehicle>();
     public DbSet<ParkingTicket> ParkingTickets => Set<ParkingTicket>();
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
+    public DbSet<PlatformAuditEntry> PlatformAuditEntries => Set<PlatformAuditEntry>();
 
     public override int SaveChanges() =>
         throw new InvalidOperationException("Tenant bütünlüğü doğrulaması için SaveChangesAsync kullanılmalıdır.");
@@ -182,6 +184,16 @@ public sealed class ValeDbContext(DbContextOptions<ValeDbContext> options)
                 throw new InvalidOperationException("Push kaydı yalnızca aynı firmadaki kullanıcıya bağlanabilir.");
         }
 
+        foreach (var sessionEntry in ChangeTracker.Entries<DeviceSession>().Where(x => x.State is EntityState.Added or EntityState.Modified))
+        {
+            var session = sessionEntry.Entity;
+            var userCompanyId = session.User is { CompanyId: var trackedUserCompanyId } && trackedUserCompanyId.HasValue
+                ? trackedUserCompanyId
+                : await Users.AsNoTracking().Where(x => x.Id == session.UserId).Select(x => x.CompanyId).SingleOrDefaultAsync(cancellationToken);
+            if (!userCompanyId.HasValue || userCompanyId.Value != session.CompanyId)
+                throw new InvalidOperationException("Cihaz oturumu yalnızca aynı firmadaki kullanıcıya bağlanabilir.");
+        }
+
         foreach (var auditEntry in ChangeTracker.Entries<AuditEntry>().Where(x => x.State is EntityState.Added or EntityState.Modified))
         {
             var audit = auditEntry.Entity;
@@ -287,6 +299,18 @@ public sealed class ValeDbContext(DbContextOptions<ValeDbContext> options)
             entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        builder.Entity<DeviceSession>(entity =>
+        {
+            entity.HasIndex(x => x.TokenHash).IsUnique();
+            entity.HasIndex(x => new { x.UserId, x.RevokedAt, x.ExpiresAt });
+            entity.HasIndex(x => new { x.CompanyId, x.UserId });
+            entity.Property(x => x.TokenHash).HasMaxLength(64);
+            entity.Property(x => x.SecurityStamp).HasMaxLength(128);
+            entity.Property(x => x.DeviceName).HasMaxLength(120);
+            entity.HasOne(x => x.Company).WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         builder.Entity<Customer>(entity =>
         {
             entity.HasIndex(x => new { x.CompanyId, x.NormalizedPhone });
@@ -324,7 +348,7 @@ public sealed class ValeDbContext(DbContextOptions<ValeDbContext> options)
             entity.Property(x => x.HourlyRate).HasPrecision(12, 2);
             entity.Property(x => x.AmountDue).HasPrecision(12, 2);
             entity.Property(x => x.PaidAmount).HasPrecision(12, 2);
-            entity.HasOne<Company>().WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Company).WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.AssignedUser).WithMany().HasForeignKey(x => x.AssignedUserId).OnDelete(DeleteBehavior.SetNull);
             entity.HasOne(x => x.CreatedByUser).WithMany().HasForeignKey(x => x.CreatedByUserId).OnDelete(DeleteBehavior.SetNull);
             entity.HasOne(x => x.UpdatedByUser).WithMany().HasForeignKey(x => x.UpdatedByUserId).OnDelete(DeleteBehavior.SetNull);
@@ -333,6 +357,7 @@ public sealed class ValeDbContext(DbContextOptions<ValeDbContext> options)
 
         builder.Entity<Payment>(entity =>
         {
+            entity.HasQueryFilter(x => x.Ticket.DeletedAt == null);
             entity.HasIndex(x => new { x.CompanyId, x.PaidAt });
             entity.Property(x => x.Amount).HasPrecision(12, 2);
             entity.Property(x => x.Method).HasConversion<string>().HasMaxLength(24);
@@ -351,9 +376,22 @@ public sealed class ValeDbContext(DbContextOptions<ValeDbContext> options)
             entity.Property(x => x.EntityId).HasMaxLength(80);
             entity.Property(x => x.Detail).HasMaxLength(1000);
             entity.Property(x => x.IpAddress).HasMaxLength(64);
-            entity.HasOne<Company>().WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Company).WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.SetNull);
             entity.HasOne(x => x.Branch).WithMany().HasForeignKey(x => x.BranchId).OnDelete(DeleteBehavior.SetNull);
         });
+
+        builder.Entity<PlatformAuditEntry>(entity =>
+        {
+            entity.HasIndex(x => x.OccurredAt);
+            entity.HasIndex(x => new { x.AdminUserId, x.OccurredAt });
+            entity.Property(x => x.Action).HasMaxLength(80);
+            entity.Property(x => x.EntityType).HasMaxLength(80);
+            entity.Property(x => x.EntityId).HasMaxLength(80);
+            entity.Property(x => x.Detail).HasMaxLength(1500);
+            entity.Property(x => x.IpAddress).HasMaxLength(64);
+            entity.HasOne(x => x.AdminUser).WithMany().HasForeignKey(x => x.AdminUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
     }
 }

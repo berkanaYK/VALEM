@@ -102,9 +102,9 @@ public sealed class MoreHubPage : ContentPage
 
         var logout = UiKit.TextButton("Oturumu Kapat");
         logout.TextColor = ThemeService.Palette.Danger;
-        logout.Clicked += (_, _) =>
+        logout.Clicked += async (_, _) =>
         {
-            _api.Logout();
+            await _api.LogoutAsync();
             App.ShowLogin();
         };
 
