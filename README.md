@@ -252,6 +252,14 @@ GitHub’daki `Android Real Device UI` workflow’u, `vale-android-device` etike
 
 `main` dalındaki başarılı Android workflow’u `VALE.apk` dosyasını yeni GitHub Release’e ekler. Play Store için kalıcı imza depoya yazılmaz: workflow yalnızca `VALE_ANDROID_KEYSTORE_B64`, `VALE_ANDROID_STORE_PASSWORD`, `VALE_ANDROID_KEY_ALIAS` ve `VALE_ANDROID_KEY_PASSWORD` GitHub Actions secretlarıyla imza üretir. Anahtarın çevrimdışı kurtarma kopyası güvenli ve yedekli tutulmalıdır; kaybolursa aynı uygulama kimliğiyle güncelleme yayınlamak mümkün olmayabilir.
 
+Kalıcı Play upload anahtarını Windows bilgisayarında oluşturup secretları yüklemek için:
+
+```powershell
+.\scripts\create-android-play-keystore.ps1 -OutputDirectory "D:\VALEM-GUVENLI-YEDEK" -UploadGitHubSecrets
+```
+
+Betik parolaları güvenli girişle sorar, hiçbir parolayı repoya/düz metin dosyasına yazmaz ve mevcut `.jks` dosyasının üzerine çıkmaz. Oluşan `VALEM-upload-key.jks` dosyasını ve parolaları iki ayrı güvenli çevrimdışı konumda yedekleyin.
+
 ## Üretim ortam değişkenleri
 
 | Değişken | Zorunluluk | Açıklama |
