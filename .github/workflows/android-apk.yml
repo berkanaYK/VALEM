@@ -297,7 +297,7 @@ jobs:
         run: dotnet publish src/VALE.Mobile/VALE.Mobile.csproj -f net10.0-android -c Release --no-restore -p:AndroidPackageFormats=apk -p:RunAOTCompilation=false
 
       - name: Prepare permanent Android signing key
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && secrets.VALE_ANDROID_KEYSTORE_B64 != ''
         shell: pwsh
         env:
           KEYSTORE_B64: ${{ secrets.VALE_ANDROID_KEYSTORE_B64 }}
@@ -313,7 +313,7 @@ jobs:
           "VALE_KEYSTORE_PATH=$path" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Publish permanently signed APK
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && secrets.VALE_ANDROID_KEYSTORE_B64 != ''
         shell: pwsh
         env:
           STORE_PASSWORD: ${{ secrets.VALE_ANDROID_STORE_PASSWORD }}
@@ -324,6 +324,13 @@ jobs:
             -p:AndroidPackageFormats=apk -p:RunAOTCompilation=false -p:AndroidKeyStore=true `
             -p:AndroidSigningKeyStore="$env:VALE_KEYSTORE_PATH" -p:AndroidSigningStorePass="env:STORE_PASSWORD" `
             -p:AndroidSigningKeyAlias="$env:KEY_ALIAS" -p:AndroidSigningKeyPass="env:KEY_PASSWORD"
+
+      - name: Publish APK while Play signing secrets are pending
+        if: github.ref == 'refs/heads/main' && secrets.VALE_ANDROID_KEYSTORE_B64 == ''
+        shell: pwsh
+        run: |
+          Write-Warning 'Play Store kalıcı imzalama secretı henüz eklenmedi; GitHub test APK imzası kullanılacak.'
+          dotnet publish src/VALE.Mobile/VALE.Mobile.csproj -f net10.0-android -c Release --no-restore -p:AndroidPackageFormats=apk -p:RunAOTCompilation=false
 
       - name: Prepare VALE.apk
         shell: pwsh
