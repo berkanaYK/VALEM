@@ -1,4 +1,5 @@
 name: Build Android APK
+# VALE 3.3 release validation: passwordless TOTP, navigation, profile media and themes.
 
 on:
   workflow_dispatch:
