@@ -126,5 +126,11 @@ jobs:
           $firebase = Get-Content 'src/VALE.Api/Services/FirebasePushSender.cs' -Raw
           if ($firebase -match 'GoogleCredential\.FromJson' -or $firebase -notmatch 'CredentialFactory' -or $firebase -notmatch '\.Fid') { throw 'Güvenli Google credential/FID geçişi eksik.' }
           $platformBase = Get-Content 'src/VALE.Api/Areas/PlatformAdmin/Controllers/PlatformAdminControllerBase.cs' -Raw
-          if ($platformBase -notmatch 'AutoValidateAntiforgeryToken' -or $platformBase -notmatch 'Roles\.PlatformAdmin' -or $program -notmatch 'VALEM\.PlatformAdmin') { throw 'Platform yönetim paneli CSRF/rol/ayrı cookie koruması eksik.' }
+          $platformSecurity = Get-Content 'src/VALE.Api/Services/PlatformAdminSecurity.cs' -Raw
+          if ($platformBase -notmatch 'AutoValidateAntiforgeryToken' -or
+              $platformBase -notmatch 'Roles\.PlatformAdmin' -or
+              $platformSecurity -notmatch 'VALEM\.PlatformAdmin' -or
+              $program -notmatch 'AddCookie\(PlatformAdminSecurity\.CookieScheme') {
+            throw 'Platform yönetim paneli CSRF/rol/ayrı cookie koruması eksik.'
+          }
           Write-Host 'VALE API 3.2 security, migration, remembered-session and platform-admin checks passed.'
