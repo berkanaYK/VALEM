@@ -221,7 +221,8 @@ public sealed class MoreHubPage : ContentPage
                 NullIfEmpty(_phone.Text),
                 _profile.PreferredTheme,
                 _profile.AccentTheme,
-                _profile.ProfileColor));
+                _profile.ProfileColor,
+                _profile.BackgroundTheme));
             _profile = updated;
             await DisplayAlertAsync("Kaydedildi", "Profil bilgileriniz güncellendi.", "Tamam");
         }
@@ -252,7 +253,8 @@ public sealed class MoreHubPage : ContentPage
                 _profile.PhoneNumber,
                 mode.ToString(),
                 accent.ToString(),
-                _profile.ProfileColor));
+                _profile.ProfileColor,
+                _profile.BackgroundTheme));
         }
         catch (Exception ex)
         {

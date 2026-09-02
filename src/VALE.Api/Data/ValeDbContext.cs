@@ -245,6 +245,8 @@ public sealed class ValeDbContext(DbContextOptions<ValeDbContext> options)
             entity.Property(x => x.PreferredTheme).HasMaxLength(20);
             entity.Property(x => x.AccentTheme).HasMaxLength(20);
             entity.Property(x => x.ProfileColor).HasMaxLength(20);
+            entity.Property(x => x.BackgroundTheme).HasMaxLength(30);
+            entity.Property(x => x.ProfilePhotoContentType).HasMaxLength(30);
             entity.HasIndex(x => new { x.CompanyId, x.EmployeeCode }).IsUnique();
             entity.HasIndex(x => x.CompanyId);
             entity.HasOne(x => x.Company).WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.SetNull);

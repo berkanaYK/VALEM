@@ -4,7 +4,6 @@ namespace VALE.Contracts;
 
 public sealed record TwoFactorLoginRequest(
     [param: Required, EmailAddress, MaxLength(256)] string Email,
-    [param: Required, MinLength(8), MaxLength(128)] string Password,
     [param: Required, RegularExpression("^[0-9]{6}$")] string Code,
     bool RememberDevice = false,
     [param: MaxLength(120)] string? DeviceName = null);
@@ -41,14 +40,21 @@ public sealed record AccountProfileDto(
     string PreferredTheme,
     string AccentTheme,
     string ProfileColor,
-    bool TwoFactorEnabled);
+    bool TwoFactorEnabled,
+    string BackgroundTheme,
+    string? ProfilePhotoDataUrl);
 
 public sealed record UpdateAccountProfileRequest(
     [param: Required, MinLength(2), MaxLength(120)] string FullName,
     [param: MaxLength(30)] string? PhoneNumber,
     [param: Required, MaxLength(20)] string PreferredTheme,
     [param: Required, MaxLength(20)] string AccentTheme,
-    [param: Required, RegularExpression("^#[0-9A-Fa-f]{6}$")] string ProfileColor);
+    [param: Required, RegularExpression("^#[0-9A-Fa-f]{6}$")] string ProfileColor,
+    [param: Required, MaxLength(30)] string BackgroundTheme);
+
+public sealed record ProfilePhotoUploadRequest(
+    [param: Required, MaxLength(30)] string ContentType,
+    [param: Required] string Base64Data);
 
 public sealed record AdminUserDetailDto(
     Guid Id,

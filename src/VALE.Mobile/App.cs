@@ -40,7 +40,7 @@ public sealed class App : Application
         try
         {
             var profile = await api.GetAccountProfileAsync();
-            ThemeService.ApplyServerPreferences(profile.PreferredTheme, profile.AccentTheme);
+            ThemeService.ApplyServerPreferences(profile.PreferredTheme, profile.AccentTheme, profile.BackgroundTheme);
         }
         catch
         {

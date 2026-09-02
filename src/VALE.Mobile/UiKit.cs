@@ -1,4 +1,5 @@
 using Microsoft.Maui.Controls;
+using System.ComponentModel;
 
 namespace VALE.Mobile;
 
@@ -7,6 +8,14 @@ public static class UiKit
     public static void StylePage(ContentPage page)
     {
         page.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValePage");
+        PropertyChangedEventHandler? handler = null;
+        handler = (_, args) =>
+        {
+            if (args.PropertyName != nameof(ContentPage.Content) || page.Content is null || page.Content is ThemeBackgroundHost) return;
+            page.PropertyChanged -= handler;
+            page.Content = new ThemeBackgroundHost(page.Content);
+        };
+        page.PropertyChanged += handler;
     }
 
     public static Label Label(string text, double size = 14, bool bold = false, bool secondary = false)
@@ -213,5 +222,40 @@ public static class UiKit
         };
         activity.SetDynamicResource(ActivityIndicator.ColorProperty, "ValeAccent");
         return activity;
+    }
+}
+
+public sealed class ThemeBackgroundHost : Grid
+{
+    private readonly Image _background = new() { Aspect = Aspect.AspectFill, Opacity = 0.92 };
+    private readonly BoxView _overlay = new() { Color = Color.FromRgba(4, 10, 20, 118) };
+
+    public ThemeBackgroundHost(View content)
+    {
+        Add(_background);
+        Add(_overlay);
+        Add(content);
+        ThemeService.Changed += OnThemeChanged;
+        Unloaded += (_, _) => ThemeService.Changed -= OnThemeChanged;
+        Refresh();
+    }
+
+    private void OnThemeChanged(object? sender, EventArgs e) => Dispatcher.Dispatch(Refresh);
+
+    private void Refresh()
+    {
+        var source = ThemeService.CurrentBackground switch
+        {
+            ValeBackgroundTheme.AnimeNeon => ImageSource.FromFile("theme_anime_neon.jpg"),
+            ValeBackgroundTheme.AnimeSunset => ImageSource.FromFile("theme_anime_sunset.jpg"),
+            ValeBackgroundTheme.CarNeon => ImageSource.FromFile("theme_car_neon.jpg"),
+            ValeBackgroundTheme.CarTrack => ImageSource.FromFile("theme_car_track.jpg"),
+            ValeBackgroundTheme.Custom when File.Exists(ThemeService.CustomBackgroundPath) =>
+                ImageSource.FromStream(() => File.OpenRead(ThemeService.CustomBackgroundPath!)),
+            _ => null
+        };
+        _background.Source = source;
+        _background.IsVisible = source is not null;
+        _overlay.IsVisible = source is not null;
     }
 }

@@ -166,6 +166,11 @@ namespace VALE.Api.Data.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("integer");
 
+                    b.Property<string>("BackgroundTheme")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
                     b.Property<Guid?>("BranchId")
                         .HasColumnType("uuid");
 
@@ -237,6 +242,13 @@ namespace VALE.Api.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
+
+                    b.Property<byte[]>("ProfilePhoto")
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("ProfilePhotoContentType")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
 
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("text");

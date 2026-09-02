@@ -300,9 +300,12 @@ public sealed class CompanyProfilePage : ContentPage
     private readonly Label _branch = UiKit.Label("—", 13.5);
     private readonly Label _roles = UiKit.Label("—", 12.5, false, true);
     private readonly Label _avatar = UiKit.Label("VA", 26, true);
+    private readonly Image _avatarImage = new() { Aspect = Aspect.AspectFill, IsVisible = false };
+    private readonly Border _avatarBox;
     private readonly Picker _theme = UiKit.Picker("Tema");
     private readonly Picker _accent = UiKit.Picker("Vurgu rengi");
     private readonly Picker _profileColor = UiKit.Picker("Profil rengi");
+    private readonly Picker _background = UiKit.Picker("Arka plan teması");
     private AccountProfileDto? _profile;
 
     public CompanyProfilePage(ApiClient api, UserDto user)
@@ -311,11 +314,15 @@ public sealed class CompanyProfilePage : ContentPage
         _theme.ItemsSource = new[] { "Sistem", "Açık", "Koyu" };
         _accent.ItemsSource = new[] { "Mavi", "İndigo", "Zümrüt", "Turuncu" };
         _profileColor.ItemsSource = new[] { "Mavi", "İndigo", "Zümrüt", "Turuncu", "Kırmızı", "Mor" };
+        _background.ItemsSource = new[] { "Sade", "Anime • Neon Şehir", "Anime • Gün Batımı", "Araba • Neon Garaj", "Araba • Gece Rotası", "Galerimden Özel" };
 
-        var avatarBox = new Border { StrokeThickness = 0, BackgroundColor = ThemeService.Palette.Accent, StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 42 }, WidthRequest = 84, HeightRequest = 84, HorizontalOptions = LayoutOptions.Center, Content = _avatar };
+        var avatarLayer = new Grid(); avatarLayer.Add(_avatar); avatarLayer.Add(_avatarImage);
+        _avatarBox = new Border { StrokeThickness = 2, Stroke = new SolidColorBrush(Colors.White), BackgroundColor = ThemeService.Palette.Accent, StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 48 }, WidthRequest = 96, HeightRequest = 96, HorizontalOptions = LayoutOptions.Center, Content = avatarLayer };
         _avatar.HorizontalTextAlignment = TextAlignment.Center; _avatar.VerticalTextAlignment = TextAlignment.Center; _avatar.TextColor = Colors.White;
 
-        var save = UiKit.PrimaryButton("Değişiklikleri Kaydet"); save.Clicked += async (_, _) => await SaveAsync(save, avatarBox);
+        var photo = UiKit.SecondaryButton("Fotoğraf Ekle / Değiştir"); photo.Clicked += async (_, _) => await ChoosePhotoAsync(photo);
+        var customBackground = UiKit.SecondaryButton("Galeriden Arka Plan Seç"); customBackground.Clicked += async (_, _) => await ChooseCustomBackgroundAsync(customBackground);
+        var save = UiKit.PrimaryButton("Değişiklikleri Kaydet"); save.Clicked += async (_, _) => await SaveAsync(save, _avatarBox);
         var security = UiKit.SecondaryButton("İki Adımlı Doğrulama"); security.Clicked += async (_, _) => await Navigation.PushAsync(new TwoFactorPage(_api));
         var password = UiKit.SecondaryButton("Parolayı Değiştir"); password.Clicked += async (_, _) => await Navigation.PushAsync(new ChangePasswordPage(_api));
         var logout = UiKit.TextButton("Oturumu Kapat");
@@ -327,9 +334,9 @@ public sealed class CompanyProfilePage : ContentPage
         };
 
         Content = new ScrollView { Content = new VerticalStackLayout { Padding = 16, Spacing = 14, Children = {
-            avatarBox, UiKit.Label("Profilim", 27, true),
+            _avatarBox, photo, UiKit.Label("Profilim", 27, true),
             UiKit.Card(new VerticalStackLayout { Spacing = 9, Children = { UiKit.Label("Kişisel bilgiler", 16, true), _name, _phone, Detail("E-posta", _email), Detail("Personel kodu", _employee), Detail("Görev", _job), Detail("Şube", _branch), Detail("Yetkiler", _roles) } }),
-            UiKit.Card(new VerticalStackLayout { Spacing = 9, Children = { UiKit.Label("Görünüm", 16, true), _theme, _accent, _profileColor, UiKit.Label("Tema ve görünüm tercihleriniz hesabınıza kaydedilir.", 11, false, true) } }),
+            UiKit.Card(new VerticalStackLayout { Spacing = 9, Children = { UiKit.Label("Görünüm", 16, true), _theme, _accent, _profileColor, _background, customBackground, UiKit.Label("Tema tüm sayfalara uygulanır. Görsel arka planda kartlar koyulaşır ve yazılar otomatik olarak yüksek kontrasta geçer.", 11, false, true) } }),
             save, security, password, logout
         } } };
     }
@@ -343,8 +350,8 @@ public sealed class CompanyProfilePage : ContentPage
             _profile = await _api.GetAccountProfileAsync();
             _name.Text = _profile.FullName; _phone.Text = _profile.PhoneNumber;
             _email.Text = _profile.Email; _employee.Text = _profile.EmployeeCode ?? "—"; _job.Text = _profile.JobTitle ?? "—"; _branch.Text = _profile.BranchName ?? "—";
-            _roles.Text = CompanyAccess.RolesText(_profile.Roles); _avatar.Text = Initials(_profile.FullName);
-            _theme.SelectedIndex = ThemeIndex(_profile.PreferredTheme); _accent.SelectedIndex = AccentIndex(_profile.AccentTheme); _profileColor.SelectedIndex = ProfileColorIndex(_profile.ProfileColor);
+            _roles.Text = CompanyAccess.RolesText(_profile.Roles); SetAvatar(_profile);
+            _theme.SelectedIndex = ThemeIndex(_profile.PreferredTheme); _accent.SelectedIndex = AccentIndex(_profile.AccentTheme); _profileColor.SelectedIndex = ProfileColorIndex(_profile.ProfileColor); _background.SelectedIndex = BackgroundIndex(_profile.BackgroundTheme);
         }
         catch (Exception ex) { await DisplayAlertAsync("Profil", ex.Message, "Tamam"); }
     }
@@ -354,14 +361,70 @@ public sealed class CompanyProfilePage : ContentPage
         try
         {
             button.IsEnabled = false;
-            var request = new UpdateAccountProfileRequest(_name.Text ?? "", N(_phone.Text), ThemeValue(_theme.SelectedIndex), AccentValue(_accent.SelectedIndex), ProfileColorValue(_profileColor.SelectedIndex));
+            var request = new UpdateAccountProfileRequest(_name.Text ?? "", N(_phone.Text), ThemeValue(_theme.SelectedIndex), AccentValue(_accent.SelectedIndex), ProfileColorValue(_profileColor.SelectedIndex), BackgroundValue(_background.SelectedIndex));
             _profile = await _api.UpdateAccountProfileAsync(request);
-            ThemeService.ApplyServerPreferences(_profile.PreferredTheme, _profile.AccentTheme);
-            avatarBox.BackgroundColor = Color.FromArgb(_profile.ProfileColor); _avatar.Text = Initials(_profile.FullName);
+            ThemeService.ApplyServerPreferences(_profile.PreferredTheme, _profile.AccentTheme, _profile.BackgroundTheme);
+            avatarBox.BackgroundColor = Color.FromArgb(_profile.ProfileColor); SetAvatar(_profile);
             await DisplayAlertAsync("Kaydedildi", "Profil ve görünüm tercihleriniz güncellendi.", "Tamam");
         }
         catch (Exception ex) { await DisplayAlertAsync("Profil kaydedilemedi", ex.Message, "Tamam"); }
         finally { button.IsEnabled = true; }
+    }
+
+    private async Task ChoosePhotoAsync(Button button)
+    {
+        var action = await DisplayActionSheetAsync("Profil fotoğrafı", "Vazgeç", _profile?.ProfilePhotoDataUrl is null ? null : "Fotoğrafı kaldır", "Kamerayla çek", "Galeriden seç");
+        try
+        {
+            button.IsEnabled = false;
+            if (action == "Fotoğrafı kaldır") _profile = await _api.DeleteProfilePhotoAsync();
+            else if (action is "Kamerayla çek" or "Galeriden seç")
+            {
+                var file = action == "Kamerayla çek" ? await MediaPicker.Default.CapturePhotoAsync() : await MediaPicker.Default.PickPhotoAsync();
+                if (file is null) return;
+                await using var stream = await file.OpenReadAsync();
+                var bytes = await ImageTools.NormalizeJpegAsync(stream, 720, 82);
+                _profile = await _api.UpdateProfilePhotoAsync("image/jpeg", bytes);
+            }
+            if (_profile is not null) SetAvatar(_profile);
+        }
+        catch (Exception ex) { await DisplayAlertAsync("Fotoğraf güncellenemedi", ex.Message, "Tamam"); }
+        finally { button.IsEnabled = true; }
+    }
+
+    private async Task ChooseCustomBackgroundAsync(Button button)
+    {
+        try
+        {
+            button.IsEnabled = false;
+            var file = await MediaPicker.Default.PickPhotoAsync();
+            if (file is null) return;
+            await using var stream = await file.OpenReadAsync();
+            var bytes = await ImageTools.NormalizeJpegAsync(stream, 1440, 84);
+            var path = Path.Combine(FileSystem.AppDataDirectory, "vale-custom-background.jpg");
+            await File.WriteAllBytesAsync(path, bytes);
+            var analysis = ImageTools.Analyze(bytes);
+            ThemeService.SetCustomBackground(path, analysis.Accent, analysis.Dark);
+            _background.SelectedIndex = 5;
+            await DisplayAlertAsync("Arka plan hazır", "Görselin baskın rengine göre vurgu ve yazı kontrastı ayarlandı. Kaydet düğmesiyle hesabınıza tema seçimini kaydedebilirsiniz.", "Tamam");
+        }
+        catch (Exception ex) { await DisplayAlertAsync("Arka plan seçilemedi", ex.Message, "Tamam"); }
+        finally { button.IsEnabled = true; }
+    }
+
+    private void SetAvatar(AccountProfileDto profile)
+    {
+        _avatar.Text = Initials(profile.FullName);
+        _avatarBox.BackgroundColor = Color.FromArgb(profile.ProfileColor);
+        if (string.IsNullOrWhiteSpace(profile.ProfilePhotoDataUrl))
+        {
+            _avatarImage.Source = null; _avatarImage.IsVisible = false; _avatar.IsVisible = true; return;
+        }
+        var comma = profile.ProfilePhotoDataUrl.IndexOf(',');
+        if (comma < 0) return;
+        var bytes = Convert.FromBase64String(profile.ProfilePhotoDataUrl[(comma + 1)..]);
+        _avatarImage.Source = ImageSource.FromStream(() => new MemoryStream(bytes));
+        _avatarImage.IsVisible = true; _avatar.IsVisible = false;
     }
 
     private static View Detail(string title, Label value) => new VerticalStackLayout { Spacing = 2, Children = { UiKit.Label(title, 10.5, true, true), value } };
@@ -374,6 +437,8 @@ public sealed class CompanyProfilePage : ContentPage
     private static readonly string[] ProfileColors = ["#2563EB", "#4F46E5", "#059669", "#EA580C", "#DC2626", "#9333EA"];
     private static int ProfileColorIndex(string value) { var i = Array.FindIndex(ProfileColors, x => x.Equals(value, StringComparison.OrdinalIgnoreCase)); return i < 0 ? 0 : i; }
     private static string ProfileColorValue(int index) => ProfileColors[Math.Clamp(index, 0, ProfileColors.Length - 1)];
+    private static int BackgroundIndex(string value) => value switch { "AnimeNeon" => 1, "AnimeSunset" => 2, "CarNeon" => 3, "CarTrack" => 4, "Custom" => 5, _ => 0 };
+    private static string BackgroundValue(int index) => index switch { 1 => "AnimeNeon", 2 => "AnimeSunset", 3 => "CarNeon", 4 => "CarTrack", 5 => "Custom", _ => "None" };
 }
 
 public sealed class TwoFactorPage : ContentPage

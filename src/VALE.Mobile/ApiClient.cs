@@ -98,9 +98,9 @@ public sealed class ApiClient : IDisposable
         return await AcceptLoginAsync(response, ct);
     }
 
-    public async Task<LoginResponse> LoginWithTwoFactorAsync(string email, string password, string code, bool rememberDevice = false, CancellationToken ct = default)
+    public async Task<LoginResponse> LoginWithTwoFactorAsync(string email, string code, bool rememberDevice = false, CancellationToken ct = default)
     {
-        using var response = await SendJsonAsync(HttpMethod.Post, "api/auth/login/2fa", new TwoFactorLoginRequest(email.Trim(), password, code.Trim(), rememberDevice, DeviceName), false, ct);
+        using var response = await SendJsonAsync(HttpMethod.Post, "api/auth/login/2fa", new TwoFactorLoginRequest(email.Trim(), code.Trim(), rememberDevice, DeviceName), false, ct);
         await EnsureSuccessAsync(response, ct);
         return await AcceptLoginAsync(response, ct);
     }
@@ -168,6 +168,20 @@ public sealed class ApiClient : IDisposable
         using var response = await SendJsonAsync(HttpMethod.Put, "api/auth/profile", request, true, ct);
         await EnsureSuccessAsync(response, ct);
         return await response.Content.ReadFromJsonAsync<AccountProfileDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Profil kaydedilemedi.");
+    }
+
+    public async Task<AccountProfileDto> UpdateProfilePhotoAsync(string contentType, byte[] bytes, CancellationToken ct = default)
+    {
+        using var response = await SendJsonAsync(HttpMethod.Put, "api/auth/profile/photo", new ProfilePhotoUploadRequest(contentType, Convert.ToBase64String(bytes)), true, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<AccountProfileDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Profil fotoğrafı kaydedilemedi.");
+    }
+
+    public async Task<AccountProfileDto> DeleteProfilePhotoAsync(CancellationToken ct = default)
+    {
+        using var response = await SendJsonAsync(HttpMethod.Delete, "api/auth/profile/photo", new { }, true, ct);
+        await EnsureSuccessAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<AccountProfileDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Profil fotoğrafı kaldırılamadı.");
     }
 
     public async Task ChangePasswordAsync(string currentPassword, string newPassword, CancellationToken ct = default)

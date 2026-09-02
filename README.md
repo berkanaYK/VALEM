@@ -2,7 +2,7 @@
 
 VALEM, vale işletmelerinin araç kabulünden teslim ve tahsilata kadar günlük operasyonunu telefondan yönetmesini sağlayan çok firmalı bir platformdur. Güncel ürün; .NET MAUI Android uygulaması, ASP.NET Core API, PostgreSQL veritabanı ve yalnızca geliştiriciye açık web yönetim panelinden oluşur.
 
-Güncel sürüm: **3.2.0** (`Android build 14`)
+Güncel sürüm: **3.3.0** (`Android build 15`)
 
 Canlı API: [vale-api-5fvb.onrender.com](https://vale-api-5fvb.onrender.com/api/status)
 
@@ -12,6 +12,7 @@ Canlı API: [vale-api-5fvb.onrender.com](https://vale-api-5fvb.onrender.com/api/
 - Firma sahibi için ad, e-posta ve firma adıyla başlayan sade kayıt
 - Personel için tek davet koduyla katılım; firma/şube kodu yalnızca alternatif yol
 - Varsayılan parolasız e-posta kodu, isteğe bağlı parola veya Authenticator girişi
+- Authenticator etkin hesaplarda parola istemeyen e-posta + 6 haneli TOTP girişi; deneme sınırı ve hesap kilitleme koruması
 - Güvenli cihazı hatırlama; 30 günlük dönen ve sunucuda yalnızca özeti saklanan oturum anahtarı
 - Firma ve şube sınırlarını API ile zorlayan çok kiracılı yetkilendirme
 - Araç durumu, teslim isteği, tahsilat, rapor, bildirim, FCM ve denetim kaydı
@@ -19,7 +20,11 @@ Canlı API: [vale-api-5fvb.onrender.com](https://vale-api-5fvb.onrender.com/api/
 - `EnsureCreated` yerine sürümlü EF Core migration ve eski 3.1.2 şemasını güvenli devralma
 - .NET MAUI 10.0.100, uyumlu AndroidX bağımlılıkları ve Firebase Messaging 125.1.1
 - AndroidX geri hareketi, Firebase FID kaydı ve güvenli Google service-account yükleme API’leri
-- API için 63 otomatik test; gerçek Android cihazı için Appium/UiAutomator2 senaryosu
+- Gerçek üst-seviye sayfa geçmişini izleyen Android geri hareketi; çıkış uyarısı yalnızca Ana Sayfa’da gidilecek yer kalmadığında görünür
+- Kamera/galeri profil fotoğrafı ve oturum çekmecesinde kullanıcı avatarı
+- Tüm sayfaya yayılan Mavi, İndigo, Zümrüt ve Turuncu renkleri; iki Anime, iki Araba ve galeriden özel arka plan
+- Özel görselin baskın rengini/luminansını örnekleyerek vurgu, kart saydamlığı ve yazı kontrastını otomatik uyarlama
+- API için 64 otomatik test; gerçek Android cihazı için Appium/UiAutomator2 senaryosu
 
 ## Kullanıcı açısından akış
 
@@ -205,7 +210,7 @@ CI ayrıca idempotent PostgreSQL migration betiği üretir. Migration dosyaları
 .\scripts\verify.ps1
 ```
 
-Bu komut API’yi uyarıları hata sayarak derler, 63 API testini çalıştırır, Appium test paketini derler, Android Release build alır ve `dotnet-ef` kuruluysa bekleyen model farkını kontrol eder.
+Bu komut API’yi uyarıları hata sayarak derler, 64 API testini çalıştırır, Appium test paketini derler, Android Release build alır ve `dotnet-ef` kuruluysa bekleyen model farkını kontrol eder.
 
 ### Fiziksel Android cihaz testi
 
@@ -228,6 +233,7 @@ Senaryo gerçek ekranda şunları doğrular:
 - Giriş alanları ve düğmelerinin kullanılabilir olması
 - `Bu güvenli cihazda oturumu açık tut` anahtarının çalışması
 - Alternatif e-posta kodu girişinin açılması
+- Authenticator ekranında yalnızca e-posta ve 6 haneli kod bulunması; parola alanının olmaması
 - Kayıt ekranında yalnızca temel alanların görünmesi
 - Parola ve gelişmiş firma alanlarının varsayılan olarak kapalı olması
 - Android sistem geri hareketinin kayıt ekranından giriş ekranına dönmesi
@@ -239,12 +245,12 @@ GitHub’daki `Android Real Device UI` workflow’u, `vale-android-device` etike
 
 | İş akışı | Ne yapar? |
 | --- | --- |
-| `VALE API CI` | Release build, 63 test, bağımlılık/secret kontrolü, migration model+SQL doğrulaması ve güvenlik kaynak kapıları |
+| `VALE API CI` | Release build, 64 test, bağımlılık/secret kontrolü, migration model+SQL doğrulaması ve güvenlik kaynak kapıları |
 | `Build Android APK` | AndroidX/Firebase kontrolleri, production API/e-posta smoke testleri, Appium paket derlemesi, APK üretimi ve GitHub Release |
-| `Verify Production VALE API` | Render deploy sonrası 3.2.0, veritabanı, e-posta, auth ve web paneli erişim sınırlarını doğrular |
+| `Verify Production VALE API` | Render deploy sonrası 3.3.0, veritabanı, e-posta, auth ve web paneli erişim sınırlarını doğrular |
 | `Android Real Device UI` | Bağlı fiziksel telefonda Appium senaryosunu elle çalıştırır |
 
-`main` dalındaki başarılı Android workflow’u `VALE.apk` dosyasını yeni GitHub Release’e ekler. Kalıcı özel release keystore/Play Store imzası ürün geliştirmeleri bittikten sonra ayrıca yapılandırılacaktır; mevcut GitHub APK yayını Play Store güncelleme anahtarı yerine geçmez.
+`main` dalındaki başarılı Android workflow’u `VALE.apk` dosyasını yeni GitHub Release’e ekler. Play Store için kalıcı imza depoya yazılmaz: workflow yalnızca `VALE_ANDROID_KEYSTORE_B64`, `VALE_ANDROID_STORE_PASSWORD`, `VALE_ANDROID_KEY_ALIAS` ve `VALE_ANDROID_KEY_PASSWORD` GitHub Actions secretlarıyla imza üretir. Anahtarın çevrimdışı kurtarma kopyası güvenli ve yedekli tutulmalıdır; kaybolursa aynı uygulama kimliğiyle güncelleme yayınlamak mümkün olmayabilir.
 
 ## Üretim ortam değişkenleri
 

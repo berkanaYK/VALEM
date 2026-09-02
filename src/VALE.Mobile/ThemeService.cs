@@ -18,6 +18,16 @@ public enum ValeAccent
     Orange
 }
 
+public enum ValeBackgroundTheme
+{
+    None,
+    AnimeNeon,
+    AnimeSunset,
+    CarNeon,
+    CarTrack,
+    Custom
+}
+
 public sealed record ValePalette(
     Color Page,
     Color Card,
@@ -34,7 +44,10 @@ public static class ThemeService
 {
     private const string ThemePreferenceKey = "vale_theme_v3";
     private const string AccentPreferenceKey = "vale_accent_v3";
+    private const string BackgroundPreferenceKey = "vale_background_v33";
+    private const string CustomBackgroundPathKey = "vale_custom_background_v33";
     private static ValePalette? _lastAppliedPalette;
+    public static event EventHandler? Changed;
 
     public static ValeThemeMode CurrentMode => Enum.TryParse<ValeThemeMode>(
         Preferences.Default.Get(ThemePreferenceKey, nameof(ValeThemeMode.System)),
@@ -49,6 +62,20 @@ public static class ThemeService
         out var accent)
             ? accent
             : ValeAccent.Blue;
+
+    public static ValeBackgroundTheme CurrentBackground => Enum.TryParse<ValeBackgroundTheme>(
+        Preferences.Default.Get(BackgroundPreferenceKey, nameof(ValeBackgroundTheme.None)), true, out var background)
+            ? background : ValeBackgroundTheme.None;
+
+    public static string? CustomBackgroundPath
+    {
+        get
+        {
+            var value = Preferences.Default.Get(CustomBackgroundPathKey, string.Empty);
+            return string.IsNullOrWhiteSpace(value) ? null : value;
+        }
+    }
+    public static bool HasVisualBackground => CurrentBackground != ValeBackgroundTheme.None;
 
     private static bool IsDark =>
         CurrentMode == ValeThemeMode.Dark ||
@@ -67,7 +94,7 @@ public static class ThemeService
             Apply(application, mode, accent, save: true);
     }
 
-    public static void ApplyServerPreferences(string theme, string accent)
+    public static void ApplyServerPreferences(string theme, string accent, string? background = null)
     {
         var parsedTheme = Enum.TryParse<ValeThemeMode>(theme, true, out var mode)
             ? mode
@@ -75,7 +102,22 @@ public static class ThemeService
         var parsedAccent = Enum.TryParse<ValeAccent>(accent, true, out var selectedAccent)
             ? selectedAccent
             : ValeAccent.Blue;
+        if (Enum.TryParse<ValeBackgroundTheme>(background, true, out var parsedBackground))
+            Preferences.Default.Set(BackgroundPreferenceKey, parsedBackground.ToString());
         Apply(parsedTheme, parsedAccent);
+    }
+
+    public static void ApplyBackground(ValeBackgroundTheme background)
+    {
+        Preferences.Default.Set(BackgroundPreferenceKey, background.ToString());
+        if (Application.Current is { } application) Apply(application, CurrentMode, CurrentAccent, save: false);
+    }
+
+    public static void SetCustomBackground(string path, ValeAccent suggestedAccent, bool darkImage)
+    {
+        Preferences.Default.Set(CustomBackgroundPathKey, path);
+        Preferences.Default.Set(BackgroundPreferenceKey, nameof(ValeBackgroundTheme.Custom));
+        Apply(darkImage ? ValeThemeMode.Dark : ValeThemeMode.Light, suggestedAccent);
     }
 
     private static void Apply(Application application, ValeThemeMode mode, ValeAccent accent, bool save)
@@ -113,6 +155,7 @@ public static class ThemeService
 
         RefreshWindowChrome(application, previous, p);
         _lastAppliedPalette = p;
+        Changed?.Invoke(null, EventArgs.Empty);
     }
 
     private static void RefreshWindowChrome(Application application, ValePalette previous, ValePalette palette)
@@ -218,11 +261,41 @@ public static class ThemeService
             _ => Color.FromArgb(dark ? "#60A5FA" : "#2563EB")
         };
 
+        if (CurrentBackground != ValeBackgroundTheme.None)
+        {
+            return new ValePalette(
+                Color.FromArgb("#101827"), Color.FromRgba(12, 22, 38, 220), Color.FromRgba(21, 34, 54, 225),
+                Colors.White, Color.FromArgb("#D4E2F3"), Color.FromRgba(255, 255, 255, 55), accentColor,
+                Color.FromArgb("#4ADE80"), Color.FromArgb("#FBBF24"), Color.FromArgb("#FB7185"));
+        }
+
+        var tintedPage = accent switch
+        {
+            ValeAccent.Emerald => dark ? "#071A16" : "#ECFDF5",
+            ValeAccent.Indigo => dark ? "#11102A" : "#EEF2FF",
+            ValeAccent.Orange => dark ? "#211208" : "#FFF7ED",
+            _ => dark ? "#0B1220" : "#EFF6FF"
+        };
+        var tintedCard = accent switch
+        {
+            ValeAccent.Emerald => dark ? "#0D241E" : "#F7FFFB",
+            ValeAccent.Indigo => dark ? "#19183A" : "#FAFAFF",
+            ValeAccent.Orange => dark ? "#2A190D" : "#FFFCF8",
+            _ => dark ? "#111827" : "#FFFFFF"
+        };
+        var tintedSoft = accent switch
+        {
+            ValeAccent.Emerald => dark ? "#123128" : "#DDFBEF",
+            ValeAccent.Indigo => dark ? "#23214A" : "#E0E7FF",
+            ValeAccent.Orange => dark ? "#382314" : "#FFEDD5",
+            _ => dark ? "#172033" : "#DBEAFE"
+        };
+
         return dark
             ? new ValePalette(
-                Color.FromArgb("#0B1220"),
-                Color.FromArgb("#111827"),
-                Color.FromArgb("#172033"),
+                Color.FromArgb(tintedPage),
+                Color.FromArgb(tintedCard),
+                Color.FromArgb(tintedSoft),
                 Color.FromArgb("#F8FAFC"),
                 Color.FromArgb("#94A3B8"),
                 Color.FromArgb("#273449"),
@@ -231,9 +304,9 @@ public static class ThemeService
                 Color.FromArgb("#F59E0B"),
                 Color.FromArgb("#EF4444"))
             : new ValePalette(
-                Color.FromArgb("#F8FAFC"),
-                Colors.White,
-                Color.FromArgb("#FBFDFF"),
+                Color.FromArgb(tintedPage),
+                Color.FromArgb(tintedCard),
+                Color.FromArgb(tintedSoft),
                 Color.FromArgb("#0F172A"),
                 Color.FromArgb("#64748B"),
                 Color.FromArgb("#E5E7EB"),

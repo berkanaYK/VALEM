@@ -15,6 +15,17 @@ public sealed class AuthContractTests
     }
 
     [Fact]
+    public void Authenticator_login_is_passwordless_and_requires_email_and_code()
+    {
+        var parameters = typeof(TwoFactorLoginRequest).GetConstructors().Single().GetParameters();
+        Assert.DoesNotContain(parameters, x => x.Name!.Equals("password", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal("Email", parameters[0].Name, ignoreCase: true);
+        Assert.Equal("Code", parameters[1].Name, ignoreCase: true);
+        Assert.False(ConstructorParameterIsValid<TwoFactorLoginRequest>(1, "12345"));
+        Assert.True(ConstructorParameterIsValid<TwoFactorLoginRequest>(1, "123456"));
+    }
+
+    [Fact]
     public void Registration_supports_three_explicit_login_methods()
     {
         Assert.Equal(new[] { LoginMethods.Password, LoginMethods.EmailCode, LoginMethods.Authenticator }, LoginMethods.All);

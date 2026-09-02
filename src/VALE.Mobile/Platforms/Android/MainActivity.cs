@@ -40,6 +40,15 @@ public sealed class MainActivity : MauiAppCompatActivity
     private void HandleBackPressed()
     {
         var root = Microsoft.Maui.Controls.Application.Current?.Windows.FirstOrDefault()?.Page;
+        if (root is ValeAppShellV31 shell)
+        {
+            MainThread.BeginInvokeOnMainThread(async () =>
+            {
+                if (!await shell.TryNavigateBackAsync()) ShowExitConfirmation();
+            });
+            return;
+        }
+
         var navigation = root switch
         {
             Shell => Shell.Current?.Navigation,
@@ -53,6 +62,11 @@ public sealed class MainActivity : MauiAppCompatActivity
             return;
         }
 
+        ShowExitConfirmation();
+    }
+
+    private void ShowExitConfirmation()
+    {
         var now = DateTimeOffset.UtcNow;
         if (now - _lastBackPress <= TimeSpan.FromSeconds(2))
         {

@@ -36,11 +36,14 @@ public sealed class AuthController(
     [EnableRateLimiting("2fa")]
     public async Task<ActionResult<LoginResponse>> LoginWithTwoFactor(TwoFactorLoginRequest request, CancellationToken cancellationToken)
     {
-        var user = await FindUserAsync(request.Email, cancellationToken);
-        await ValidatePasswordAsync(user, request.Password);
+        var user = await FindUserAsync(request.Email, cancellationToken, hideNotFound: true);
         if (!user.TwoFactorEnabled || !await userManager.VerifyTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider, NormalizeCode(request.Code)))
+        {
+            await userManager.AccessFailedAsync(user);
             throw new ApiException(StatusCodes.Status401Unauthorized, "Kod doğrulanamadı", "Authenticator uygulamasındaki 6 haneli kodu kontrol edin.");
-        return Ok(await CompleteLoginAsync(user, "password+totp", request.RememberDevice, request.DeviceName, cancellationToken));
+        }
+        await userManager.ResetAccessFailedCountAsync(user);
+        return Ok(await CompleteLoginAsync(user, "totp-passwordless", request.RememberDevice, request.DeviceName, cancellationToken));
     }
 
     [HttpPost("email-code/request")]
@@ -177,15 +180,52 @@ public sealed class AuthController(
     {
         var theme = NormalizeChoice(request.PreferredTheme, ["System", "Light", "Dark"], "System");
         var accent = NormalizeChoice(request.AccentTheme, ["Blue", "Indigo", "Emerald", "Orange"], "Blue");
+        var background = NormalizeChoice(request.BackgroundTheme, ["None", "AnimeNeon", "AnimeSunset", "CarNeon", "CarTrack", "Custom"], "None");
         var user = await GetCurrentUserAsync(cancellationToken);
         user.FullName = request.FullName.Trim();
         user.PhoneNumber = Clean(request.PhoneNumber);
         user.PreferredTheme = theme;
         user.AccentTheme = accent;
         user.ProfileColor = request.ProfileColor.ToUpperInvariant();
+        user.BackgroundTheme = background;
         var result = await userManager.UpdateAsync(user);
         if (!result.Succeeded) throw new ApiException(StatusCodes.Status400BadRequest, "Profil kaydedilemedi", string.Join(" ", result.Errors.Select(x => x.Description)));
         await audit.RecordAsync(user.Id, user.BranchId, "profile.preferences.updated", "User", user.Id.ToString(), "Profil ve görünüm tercihleri güncellendi.", cancellationToken: cancellationToken);
+        return Ok(await MapProfileAsync(user));
+    }
+
+    [HttpPut("profile/photo")]
+    [Authorize]
+    [EnableRateLimiting("session")]
+    public async Task<ActionResult<AccountProfileDto>> UpdateProfilePhoto(ProfilePhotoUploadRequest request, CancellationToken cancellationToken)
+    {
+        var contentType = request.ContentType.Trim().ToLowerInvariant();
+        if (contentType is not ("image/jpeg" or "image/png" or "image/webp"))
+            throw new ApiException(StatusCodes.Status400BadRequest, "Fotoğraf biçimi desteklenmiyor", "JPEG, PNG veya WebP fotoğraf seçin.");
+
+        byte[] bytes;
+        try { bytes = Convert.FromBase64String(request.Base64Data); }
+        catch (FormatException) { throw new ApiException(StatusCodes.Status400BadRequest, "Fotoğraf okunamadı", "Fotoğraf verisi geçerli değil."); }
+        if (bytes.Length is < 32 or > 1_500_000 || !HasValidImageSignature(contentType, bytes))
+            throw new ApiException(StatusCodes.Status400BadRequest, "Fotoğraf doğrulanamadı", "Fotoğraf en fazla 1,5 MB olmalı ve dosya içeriği seçilen biçimle eşleşmelidir.");
+
+        var user = await GetCurrentUserAsync(cancellationToken);
+        user.ProfilePhoto = bytes;
+        user.ProfilePhotoContentType = contentType;
+        await userManager.UpdateAsync(user);
+        await audit.RecordAsync(user.Id, user.BranchId, "profile.photo.updated", "User", user.Id.ToString(), "Profil fotoğrafı güncellendi.", cancellationToken: cancellationToken);
+        return Ok(await MapProfileAsync(user));
+    }
+
+    [HttpDelete("profile/photo")]
+    [Authorize]
+    public async Task<ActionResult<AccountProfileDto>> DeleteProfilePhoto(CancellationToken cancellationToken)
+    {
+        var user = await GetCurrentUserAsync(cancellationToken);
+        user.ProfilePhoto = null;
+        user.ProfilePhotoContentType = null;
+        await userManager.UpdateAsync(user);
+        await audit.RecordAsync(user.Id, user.BranchId, "profile.photo.deleted", "User", user.Id.ToString(), "Profil fotoğrafı kaldırıldı.", cancellationToken: cancellationToken);
         return Ok(await MapProfileAsync(user));
     }
 
@@ -332,7 +372,18 @@ public sealed class AuthController(
     private async Task<AccountProfileDto> MapProfileAsync(AppUser user) => new(
         user.Id, user.FullName, user.Email ?? string.Empty, user.PhoneNumber, user.EmployeeCode, user.JobTitle,
         user.BranchId, user.Branch?.Name, (await userManager.GetRolesAsync(user)).ToList(), user.CreatedAt, user.LastLoginAt,
-        user.PreferredTheme, user.AccentTheme, user.ProfileColor, user.TwoFactorEnabled);
+        user.PreferredTheme, user.AccentTheme, user.ProfileColor, user.TwoFactorEnabled, user.BackgroundTheme,
+        user.ProfilePhoto is { Length: > 0 } && !string.IsNullOrWhiteSpace(user.ProfilePhotoContentType)
+            ? $"data:{user.ProfilePhotoContentType};base64,{Convert.ToBase64String(user.ProfilePhoto)}"
+            : null);
+
+    private static bool HasValidImageSignature(string contentType, byte[] bytes) => contentType switch
+    {
+        "image/jpeg" => bytes.Length > 2 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF,
+        "image/png" => bytes.Length > 7 && bytes.AsSpan(0, 8).SequenceEqual(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }),
+        "image/webp" => bytes.Length > 11 && bytes.AsSpan(0, 4).SequenceEqual("RIFF"u8) && bytes.AsSpan(8, 4).SequenceEqual("WEBP"u8),
+        _ => false
+    };
 
     private static UserDto MapUser(AppUser user, IEnumerable<string> roles) => new(user.Id, user.FullName, user.Email ?? string.Empty, user.BranchId, user.Branch?.Name, roles.ToList());
     private static string NormalizeCode(string code) => code.Replace(" ", string.Empty).Replace("-", string.Empty);

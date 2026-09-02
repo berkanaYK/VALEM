@@ -41,6 +41,9 @@ public sealed class AppUser : IdentityUser<Guid>
     public string PreferredTheme { get; set; } = "System";
     public string AccentTheme { get; set; } = "Blue";
     public string ProfileColor { get; set; } = "#2563EB";
+    public string BackgroundTheme { get; set; } = "None";
+    public byte[]? ProfilePhoto { get; set; }
+    public string? ProfilePhotoContentType { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? LastLoginAt { get; set; }
     public List<UserBranchMembership> BranchMemberships { get; set; } = [];

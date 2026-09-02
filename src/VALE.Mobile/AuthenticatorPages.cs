@@ -9,7 +9,6 @@ public sealed class AuthenticatorLoginPage : ContentPage
 {
     private readonly ApiClient _api;
     private readonly Entry _email = UiKit.Entry("E-posta adresiniz", Keyboard.Email);
-    private readonly Entry _password = UiKit.Entry("Parolanız", password: true);
     private readonly Entry _code = UiKit.Entry("6 haneli Authenticator kodu", Keyboard.Numeric);
     private readonly Label _status = UiKit.Label("Authenticator seçeneği yalnızca hesabınızda TOTP kurulumu etkinse kullanılır.", 11.5, false, true);
     private readonly bool _rememberDevice;
@@ -21,8 +20,9 @@ public sealed class AuthenticatorLoginPage : ContentPage
         Title = "Authenticator ile Giriş";
         UiKit.StylePage(this);
         _email.Text = email;
-        _password.Text = password;
         _code.MaxLength = 6;
+        _email.AutomationId = "authenticator-email";
+        _code.AutomationId = "authenticator-code";
 
         var login = UiKit.PrimaryButton("6 Haneli OTP ile Devam Et");
         login.AutomationId = "authenticator-login-submit";
@@ -37,14 +37,13 @@ public sealed class AuthenticatorLoginPage : ContentPage
                 Children =
                 {
                     UiKit.Label("Authenticator ile giriş", 27, true),
-                    UiKit.Label("Bu ekran ayrı bir güvenli giriş yöntemidir. Parolanız doğrulandıktan sonra yalnızca Authenticator uygulamanızdaki 6 haneli OTP adımını tamamlarsınız.", 12.5, false, true),
+                    UiKit.Label("Hesabınızda Authenticator etkinse e-posta adresiniz ve uygulamanızdaki 6 haneli kod yeterlidir; parola istenmez.", 12.5, false, true),
                     UiKit.Card(new VerticalStackLayout
                     {
                         Spacing = 10,
                         Children =
                         {
                             UiKit.Label("E-posta", 10.5, true, true), _email,
-                            UiKit.Label("Parola", 10.5, true, true), _password,
                             UiKit.Label("Authenticator kodu", 10.5, true, true), _code,
                             login,
                             _status
@@ -77,7 +76,7 @@ public sealed class AuthenticatorLoginPage : ContentPage
         {
             button.IsEnabled = false;
             _status.Text = "Authenticator kodu doğrulanıyor…";
-            var login = await _api.LoginWithTwoFactorAsync(_email.Text ?? string.Empty, _password.Text ?? string.Empty, code, _rememberDevice);
+            var login = await _api.LoginWithTwoFactorAsync(_email.Text ?? string.Empty, code, _rememberDevice);
             _status.Text = "Giriş başarılı";
             App.ShowAuthenticated(_api, login.User);
         }

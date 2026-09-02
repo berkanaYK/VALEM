@@ -30,6 +30,17 @@ public sealed class GuestJourneyTests : DeviceTestBase
         Assert.That(WaitForElement("email-code-login-open").Displayed, Is.True,
             "İsteğe bağlı e-posta kodu girişi açılabilmelidir.");
 
+        WaitForElement("authenticator-login-open").Click();
+        Assert.Multiple(() =>
+        {
+            Assert.That(WaitForElement("authenticator-email").Displayed, Is.True);
+            Assert.That(WaitForElement("authenticator-code").Displayed, Is.True);
+            Assert.That(WaitForElement("authenticator-login-submit").Displayed, Is.True);
+            Assert.That(IsVisible("authenticator-password"), Is.False,
+                "Authenticator girişinde parola alanı bulunmamalıdır.");
+        });
+        App.Navigate().Back();
+
         WaitForElement("register-open").Click();
         Assert.Multiple(() =>
         {

@@ -54,7 +54,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $target = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
-          gh api --method POST "repos/$env:GITHUB_REPOSITORY/statuses/$env:GITHUB_SHA" -f state='pending' -f context='vale/android-release' -f description='VALE Android 3.2.0 güvenli oturum + sade akış release build başladı.' -f target_url=$target
+          gh api --method POST "repos/$env:GITHUB_REPOSITORY/statuses/$env:GITHUB_SHA" -f state='pending' -f context='vale/android-release' -f description='VALE Android 3.3.0 profil, tema ve gezinme release build başladı.' -f target_url=$target
 
       - name: Ensure .NET 10 SDK
         shell: pwsh
@@ -151,7 +151,7 @@ jobs:
           $propertyGroup = @($project.Project.PropertyGroup) | Select-Object -First 1
           if ([string]$propertyGroup.UseNativeHttpHandler -ne 'false') { throw 'Release engellendi: managed HTTP handler kapalı.' }
           $version = [string]$propertyGroup.ApplicationDisplayVersion
-          if ($version -ne '3.2.0') { throw "Beklenen mobil sürüm 3.2.0, bulunan: $version" }
+          if ($version -ne '3.3.0') { throw "Beklenen mobil sürüm 3.3.0, bulunan: $version" }
           $projectRaw = Get-Content 'src/VALE.Mobile/VALE.Mobile.csproj' -Raw
           if ($projectRaw -notmatch 'Microsoft\.Maui\.Controls" Version="10\.0\.100"') { throw 'MAUI/AndroidX uyumlu 10.0.100 paketi sabitlenmemiş.' }
           if ($projectRaw -notmatch 'Xamarin\.Firebase\.Messaging" Version="125\.1\.1"') { throw 'FID kayıt API düzeltmesini içeren Firebase Messaging 125.1.1 paketi eksik.' }
@@ -217,7 +217,7 @@ jobs:
           if ($notifications -notmatch 'GetPendingRegistrationsAsync' -or $notifications -notmatch 'SendPushTestAsync') { throw 'Personel onay veya push test ekranı eksik.' }
           if ($pushManager -notmatch 'RegisterPushTokenAsync' -or $pushManager -notmatch 'UnregisterPushTokenAsync') { throw 'Push token yaşam döngüsü eksik.' }
           if (-not (Test-Path 'tests/VALE.Mobile.UITests/GuestJourneyTests.cs') -or -not (Test-Path 'scripts/run-android-device-tests.ps1')) { throw 'Gerçek cihaz Appium test paketi eksik.' }
-          Write-Host 'VALE 3.2.0 sade login/kayıt, hatırlanan cihaz, Appium ve güvenlik kaynak kontrolleri geçti.'
+          Write-Host 'VALE 3.3.0 parolasız Authenticator, geri gezinme, profil medyası, temalar, Appium ve güvenlik kaynak kontrolleri geçti.'
 
       - name: Production auth and security smoke tests
         shell: pwsh
@@ -249,7 +249,7 @@ jobs:
           if ($badTotp.StatusCode -ne 400) { throw "Geçersiz TOTP formatı reddedilmedi: $($badTotp.StatusCode)" }
           Write-Host 'Production auth/security smoke tests passed.'
 
-      - name: Wait for VALE API 3.2.0 administration, migrations and remembered sessions on main
+      - name: Wait for VALE API 3.3.0 profile media, migrations and remembered sessions on main
         if: github.ref == 'refs/heads/main'
         shell: pwsh
         run: |
@@ -258,7 +258,7 @@ jobs:
           for ($i = 1; $i -le 75; $i++) {
             try {
               $status = Invoke-RestMethod "$endpoint/api/status" -TimeoutSec 12
-              if ([string]$status.version -eq '3.2.0' -and $status.status -eq 'ok' -and $status.capabilities.smtp -eq $true -and $status.capabilities.fcm -eq $true -and $status.capabilities.multiTenant -eq $true -and $status.capabilities.rememberedDevices -eq $true -and $status.capabilities.platformAdmin -eq $true -and $status.capabilities.migrations -eq $true) {
+              if ([string]$status.version -eq '3.3.0' -and $status.status -eq 'ok' -and $status.capabilities.smtp -eq $true -and $status.capabilities.fcm -eq $true -and $status.capabilities.multiTenant -eq $true -and $status.capabilities.rememberedDevices -eq $true -and $status.capabilities.platformAdmin -eq $true -and $status.capabilities.migrations -eq $true) {
                 $profile = Invoke-WebRequest "$endpoint/api/auth/profile" -TimeoutSec 12 -SkipHttpErrorCheck
                 $adminLogin = Invoke-WebRequest "$endpoint/platform-admin/Account/Login" -TimeoutSec 12 -SkipHttpErrorCheck
                 if ($profile.StatusCode -eq 401 -and $adminLogin.StatusCode -eq 200) { $newApi = $true; break }
@@ -266,7 +266,7 @@ jobs:
             } catch { }
             Start-Sleep -Seconds 10
           }
-          if (-not $newApi) { throw 'VALE API 3.2.0 migration + platform admin + güvenli cihaz oturumu production ortamında hazır değil; APK yayınlanmadı.' }
+          if (-not $newApi) { throw 'VALE API 3.3.0 profil medyası + migration production ortamında hazır değil; APK yayınlanmadı.' }
 
       - name: Production SMTP TLS authentication probe
         if: github.ref == 'refs/heads/main'
@@ -292,8 +292,38 @@ jobs:
           dotnet build src/VALE.Mobile/VALE.Mobile.csproj -f net10.0-android -c Release --no-restore -p:RunAOTCompilation=false -warnaserror
 
       - name: Publish APK
+        if: github.ref != 'refs/heads/main'
         shell: pwsh
         run: dotnet publish src/VALE.Mobile/VALE.Mobile.csproj -f net10.0-android -c Release --no-restore -p:AndroidPackageFormats=apk -p:RunAOTCompilation=false
+
+      - name: Prepare permanent Android signing key
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          KEYSTORE_B64: ${{ secrets.VALE_ANDROID_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.VALE_ANDROID_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.VALE_ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.VALE_ANDROID_KEY_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:KEYSTORE_B64) -or [string]::IsNullOrWhiteSpace($env:STORE_PASSWORD) -or [string]::IsNullOrWhiteSpace($env:KEY_ALIAS) -or [string]::IsNullOrWhiteSpace($env:KEY_PASSWORD)) {
+            throw 'Kalıcı Android imzalama secretları eksik. VALE_ANDROID_KEYSTORE_B64, VALE_ANDROID_STORE_PASSWORD, VALE_ANDROID_KEY_ALIAS ve VALE_ANDROID_KEY_PASSWORD tanımlanmalıdır.'
+          }
+          $path = Join-Path $env:RUNNER_TEMP 'vale-release.jks'
+          [IO.File]::WriteAllBytes($path, [Convert]::FromBase64String($env:KEYSTORE_B64))
+          "VALE_KEYSTORE_PATH=$path" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Publish permanently signed APK
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          STORE_PASSWORD: ${{ secrets.VALE_ANDROID_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.VALE_ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.VALE_ANDROID_KEY_PASSWORD }}
+        run: |
+          dotnet publish src/VALE.Mobile/VALE.Mobile.csproj -f net10.0-android -c Release --no-restore `
+            -p:AndroidPackageFormats=apk -p:RunAOTCompilation=false -p:AndroidKeyStore=true `
+            -p:AndroidSigningKeyStore="$env:VALE_KEYSTORE_PATH" -p:AndroidSigningStorePass="env:STORE_PASSWORD" `
+            -p:AndroidSigningKeyAlias="$env:KEY_ALIAS" -p:AndroidSigningKeyPass="env:KEY_PASSWORD"
 
       - name: Prepare VALE.apk
         shell: pwsh
@@ -336,7 +366,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "android-$env:GITHUB_RUN_NUMBER"
-          gh release create $tag "$env:GITHUB_WORKSPACE\VALE.apk" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "VALE Android $env:APP_VERSION" --notes "VALE 3.2.0: kayıt, giriş ve araç kabulü sadeleştirildi; güvenli cihaz hatırlama/oturum yenileme eklendi; AndroidX ve Firebase FID API uyumsuzlukları giderildi; geliştirici web yönetim paneli ve sürümlü EF Core migration sistemi eklendi. API testleri, production sağlık kontrolleri, bağımlılık/secret taraması, APK derlemesi ve gerçek cihaz için derlenen Appium senaryosu yayın kapısında doğrulandı."
+          gh release create $tag "$env:GITHUB_WORKSPACE\VALE.apk" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "VALE Android $env:APP_VERSION" --notes "VALE 3.3.0: Authenticator girişi e-posta + TOTP olarak sadeleştirildi; Android geri tuşu gerçek sayfa geçmişini izliyor; Ana Sayfa ve zengin menü simgeleri eklendi; kamera/galeri profil fotoğrafı, oturum avatarı, tam sayfa Zümrüt ile telifsiz Anime/Araba/özel galeri temaları ve dinamik kontrast getirildi. API testleri, production sağlık kontrolleri, bağımlılık/secret taraması, APK derlemesi ve gerçek cihaz Appium senaryosu yayın kapısında doğrulandı."
 
       - name: Publish Android release status
         if: always() && github.ref == 'refs/heads/main'
@@ -346,7 +376,7 @@ jobs:
           JOB_STATUS: ${{ job.status }}
         run: |
           $state = if ($env:JOB_STATUS -eq 'success') { 'success' } else { 'failure' }
-          $description = if ($state -eq 'success') { 'VALE Android 3.2.0 sade akış+güvenli oturum test edildi ve yayınlandı.' } else { 'VALE Android 3.2.0 yayını engellendi/başarısız; run logunu kontrol edin.' }
+          $description = if ($state -eq 'success') { 'VALE Android 3.3.0 profil, tema ve gezinme test edildi ve yayınlandı.' } else { 'VALE Android 3.3.0 yayını engellendi/başarısız; run logunu kontrol edin.' }
           $target = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
           gh api --method POST "repos/$env:GITHUB_REPOSITORY/statuses/$env:GITHUB_SHA" -f state=$state -f context='vale/android-release' -f description=$description -f target_url=$target
 
