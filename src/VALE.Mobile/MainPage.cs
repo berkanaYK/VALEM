@@ -213,9 +213,8 @@ public sealed class MainPage : ContentPage
                 // LoginWithTwoFactorAsync is intentionally executed by AuthenticatorLoginPage so OTP stays a separate step.
                 _status.Text = "Bu hesap Authenticator ile korunuyor. OTP adımına geçiliyor…";
                 var email = _email.Text ?? string.Empty;
-                var password = _password.Text ?? string.Empty;
                 SetBusy(false);
-                await Navigation.PushAsync(new AuthenticatorLoginPage(_api, email, password, _rememberDevice.IsToggled));
+                await Navigation.PushAsync(new AuthenticatorLoginPage(_api, email, _rememberDevice.IsToggled));
                 return;
             }
             _status.Text = "Giriş başarılı";

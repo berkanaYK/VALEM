@@ -74,7 +74,7 @@ public sealed class TenantRegistrationController(
             Company = company,
             BranchId = branch.Id,
             Branch = branch,
-            IsActive = false,
+            IsActive = true,
             JobTitle = "Firma Sahibi"
         };
         var create = await CreateUserAsync(user, request.Password, loginMethod);
@@ -102,7 +102,7 @@ public sealed class TenantRegistrationController(
             BranchId = branch.Id,
             UserId = user.Id,
             Title = "VALE firmanız hazır",
-            Body = $"{company.Name} ve {branch.Name} şubesi oluşturuldu. E-posta doğrulamasından sonra hesabınız girişe açılacak.",
+            Body = $"{company.Name} ve {branch.Name} şubesi oluşturuldu. Hesabınız seçtiğiniz giriş yöntemiyle kullanıma hazır.",
             Type = "CompanyCreated"
         });
         await db.SaveChangesAsync(cancellationToken);
@@ -112,8 +112,8 @@ public sealed class TenantRegistrationController(
         var sent = await TrySendConfirmationAsync(user, cancellationToken);
         var methodHint = LoginMethodHint(loginMethod);
         var message = sent
-            ? $"Firma ve yönetici hesabınız oluşturuldu. {email} adresine 'Bu e-posta sizin mi?' doğrulama bağlantısı gönderdik. Linki onayladıktan sonra {methodHint}"
-            : $"Firma ve hesabınız oluşturuldu ancak doğrulama e-postası gönderilemedi. Daha sonra doğrulama e-postasını yeniden isteyin. {methodHint}";
+            ? $"Firma ve yönetici hesabınız hazır. {methodHint} E-posta sahipliği için {email} adresine ayrıca doğrulama bağlantısı gönderdik."
+            : $"Firma ve yönetici hesabınız hazır. {methodHint} Doğrulama e-postası şu anda gönderilemedi; bu durum girişinizi engellemez.";
         return Created("/api/registration/owner", new RegisterResponse(message, false));
     }
 
@@ -128,8 +128,35 @@ public sealed class TenantRegistrationController(
         if (await userManager.FindByEmailAsync(email) is not null)
             throw new ApiException(StatusCodes.Status409Conflict, "E-posta kullanımda", "Bu e-posta adresiyle bir hesap zaten bulunuyor.");
 
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        var selfService = !string.IsNullOrWhiteSpace(request.CompanyName);
         Branch? branch;
-        if (!string.IsNullOrWhiteSpace(request.InviteCode))
+        if (selfService)
+        {
+            var companyName = request.CompanyName!.Trim();
+            var companyCode = await ResolveCompanyCodeAsync(null, companyName, cancellationToken);
+            var company = new Company
+            {
+                Name = companyName,
+                Code = companyCode,
+                IsActive = true
+            };
+            branch = new Branch
+            {
+                Company = company,
+                CompanyId = company.Id,
+                Name = "Merkez",
+                Code = "MRKZ",
+                City = string.Empty,
+                Address = string.Empty,
+                InviteCode = GenerateInviteCode(companyCode, "MRKZ"),
+                IsActive = true
+            };
+            db.Companies.Add(company);
+            db.Branches.Add(branch);
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        else if (!string.IsNullOrWhiteSpace(request.InviteCode))
         {
             var invite = Normalize(request.InviteCode);
             branch = await db.Branches.Include(x => x.Company)
@@ -163,7 +190,8 @@ public sealed class TenantRegistrationController(
             Company = branch.Company,
             BranchId = branch.Id,
             Branch = branch,
-            IsActive = false
+            IsActive = selfService,
+            JobTitle = selfService ? "Personel" : null
         };
         var create = await CreateUserAsync(user, request.Password, loginMethod);
         if (!create.Succeeded)
@@ -173,6 +201,40 @@ public sealed class TenantRegistrationController(
         {
             await userManager.DeleteAsync(user);
             throw new ApiException(StatusCodes.Status500InternalServerError, "Başlangıç rolü atanamadı", string.Join(" ", role.Errors.Select(x => x.Description)));
+        }
+
+        db.UserBranchMemberships.Add(new UserBranchMembership
+        {
+            CompanyId = branch.CompanyId,
+            Company = branch.Company,
+            UserId = user.Id,
+            User = user,
+            BranchId = branch.Id,
+            Branch = branch,
+            IsPrimary = true,
+            IsActive = true
+        });
+
+        if (selfService)
+        {
+            db.Notifications.Add(new ValeNotification
+            {
+                CompanyId = branch.CompanyId,
+                BranchId = branch.Id,
+                UserId = user.Id,
+                Title = "Deneme hesabınız hazır",
+                Body = $"{branch.Company.Name} için size özel firma ve Merkez şubesi oluşturuldu. Yönetici onayı veya bağlantı kodu gerekmez.",
+                Type = "SelfServiceAccountCreated"
+            });
+            await db.SaveChangesAsync(cancellationToken);
+            await audit.RecordAsync(user.Id, branch.Id, "account.self_service.created", "Company", branch.CompanyId.ToString(), $"Bağımsız personel hesabı ve firma oluşturuldu. Firma kodu: {branch.Company.Code}. Giriş yöntemi: {loginMethod}.", cancellationToken: cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            var sent = await TrySendConfirmationAsync(user, cancellationToken);
+            var verification = sent
+                ? $" E-posta sahipliği için {email} adresine ayrıca doğrulama bağlantısı gönderdik."
+                : " Doğrulama e-postası şu anda gönderilemedi; bu durum girişinizi engellemez.";
+            return Created("/api/registration/staff", new RegisterResponse($"Personel deneme hesabınız ve {branch.Company.Name} firmanız hazır. {LoginMethodHint(loginMethod)}{verification}", false));
         }
 
         var registration = new RegistrationRequest
@@ -187,17 +249,6 @@ public sealed class TenantRegistrationController(
             Status = "Pending"
         };
         db.RegistrationRequests.Add(registration);
-        db.UserBranchMemberships.Add(new UserBranchMembership
-        {
-            CompanyId = branch.CompanyId,
-            Company = branch.Company,
-            UserId = user.Id,
-            User = user,
-            BranchId = branch.Id,
-            Branch = branch,
-            IsPrimary = true,
-            IsActive = true
-        });
         var managerIds = await AddApprovalNotificationsAsync(user, branch, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
 
@@ -214,6 +265,7 @@ public sealed class TenantRegistrationController(
         }
 
         await audit.RecordAsync(user.Id, branch.Id, "account.registration.requested", "RegistrationRequest", registration.Id.ToString(), $"Personel katılım başvurusu oluşturuldu. Giriş yöntemi: {loginMethod}.", cancellationToken: cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         var sent = await TrySendConfirmationAsync(user, cancellationToken);
         var verificationText = sent
             ? $"{email} adresine e-posta sahipliği doğrulama bağlantısı gönderdik."
@@ -371,7 +423,12 @@ public sealed class TenantRegistrationController(
 
     private static string Normalize(string value) => value.Trim().ToUpperInvariant();
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-    private static string GenerateInviteCode(string companyCode, string branchCode) => $"{companyCode}-{branchCode}-{Guid.NewGuid():N}"[..Math.Min(40, companyCode.Length + branchCode.Length + 10)].ToUpperInvariant();
+    private static string GenerateInviteCode(string companyCode, string branchCode)
+    {
+        var prefix = $"{companyCode}-{branchCode}";
+        var suffix = Guid.NewGuid().ToString("N")[..10].ToUpperInvariant();
+        return $"{prefix[..Math.Min(prefix.Length, 29)]}-{suffix}";
+    }
 
     private async Task<string> ResolveCompanyCodeAsync(string? requestedCode, string companyName, CancellationToken cancellationToken)
     {
@@ -384,13 +441,13 @@ public sealed class TenantRegistrationController(
         }
 
         var baseCode = BuildCode(companyName);
-        var candidate = baseCode;
-        for (var attempt = 0; attempt < 10; attempt++)
+        for (var attempt = 0; attempt < 20; attempt++)
         {
+            var suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+            var candidate = $"{baseCode[..Math.Min(baseCode.Length, 31)]}-{suffix}";
             if (!await db.Companies.AnyAsync(x => x.Code == candidate, cancellationToken)) return candidate;
-            candidate = $"{baseCode[..Math.Min(baseCode.Length, 32)]}-{Guid.NewGuid():N}"[..40].ToUpperInvariant();
         }
-        throw new ApiException(StatusCodes.Status409Conflict, "Firma kodu oluşturulamadı", "Lütfen gelişmiş seçeneklerden size özel bir firma kodu girin.");
+        throw new ApiException(StatusCodes.Status409Conflict, "Firma kodu oluşturulamadı", "Benzersiz firma kodu üretilemedi. Lütfen yeniden deneyin.");
     }
 
     private static string BuildCode(string value)
