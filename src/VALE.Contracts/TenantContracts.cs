@@ -31,7 +31,8 @@ public sealed record StaffRegisterRequest(
     [param: MaxLength(20)] string? BranchCode,
     [param: MaxLength(40)] string? InviteCode,
     [param: MaxLength(40)] string? EmployeeCode = null,
-    [param: Required] string LoginMethod = LoginMethods.EmailCode);
+    [param: Required] string LoginMethod = LoginMethods.EmailCode,
+    [param: MinLength(2), MaxLength(160)] string? CompanyName = null);
 
 public sealed record RegistrationRequestDto(
     Guid Id,

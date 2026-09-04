@@ -236,7 +236,7 @@ app.MapGet("/health/email", async (IValeEmailSender email, CancellationToken ct)
 app.MapGet("/api/status", (IValeEmailSender email, FirebasePushSender push) => Results.Ok(new
 {
     service = "VALE.Api",
-    version = "3.3.0",
+    version = "3.3.1",
     status = "ok",
     capabilities = new
     {

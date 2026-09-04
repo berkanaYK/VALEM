@@ -76,7 +76,8 @@ public sealed class EmailVerificationController(
         {
             var registration = await db.RegistrationRequests.AsNoTracking()
                 .SingleOrDefaultAsync(x => x.ApplicantUserId == user.Id && x.CompanyId == user.CompanyId && x.BranchId == user.BranchId, cancellationToken);
-            user.IsActive = registration?.Status == "Approved";
+            // Self-service staff accounts have no approval request and must stay active.
+            user.IsActive = registration is null || registration.Status == "Approved";
         }
 
         var update = await userManager.UpdateAsync(user);

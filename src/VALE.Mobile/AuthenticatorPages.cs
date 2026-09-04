@@ -13,7 +13,7 @@ public sealed class AuthenticatorLoginPage : ContentPage
     private readonly Label _status = UiKit.Label("Authenticator seçeneği yalnızca hesabınızda TOTP kurulumu etkinse kullanılır.", 11.5, false, true);
     private readonly bool _rememberDevice;
 
-    public AuthenticatorLoginPage(ApiClient api, string? email = null, string? password = null, bool rememberDevice = false)
+    public AuthenticatorLoginPage(ApiClient api, string? email = null, bool rememberDevice = false)
     {
         _api = api;
         _rememberDevice = rememberDevice;

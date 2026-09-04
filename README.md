@@ -2,7 +2,7 @@
 
 VALEM, vale işletmelerinin araç kabulünden teslim ve tahsilata kadar günlük operasyonunu telefondan yönetmesini sağlayan çok firmalı bir platformdur. Güncel ürün; .NET MAUI Android uygulaması, ASP.NET Core API, PostgreSQL veritabanı ve yalnızca geliştiriciye açık web yönetim panelinden oluşur.
 
-Güncel sürüm: **3.3.0** (`Android build 15`)
+Güncel sürüm: **3.3.1** (`Android build 16`)
 
 Canlı API: [vale-api-5fvb.onrender.com](https://vale-api-5fvb.onrender.com/api/status)
 
@@ -10,6 +10,7 @@ Canlı API: [vale-api-5fvb.onrender.com](https://vale-api-5fvb.onrender.com/api/
 
 - Plaka dışında ayrıntı zorunlu tutmayan hızlı araç kabulü
 - Firma sahibi için ad, e-posta ve firma adıyla başlayan sade kayıt
+- Personel deneme hesabı için davet/bağlantı kodu istemeyen, benzersiz firma ve Merkez şubesi oluşturan açık kayıt
 - Personel için tek davet koduyla katılım; firma/şube kodu yalnızca alternatif yol
 - Varsayılan parolasız e-posta kodu, isteğe bağlı parola veya Authenticator girişi
 - Authenticator etkin hesaplarda parola istemeyen e-posta + 6 haneli TOTP girişi; deneme sınırı ve hesap kilitleme koruması
@@ -24,7 +25,7 @@ Canlı API: [vale-api-5fvb.onrender.com](https://vale-api-5fvb.onrender.com/api/
 - Kamera/galeri profil fotoğrafı ve oturum çekmecesinde kullanıcı avatarı
 - Tüm sayfaya yayılan Mavi, İndigo, Zümrüt ve Turuncu renkleri; iki Anime, iki Araba ve galeriden özel arka plan
 - Özel görselin baskın rengini/luminansını örnekleyerek vurgu, kart saydamlığı ve yazı kontrastını otomatik uyarlama
-- API için 64 otomatik test; gerçek Android cihazı için Appium/UiAutomator2 senaryosu
+- API için 66 otomatik test; gerçek Android cihazı için Appium/UiAutomator2 senaryosu
 
 ## Kullanıcı açısından akış
 
@@ -38,10 +39,10 @@ Canlı API: [vale-api-5fvb.onrender.com](https://vale-api-5fvb.onrender.com/api/
 
 ### Personel
 
-1. Ad soyad ve e-posta yazılır.
-2. Yöneticiden alınan tek davet kodu girilir.
-3. E-posta doğrulaması ve yönetici onayı tamamlanır.
-4. Varsayılan e-posta kodu veya kullanıcının seçtiği giriş yöntemiyle devam edilir.
+1. `Personel / deneme hesabı` seçilir; ad soyad, e-posta ve istenen firma adı yazılır.
+2. Sistem aynı firma adı daha önce kullanılmış olsa bile hesaba özel, benzersiz firma ve Merkez şubesi kodları üretir.
+3. Yönetici onayı, davet kodu veya bağlantı kodu beklenmeden hesap etkinleşir.
+4. Varsayılan parolasız e-posta kodu veya kullanıcının seçtiği giriş yöntemiyle hemen devam edilir.
 
 ### Günlük vale işlemi
 
@@ -245,9 +246,9 @@ GitHub’daki `Android Real Device UI` workflow’u, `vale-android-device` etike
 
 | İş akışı | Ne yapar? |
 | --- | --- |
-| `VALE API CI` | Release build, 64 test, bağımlılık/secret kontrolü, migration model+SQL doğrulaması ve güvenlik kaynak kapıları |
+| `VALE API CI` | Release build, 66 test, bağımlılık/secret kontrolü, migration model+SQL doğrulaması ve güvenlik kaynak kapıları |
 | `Build Android APK` | AndroidX/Firebase kontrolleri, production API/e-posta smoke testleri, Appium paket derlemesi, APK üretimi ve GitHub Release |
-| `Verify Production VALE API` | Render deploy sonrası 3.3.0, veritabanı, e-posta, auth ve web paneli erişim sınırlarını doğrular |
+| `Verify Production VALE API` | Render deploy sonrası 3.3.1, veritabanı, e-posta, auth ve web paneli erişim sınırlarını doğrular |
 | `Android Real Device UI` | Bağlı fiziksel telefonda Appium senaryosunu elle çalıştırır |
 
 `main` dalındaki başarılı Android workflow’u `VALE.apk` dosyasını yeni GitHub Release’e ekler. Play Store için kalıcı imza depoya yazılmaz: workflow yalnızca `VALE_ANDROID_KEYSTORE_B64`, `VALE_ANDROID_STORE_PASSWORD`, `VALE_ANDROID_KEY_ALIAS` ve `VALE_ANDROID_KEY_PASSWORD` GitHub Actions secretlarıyla imza üretir. Anahtarın çevrimdışı kurtarma kopyası güvenli ve yedekli tutulmalıdır; kaybolursa aynı uygulama kimliğiyle güncelleme yayınlamak mümkün olmayabilir.
