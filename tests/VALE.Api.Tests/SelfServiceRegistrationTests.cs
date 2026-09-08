@@ -12,6 +12,7 @@ using VALE.Api.Data;
 using VALE.Api.Domain;
 using VALE.Api.Services;
 using VALE.Contracts;
+using Xunit;
 
 namespace VALE.Api.Tests;
 
@@ -105,7 +106,7 @@ public sealed class SelfServiceRegistrationTests
             var services = new ServiceCollection();
             services.AddLogging(builder => builder.SetMinimumLevel(LogLevel.None));
             services.AddOptions();
-            services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+            services.AddSingleton<IHttpContextAccessor, TestHttpContextAccessor>();
             services.AddDbContext<ValeDbContext>(options => options.UseSqlite(connection));
             services.AddIdentityCore<AppUser>()
                 .AddRoles<IdentityRole<Guid>>()

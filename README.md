@@ -2,7 +2,9 @@
 
 VALEM, vale işletmelerinin araç kabulünden teslim ve tahsilata kadar günlük operasyonunu telefondan yönetmesini sağlayan çok firmalı bir platformdur. Güncel ürün; .NET MAUI Android uygulaması, ASP.NET Core API, PostgreSQL veritabanı ve yalnızca geliştiriciye açık web yönetim panelinden oluşur.
 
-Güncel sürüm: **3.3.1** (`Android build 16`)
+Güncel mobil sürüm: **3.3.2** (`Android build 17`); API sözleşmesi **3.3.1**.
+
+Kalıcı imzalı APK/AAB dağıtımı ve Play Console adımları: [PLAY_SIGNING.md](docs/PLAY_SIGNING.md).
 
 Canlı API: [vale-api-5fvb.onrender.com](https://vale-api-5fvb.onrender.com/api/status)
 
@@ -25,7 +27,7 @@ Canlı API: [vale-api-5fvb.onrender.com](https://vale-api-5fvb.onrender.com/api/
 - Kamera/galeri profil fotoğrafı ve oturum çekmecesinde kullanıcı avatarı
 - Tüm sayfaya yayılan Mavi, İndigo, Zümrüt ve Turuncu renkleri; iki Anime, iki Araba ve galeriden özel arka plan
 - Özel görselin baskın rengini/luminansını örnekleyerek vurgu, kart saydamlığı ve yazı kontrastını otomatik uyarlama
-- API için 66 otomatik test; gerçek Android cihazı için Appium/UiAutomator2 senaryosu
+- API için 69 otomatik test; gerçek Android cihazı için Appium/UiAutomator2 senaryosu
 
 ## Kullanıcı açısından akış
 
@@ -211,7 +213,7 @@ CI ayrıca idempotent PostgreSQL migration betiği üretir. Migration dosyaları
 .\scripts\verify.ps1
 ```
 
-Bu komut API’yi uyarıları hata sayarak derler, 64 API testini çalıştırır, Appium test paketini derler, Android Release build alır ve `dotnet-ef` kuruluysa bekleyen model farkını kontrol eder.
+Bu komut API’yi uyarıları hata sayarak derler, API testlerini çalıştırır, Appium test paketini derler, Android Release build alır ve `dotnet-ef` kuruluysa bekleyen model farkını kontrol eder.
 
 ### Fiziksel Android cihaz testi
 
@@ -246,7 +248,7 @@ GitHub’daki `Android Real Device UI` workflow’u, `vale-android-device` etike
 
 | İş akışı | Ne yapar? |
 | --- | --- |
-| `VALE API CI` | Release build, 66 test, bağımlılık/secret kontrolü, migration model+SQL doğrulaması ve güvenlik kaynak kapıları |
+| `VALE API CI` | Release build, API testleri, bağımlılık/secret kontrolü, migration model+SQL doğrulaması ve güvenlik kaynak kapıları |
 | `Build Android APK` | AndroidX/Firebase kontrolleri, production API/e-posta smoke testleri, Appium paket derlemesi, APK üretimi ve GitHub Release |
 | `Verify Production VALE API` | Render deploy sonrası 3.3.1, veritabanı, e-posta, auth ve web paneli erişim sınırlarını doğrular |
 | `Android Real Device UI` | Bağlı fiziksel telefonda Appium senaryosunu elle çalıştırır |
@@ -291,6 +293,6 @@ Render Blueprint ayrıntıları `render.yaml` dosyasındadır. Canlı sağlık k
 
 ## Bilinçli olarak sonraya bırakılanlar
 
-- Play Store için kalıcı özel keystore, uygulamadaki geliştirmeler tamamlandığında oluşturulacak.
+- Play Console test/yayın süreci ve mağaza beyanları tamamlanacak; kalıcı upload anahtarı hazır.
 - WinUI/Windows masaüstü yayını şu an ürün hedefi değildir; eski proje yalnızca geçmiş çalışma kaybı olmaması için repoda tutulur.
 - Gerçek cihaz testi bu depoda hazırdır; belirli telefon/Android sürümüne ait sonuç, cihazın bağlı olduğu Windows makinede çalıştırıldığında oluşur.

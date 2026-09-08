@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- VALE Company v3.3.1 build 16: self-service registration and passwordless OTP login fixes. -->
+  <!-- VALEM v3.3.2 build 17: permanent signing and hardened Android packaging. -->
   <PropertyGroup>
     <TargetFramework>net10.0-android</TargetFramework>
     <OutputType>Exe</OutputType>
@@ -11,8 +11,8 @@
     <UseNativeHttpHandler>false</UseNativeHttpHandler>
     <ApplicationTitle>VALE</ApplicationTitle>
     <ApplicationId>com.berkanayk.vale</ApplicationId>
-    <ApplicationDisplayVersion>3.3.1</ApplicationDisplayVersion>
-    <ApplicationVersion>16</ApplicationVersion>
+    <ApplicationDisplayVersion>3.3.2</ApplicationDisplayVersion>
+    <ApplicationVersion>17</ApplicationVersion>
     <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
   </PropertyGroup>
   <ItemGroup>

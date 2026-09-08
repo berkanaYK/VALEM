@@ -22,3 +22,10 @@ src/VALE.Mobile/Platforms/Android/google-services.json
 .env.*
 !.env.example
 secrets.json
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.password
+*.clixml
+artifacts/

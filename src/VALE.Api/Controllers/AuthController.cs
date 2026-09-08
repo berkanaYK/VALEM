@@ -75,9 +75,16 @@ public sealed class AuthController(
         var user = await FindUserAsync(request.Email, cancellationToken, hideNotFound: true);
         if (user.TwoFactorEnabled && string.IsNullOrWhiteSpace(request.TwoFactorCode)) return TwoFactorRequired();
         if (!await oneTimeCodes.ValidateAndConsumeAsync(user, "email-login", request.Code.Trim()))
+        {
+            await userManager.AccessFailedAsync(user);
             throw new ApiException(StatusCodes.Status401Unauthorized, "Kod doğrulanamadı", "Giriş kodu hatalı veya süresi dolmuş.");
+        }
         if (user.TwoFactorEnabled && !await userManager.VerifyTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider, NormalizeCode(request.TwoFactorCode!)))
+        {
+            await userManager.AccessFailedAsync(user);
             throw new ApiException(StatusCodes.Status401Unauthorized, "Kod doğrulanamadı", "Authenticator kodunu kontrol edin.");
+        }
+        await userManager.ResetAccessFailedCountAsync(user);
         return Ok(await CompleteLoginAsync(user, user.TwoFactorEnabled ? "email+totp" : "email", request.RememberDevice, request.DeviceName, cancellationToken));
     }
 

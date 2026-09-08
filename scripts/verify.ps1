@@ -15,7 +15,7 @@ $uiTests = Join-Path $repoRoot 'tests\VALE.Mobile.UITests\VALE.Mobile.UITests.cs
 
 dotnet build $apiProject -c Release -warnaserror
 if ($LASTEXITCODE -ne 0) { throw 'API Release derlemesi başarısız.' }
-dotnet test $apiTests -c Release --no-restore --logger 'console;verbosity=normal'
+dotnet test $apiTests -c Release -warnaserror --logger 'console;verbosity=normal'
 if ($LASTEXITCODE -ne 0) { throw 'API testleri başarısız.' }
 dotnet build $uiTests -c Release -warnaserror
 if ($LASTEXITCODE -ne 0) { throw 'Appium gerçek cihaz test paketi derlenemedi.' }
@@ -35,4 +35,4 @@ if (-not [string]::IsNullOrWhiteSpace($AndroidApkPath)) {
     if ($LASTEXITCODE -ne 0) { throw 'Android gerçek cihaz UI testi başarısız.' }
 }
 
-Write-Host 'API, 63 iş kuralı/güvenlik testi, Appium paketi ve Android Release derlemesi başarıyla doğrulandı.' -ForegroundColor Green
+Write-Host 'API, iş kuralı/güvenlik testleri, Appium paketi ve Android Release derlemesi başarıyla doğrulandı.' -ForegroundColor Green

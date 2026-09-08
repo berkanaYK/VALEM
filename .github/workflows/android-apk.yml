@@ -1,5 +1,5 @@
 name: Build Android APK
-# VALE 3.3.1 release validation: self-service registration and passwordless OTP login.
+# VALEM 3.3.2: permanent signing and verified APK/AAB delivery.
 
 on:
   workflow_dispatch:
@@ -13,6 +13,10 @@ on:
       - 'src/VALE.Api/**'
       - 'tests/VALE.Mobile.UITests/**'
       - 'scripts/run-android-device-tests.ps1'
+      - 'scripts/publish-android-signed.ps1'
+      - 'scripts/verify-android-package.ps1'
+      - 'tests/VALE.Api.Tests/**'
+      - 'Directory.Build.props'
       - '.github/workflows/android-apk.yml'
   pull_request:
     paths:
@@ -21,6 +25,10 @@ on:
       - 'src/VALE.Api/**'
       - 'tests/VALE.Mobile.UITests/**'
       - 'scripts/run-android-device-tests.ps1'
+      - 'scripts/publish-android-signed.ps1'
+      - 'scripts/verify-android-package.ps1'
+      - 'tests/VALE.Api.Tests/**'
+      - 'Directory.Build.props'
       - '.github/workflows/android-apk.yml'
 
 concurrency:
@@ -35,8 +43,6 @@ jobs:
   build-test-release:
     runs-on: windows-latest
     timeout-minutes: 60
-    env:
-      PLAY_KEYSTORE_B64: ${{ secrets.VALE_ANDROID_KEYSTORE_B64 }}
 
     steps:
       - name: Checkout repository without marketplace actions
@@ -154,7 +160,7 @@ jobs:
           $propertyGroup = @($project.Project.PropertyGroup) | Select-Object -First 1
           if ([string]$propertyGroup.UseNativeHttpHandler -ne 'false') { throw 'Release engellendi: managed HTTP handler kapalı.' }
           $version = [string]$propertyGroup.ApplicationDisplayVersion
-          if ($version -ne '3.3.1') { throw "Beklenen mobil sürüm 3.3.1, bulunan: $version" }
+          if ($version -ne '3.3.2') { throw "Beklenen mobil sürüm 3.3.2, bulunan: $version" }
           $projectRaw = Get-Content 'src/VALE.Mobile/VALE.Mobile.csproj' -Raw
           if ($projectRaw -notmatch 'Microsoft\.Maui\.Controls" Version="10\.0\.100"') { throw 'MAUI/AndroidX uyumlu 10.0.100 paketi sabitlenmemiş.' }
           if ($projectRaw -notmatch 'Xamarin\.Firebase\.Messaging" Version="125\.1\.1"') { throw 'FID kayıt API düzeltmesini içeren Firebase Messaging 125.1.1 paketi eksik.' }
@@ -293,7 +299,10 @@ jobs:
       - name: Release build test
         shell: pwsh
         run: |
+          dotnet test tests/VALE.Api.Tests/VALE.Api.Tests.csproj -c Release -warnaserror
+          if ($LASTEXITCODE -ne 0) { throw 'API regression tests failed.' }
           dotnet build tests/VALE.Mobile.UITests/VALE.Mobile.UITests.csproj -c Release --no-restore -warnaserror
+          if ($LASTEXITCODE -ne 0) { throw 'Appium test package build failed.' }
           dotnet build src/VALE.Mobile/VALE.Mobile.csproj -f net10.0-android -c Release --no-restore -p:RunAOTCompilation=false -warnaserror
 
       - name: Publish APK
@@ -302,7 +311,7 @@ jobs:
         run: dotnet publish src/VALE.Mobile/VALE.Mobile.csproj -f net10.0-android -c Release --no-restore -p:AndroidPackageFormats=apk -p:RunAOTCompilation=false
 
       - name: Prepare permanent Android signing key
-        if: github.ref == 'refs/heads/main' && env.PLAY_KEYSTORE_B64 != ''
+        if: github.ref == 'refs/heads/main'
         shell: pwsh
         env:
           KEYSTORE_B64: ${{ secrets.VALE_ANDROID_KEYSTORE_B64 }}
@@ -317,41 +326,42 @@ jobs:
           [IO.File]::WriteAllBytes($path, [Convert]::FromBase64String($env:KEYSTORE_B64))
           "VALE_KEYSTORE_PATH=$path" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Publish permanently signed APK
-        if: github.ref == 'refs/heads/main' && env.PLAY_KEYSTORE_B64 != ''
+      - name: Publish and verify permanently signed APK and AAB
+        if: github.ref == 'refs/heads/main'
         shell: pwsh
         env:
           STORE_PASSWORD: ${{ secrets.VALE_ANDROID_STORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.VALE_ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.VALE_ANDROID_KEY_PASSWORD }}
         run: |
-          dotnet publish src/VALE.Mobile/VALE.Mobile.csproj -f net10.0-android -c Release --no-restore `
-            -p:AndroidPackageFormats=apk -p:RunAOTCompilation=false -p:AndroidKeyStore=true `
-            -p:AndroidSigningKeyStore="$env:VALE_KEYSTORE_PATH" -p:AndroidSigningStorePass="env:STORE_PASSWORD" `
-            -p:AndroidSigningKeyAlias="$env:KEY_ALIAS" -p:AndroidSigningKeyPass="env:KEY_PASSWORD"
-
-      - name: Publish APK while Play signing secrets are pending
-        if: github.ref == 'refs/heads/main' && env.PLAY_KEYSTORE_B64 == ''
-        shell: pwsh
-        run: |
-          Write-Warning 'Play Store kalıcı imzalama secretı henüz eklenmedi; GitHub test APK imzası kullanılacak.'
-          dotnet publish src/VALE.Mobile/VALE.Mobile.csproj -f net10.0-android -c Release --no-restore -p:AndroidPackageFormats=apk -p:RunAOTCompilation=false
+          $storeFile = Join-Path $env:RUNNER_TEMP 'vale-store.password'
+          $keyFile = Join-Path $env:RUNNER_TEMP 'vale-key.password'
+          try {
+            [IO.File]::WriteAllText($storeFile, $env:STORE_PASSWORD)
+            [IO.File]::WriteAllText($keyFile, $env:KEY_PASSWORD)
+            ./scripts/publish-android-signed.ps1 -KeyStorePath $env:VALE_KEYSTORE_PATH -KeyAlias $env:KEY_ALIAS -StorePasswordFile $storeFile -KeyPasswordFile $keyFile
+            ./scripts/verify-android-package.ps1 -PackageDirectory ./artifacts/android
+          } finally {
+            Remove-Item -LiteralPath $storeFile, $keyFile, $env:VALE_KEYSTORE_PATH -Force -ErrorAction SilentlyContinue
+          }
 
       - name: Prepare VALE.apk
+        if: github.ref != 'refs/heads/main'
         shell: pwsh
         run: |
           $apk = Get-ChildItem -Path src/VALE.Mobile/bin/Release/net10.0-android -Filter *-Signed.apk -Recurse | Select-Object -First 1
           if (-not $apk) { $apk = Get-ChildItem -Path src/VALE.Mobile/bin/Release/net10.0-android -Filter *.apk -Recurse | Select-Object -First 1 }
           if (-not $apk) { throw 'APK bulunamadı.' }
-          Copy-Item $apk.FullName "$env:GITHUB_WORKSPACE\VALE.apk" -Force
-          Get-Item "$env:GITHUB_WORKSPACE\VALE.apk" | Select-Object FullName,Length
+          New-Item -ItemType Directory -Path ./artifacts/android -Force | Out-Null
+          Copy-Item $apk.FullName "$env:GITHUB_WORKSPACE\artifacts\android\VALE.apk" -Force
+          Get-Item "$env:GITHUB_WORKSPACE\artifacts\android\VALE.apk" | Select-Object FullName,Length
 
       - name: Verify launcher icon inside APK
         shell: pwsh
         run: |
           $jar = Join-Path $env:JAVA_HOME 'bin\jar.exe'
           if (-not (Test-Path $jar)) { throw 'jar.exe bulunamadı.' }
-          $entries = & $jar tf "$env:GITHUB_WORKSPACE\VALE.apk"
+          $entries = & $jar tf "$env:GITHUB_WORKSPACE\artifacts\android\VALE.apk"
           $icons = @($entries | Where-Object { $_ -match '^res/mipmap[^/]*/appicon(_round)?\.' })
           if ($icons.Count -eq 0) { $icons = @($entries | Where-Object { $_ -match '^res/mipmap.*/appicon' }) }
           if ($icons.Count -eq 0) { throw 'APK içinde launcher icon mipmap varlığı bulunamadı.' }
@@ -363,7 +373,7 @@ jobs:
         shell: pwsh
         run: |
           $jar = Join-Path $env:JAVA_HOME 'bin\jar.exe'
-          $entries = & $jar tf "$env:GITHUB_WORKSPACE\VALE.apk"
+          $entries = & $jar tf "$env:GITHUB_WORKSPACE\artifacts\android\VALE.apk"
           $messagingService = @($entries | Where-Object { $_ -match 'ValeFirebaseMessagingService' })
           if ($messagingService.Count -eq 0) {
             Write-Host 'Firebase service class may be stored in assemblies rather than direct APK class entries; source/build checks already passed.'
@@ -377,8 +387,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "android-$env:GITHUB_RUN_NUMBER"
-          gh release create $tag "$env:GITHUB_WORKSPACE\VALE.apk" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "VALE Android $env:APP_VERSION" --notes "VALE 3.3.1: Authenticator/OTP girişi yalnızca e-posta + 6 haneli kod olacak şekilde parolasızlaştırıldı. Yönetici ve personel deneme kayıtlarında davet, bağlantı kodu veya yönetici onayı zorunluluğu kaldırıldı; girilen firma adına özel ve çakışmayan firma/şube kodları veritabanında otomatik oluşturuluyor. Yeni hesap seçilen giriş yöntemiyle hemen kullanılabiliyor. API testleri, production sağlık kontrolleri, bağımlılık/secret taraması ve APK derlemesi yayın kapısında doğrulandı."
+          $tag = "v$env:APP_VERSION"
+          gh release create $tag ./artifacts/android/VALE.apk ./artifacts/android/VALE.aab ./artifacts/android/upload-certificate.pem ./artifacts/android/SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "VALEM Android $env:APP_VERSION" --notes-file docs/RELEASE-3.3.2.md
+          if ($LASTEXITCODE -ne 0) { throw 'GitHub Release publish failed.' }
 
       - name: Publish Android release status
         if: always() && github.ref == 'refs/heads/main'

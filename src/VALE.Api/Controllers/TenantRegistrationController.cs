@@ -230,8 +230,8 @@ public sealed class TenantRegistrationController(
             await audit.RecordAsync(user.Id, branch.Id, "account.self_service.created", "Company", branch.CompanyId.ToString(), $"Bağımsız personel hesabı ve firma oluşturuldu. Firma kodu: {branch.Company.Code}. Giriş yöntemi: {loginMethod}.", cancellationToken: cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
-            var sent = await TrySendConfirmationAsync(user, cancellationToken);
-            var verification = sent
+            var selfServiceConfirmationSent = await TrySendConfirmationAsync(user, cancellationToken);
+            var verification = selfServiceConfirmationSent
                 ? $" E-posta sahipliği için {email} adresine ayrıca doğrulama bağlantısı gönderdik."
                 : " Doğrulama e-postası şu anda gönderilemedi; bu durum girişinizi engellemez.";
             return Created("/api/registration/staff", new RegisterResponse($"Personel deneme hesabınız ve {branch.Company.Name} firmanız hazır. {LoginMethodHint(loginMethod)}{verification}", false));
