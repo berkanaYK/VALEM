@@ -12,7 +12,7 @@ $buildTools = Get-ChildItem -LiteralPath (Join-Path $AndroidSdkDirectory 'build-
 if (-not $buildTools) { throw 'Android build-tools missing.' }
 $apk = Join-Path $PackageDirectory 'VALE.apk'
 $aab = Join-Path $PackageDirectory 'VALE.aab'
-$cert = [Security.Cryptography.X509Certificates.X509Certificate2]::CreateFromPemFile((Join-Path $PackageDirectory 'upload-certificate.pem'))
+$cert = [Security.Cryptography.X509Certificates.X509Certificate2]::CreateFromPem([IO.File]::ReadAllText((Join-Path $PackageDirectory 'upload-certificate.pem')))
 $expected = $cert.GetCertHashString([Security.Cryptography.HashAlgorithmName]::SHA256).ToLowerInvariant()
 $signature = & (Join-Path $buildTools.FullName 'apksigner.bat') verify --verbose --print-certs $apk 2>&1 | Out-String
 if ($LASTEXITCODE -ne 0 -or $signature -notmatch [regex]::Escape($expected)) { throw 'APK signature verification or signing certificate match failed.' }

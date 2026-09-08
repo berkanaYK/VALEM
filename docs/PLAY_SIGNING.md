@@ -30,6 +30,28 @@ ve geçici keystore'u `finally` içinde siler.
 
 ## Play Console
 
+### Yerel derleme ve imzalama
+
+PowerShell 7.2+ ile, proje kökünden:
+
+```powershell
+dotnet build src/VALE.Mobile/VALE.Mobile.csproj -f net10.0-android -c Release -warnaserror -p:RunAOTCompilation=false
+./scripts/sign-android-local.ps1 -AndroidSdkDirectory "$env:LOCALAPPDATA/Android/Sdk"
+```
+
+`google-services.json` yerelde bulunmalı ve aynı Android application ID'ye ait
+olmalıdır. Bu yayında istemci kaynakları önceki `android-277` APK'sından geri
+alındı ve yeni paketteki beş Firebase kaynağıyla eşleştirildi; yapılandırma Git'e
+eklenmedi. Bu, canlı FCM teslimat testi yerine geçmez.
+
+Yerel imzalama betiği yalnız VALEM için oluşturulan DPAPI dosyasını kullanır;
+parolalar native imzalama işlemlerine ortam değişkeni referanslarıyla aktarılır.
+Düz metin parola dosyası oluşturmaz. APK `apksigner`, AAB `jarsigner` ile imzalanır.
+Sonuçlar `artifacts/android/VALE.apk`, `VALE.aab`, `upload-certificate.pem` ve
+`SHA256SUMS.txt` dosyalarıdır. Yalnız bu dört dosya Release'e yüklenir.
+
+### Mağazaya yükleme
+
 1. Uygulamayı aynı application ID ile oluşturun; Play App Signing'i yapılandırın.
 2. Release'teki `VALE.aab` dosyasını önce internal testing kanalına yükleyin.
 3. Google ayrı app signing key oluşturursa FCM/Google servislerinde istenen

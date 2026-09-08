@@ -1,5 +1,17 @@
 VALEM 3.3.2 — Android build 17
 
+Bu yayın **ön sürümdür**. APK/AAB yerel Windows bilgisayarında üretildi ve kalıcı
+anahtarla imzalandı; GitHub Actions kullanılmadı. Canlı Render API kontrol sırasında
+3.3.0 bildiriyor. 3.3.1 sunucu kodu GitHub'da bulunuyor ancak sunucuya geçtiği
+doğrulanmadı; yeni kayıt/giriş düzeltmelerinin tamamının canlıda etkin olduğu
+varsayılmamalıdır. Bu nedenle sürüm mevcut kararlı yayının yerine Latest yapılmaz.
+
+Doğrulama: Android Release build 0 hata/uyarı; APK v2/v3 ve AAB imzaları aynı
+VALEM sertifikasıyla doğrulandı. Her paketteki 22 adet 64 bit native kütüphane
+16 KB ELF hizalamasını geçti; APK ZIP hizalaması ve bundletool 1.18.3 AAB
+doğrulaması başarılı. Firebase istemci kaynakları önceki android-277 APK'sıyla
+eşleşiyor. Bildirim teslimatı ve fiziksel cihaz akışı henüz test edilmedi.
+
 - Kalıcı RSA 4096 bit sertifikayla imzalanan APK ve Google Play yüklemesi için AAB.
 - Release yayınında test/debug imzasına dönüş kaldırıldı; eksik imzalama secret'ı yayını durdurur.
 - APK/AAB sertifika eşleşmesi, APK v2 imzası, manifest ve 16 KB native ELF/ZIP hizalama kontrolleri.
