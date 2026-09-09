@@ -83,6 +83,32 @@ public sealed class SelfServiceRegistrationTests
         Assert.Equal(0, await harness.Db.RegistrationRequests.CountAsync());
     }
 
+    [Fact]
+    public async Task Staff_can_join_with_company_and_branch_codes_without_invite_but_cannot_skip_approval()
+    {
+        await using var h = await RegistrationHarness.CreateAsync();
+        await h.Controller.RegisterOwner(new("Firma Sahibi", "boss@example.test", null, null, "Firma", LoginMethod: LoginMethods.EmailCode), default);
+        var company = await h.Db.Companies.SingleAsync();
+        var branch = await h.Db.Branches.SingleAsync();
+        var response = await h.Controller.RegisterStaff(new("Yeni Personel", "staff@example.test", null, null, company.Code, branch.Code, null, LoginMethod: LoginMethods.EmailCode), default);
+        var result = Assert.IsType<RegisterResponse>(Assert.IsType<CreatedResult>(response.Result).Value);
+        Assert.True(result.RequiresApproval);
+        var staff = await h.Users.FindByEmailAsync("staff@example.test");
+        Assert.NotNull(staff);
+        Assert.False(staff.IsActive);
+        Assert.Equal(company.Id, staff.CompanyId);
+        Assert.Single(await h.Db.RegistrationRequests.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Public_demo_company_cannot_receive_real_staff_registrations()
+    {
+        await using var h = await RegistrationHarness.CreateAsync();
+        await DemoData.EnsureAsync(h.Db, h.Users);
+        await Assert.ThrowsAsync<ApiException>(() => h.Controller.RegisterStaff(new("Yeni Personel", "staff@example.test", null, null, "VALEM-DEMO", "DEMO", null), default));
+        Assert.Null(await h.Users.FindByEmailAsync("staff@example.test"));
+    }
+
     private sealed class RegistrationHarness : IAsyncDisposable
     {
         private readonly SqliteConnection _connection;

@@ -45,8 +45,8 @@ builder.Services.AddOptions<FirebaseOptions>().Bind(builder.Configuration.GetSec
 var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
 if (Encoding.UTF8.GetByteCount(jwt.Key) < 32) throw new InvalidOperationException("Jwt:Key en az 32 bayt olmalıdır.");
 
-builder.Services.AddDbContext<ValeDbContext>(options => options.UseNpgsql(connectionString, npgsql =>
-    npgsql.EnableRetryOnFailure(3, TimeSpan.FromSeconds(2), null)));
+// Explicit business transactions must not be replayed by a global retry strategy.
+builder.Services.AddDbContext<ValeDbContext>(options => options.UseNpgsql(connectionString));
 builder.Services.AddIdentityCore<AppUser>(options =>
     {
         options.Password.RequiredLength = 10;
@@ -60,6 +60,7 @@ builder.Services.AddIdentityCore<AppUser>(options =>
         options.User.RequireUniqueEmail = true;
     })
     .AddRoles<IdentityRole<Guid>>()
+    .AddErrorDescriber<TurkishIdentityErrorDescriber>()
     .AddEntityFrameworkStores<ValeDbContext>()
     .AddDefaultTokenProviders();
 
@@ -114,6 +115,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
                 x => x.Id == user.BranchId.Value && x.CompanyId == companyId && x.IsActive,
                 context.HttpContext.RequestAborted);
             if (!companyActive || !branchActive) context.Fail("Firma veya varsayılan şube artık aktif değil.");
+            if (await db.Companies.AnyAsync(x => x.Id == companyId && x.IsDemo, context.HttpContext.RequestAborted))
+                ((System.Security.Claims.ClaimsIdentity)context.Principal!.Identity!).AddClaim(new("vale_demo", "true"));
         }
     };
 }).AddCookie(PlatformAdminSecurity.CookieScheme, options =>
@@ -167,7 +170,13 @@ builder.Services.AddRateLimiter(options =>
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
-builder.Services.AddControllersWithViews().AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+builder.Services.AddSingleton<RequestDiagnostics>();
+builder.Services.AddHostedService<DiagnosticsRetentionService>();
+builder.Services.AddScoped<TenantBackupService>();
+builder.Services.AddScoped<DeveloperQueryService>();
+builder.Services.AddControllersWithViews()
+    .ConfigureApiBehaviorOptions(options => options.InvalidModelStateResponseFactory = TurkishValidation.Response)
+    .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks();
 builder.Services.AddHttpContextAccessor();
@@ -202,8 +211,15 @@ app.Use(async (context, next) =>
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
+app.Use(async (context, next) =>
+{
+    await next(context);
+    if (context.Response.StatusCode >= 400)
+        await context.RequestServices.GetRequiredService<RequestDiagnostics>().RecordAsync(context, context.Response.StatusCode);
+});
 app.UseRateLimiter();
 app.UseAuthentication();
+app.UseMiddleware<DemoReadOnlyMiddleware>();
 app.UseAuthorization();
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 
@@ -233,11 +249,11 @@ app.MapGet("/health/email", async (IValeEmailSender email, CancellationToken ct)
         : Results.Json(new { status = "not-ready", smtp = false, stage = probe.Stage }, statusCode: StatusCodes.Status503ServiceUnavailable);
 }).AllowAnonymous().RequireRateLimiting("diagnostic");
 
-// VALE 3.3.1: passwordless OTP login and open, isolated self-service registration.
+// VALE 3.4.0: passwordless OTP login and open, isolated self-service registration.
 app.MapGet("/api/status", (IValeEmailSender email, FirebasePushSender push) => Results.Ok(new
 {
     service = "VALE.Api",
-    version = "3.3.1",
+    version = "3.4.0",
     status = "ok",
     capabilities = new
     {
@@ -246,7 +262,10 @@ app.MapGet("/api/status", (IValeEmailSender email, FirebasePushSender push) => R
         multiTenant = true,
         rememberedDevices = true,
         platformAdmin = true,
-        migrations = true
+        migrations = true,
+        publicDemo = true,
+        extendedProfiles = true,
+        supportTools = true
     },
     utc = DateTimeOffset.UtcNow
 })).AllowAnonymous();

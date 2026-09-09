@@ -17,7 +17,7 @@ public sealed class TokenService(IOptions<JwtOptions> options)
     public IssuedToken Create(AppUser user, IEnumerable<string> roles)
     {
         var now = DateTimeOffset.UtcNow;
-        var expiresAt = now.AddMinutes(_options.ExpiryMinutes);
+        var expiresAt = now.AddMinutes(user.Id == DemoData.UserId ? Math.Min(60, _options.ExpiryMinutes) : _options.ExpiryMinutes);
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),

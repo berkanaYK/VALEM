@@ -17,7 +17,7 @@ public sealed class BranchesController(CurrentUserContext currentUser, TenantAcc
     public async Task<ActionResult<IReadOnlyList<BranchDto>>> GetAll(CancellationToken cancellationToken)
     {
         var branches = await tenantAccess.AccessibleBranches().AsNoTracking().OrderBy(x => x.Name)
-            .Select(x => new BranchDto(x.Id, x.Code, x.Name, x.City, x.Address, x.IsActive, currentUser.CanAccessAllBranches ? x.InviteCode : null))
+            .Select(x => new BranchDto(x.Id, x.Code, x.Name, x.City, x.Address, x.IsActive, currentUser.CanAccessAllBranches ? x.InviteCode : null, x.Company.Code))
             .ToListAsync(cancellationToken);
         return Ok(branches);
     }

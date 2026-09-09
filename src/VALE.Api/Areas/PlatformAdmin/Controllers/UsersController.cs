@@ -72,6 +72,8 @@ public sealed class UsersController(
             .SingleOrDefaultAsync(x => x.Id == model.Id && x.CompanyId != null, cancellationToken);
         if (user is null) return NotFound();
 
+        if (model.BirthDate is { } birthDate && (birthDate > DateOnly.FromDateTime(DateTime.UtcNow) || birthDate < DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-120)))
+            ModelState.AddModelError(nameof(model.BirthDate), "Geçerli bir doğum tarihi seçin veya alanı boş bırakın.");
         var selectedRoles = model.SelectedRoles
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Select(x => x.Trim())
@@ -109,6 +111,9 @@ public sealed class UsersController(
         user.UserName = email;
         user.NormalizedUserName = userManager.NormalizeName(email);
         user.PhoneNumber = Clean(model.PhoneNumber);
+        user.BirthDate = model.BirthDate;
+        user.City = Clean(model.City);
+        user.About = Clean(model.About);
         user.JobTitle = Clean(model.JobTitle);
         user.BranchId = branch!.Id;
         user.IsActive = model.IsActive;
@@ -231,6 +236,9 @@ public sealed class UsersController(
             FullName = user.FullName,
             Email = user.Email ?? string.Empty,
             PhoneNumber = user.PhoneNumber,
+            BirthDate = user.BirthDate,
+            City = user.City,
+            About = user.About,
             JobTitle = user.JobTitle,
             BranchId = user.BranchId ?? Guid.Empty,
             IsActive = user.IsActive,

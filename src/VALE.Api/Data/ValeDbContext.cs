@@ -21,6 +21,7 @@ public sealed class ValeDbContext(DbContextOptions<ValeDbContext> options)
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
     public DbSet<PlatformAuditEntry> PlatformAuditEntries => Set<PlatformAuditEntry>();
+    public DbSet<VALE.Api.Services.RequestFailure> RequestFailures => Set<VALE.Api.Services.RequestFailure>();
 
     public override int SaveChanges() =>
         throw new InvalidOperationException("Tenant bütünlüğü doğrulaması için SaveChangesAsync kullanılmalıdır.");
@@ -247,6 +248,8 @@ public sealed class ValeDbContext(DbContextOptions<ValeDbContext> options)
             entity.Property(x => x.ProfileColor).HasMaxLength(20);
             entity.Property(x => x.BackgroundTheme).HasMaxLength(30);
             entity.Property(x => x.ProfilePhotoContentType).HasMaxLength(30);
+            entity.Property(x => x.City).HasMaxLength(80);
+            entity.Property(x => x.About).HasMaxLength(300);
             entity.HasIndex(x => new { x.CompanyId, x.EmployeeCode }).IsUnique();
             entity.HasIndex(x => x.CompanyId);
             entity.HasOne(x => x.Company).WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.SetNull);

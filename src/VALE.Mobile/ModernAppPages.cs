@@ -128,7 +128,7 @@ public sealed class ModernDashboardPage : ContentPage
         }
         catch (Exception ex)
         {
-            await DisplayAlertAsync("Ana sayfa", ex.Message, "Tamam");
+            await DisplayAlertAsync("Ana sayfa", UserMessages.For(ex), "Tamam");
         }
         finally { _busy = false; }
     }
@@ -214,7 +214,7 @@ public sealed class ModernTicketsPage : ContentPage
             _items.Clear();
             foreach (var item in page.Items) _items.Add(item);
         }
-        catch (Exception ex) { await DisplayAlertAsync("Araçlar", ex.Message, "Tamam"); }
+        catch (Exception ex) { await DisplayAlertAsync("Araçlar", UserMessages.For(ex), "Tamam"); }
         finally { _busy = false; }
     }
 }
@@ -446,7 +446,7 @@ public sealed class ModernNewTicketPage : ContentPage
             _photo.IsVisible = true;
             _photoInfo.Text = $"{result.FileName} • {bytes.Length / 1024d:N0} KB";
         }
-        catch (Exception ex) { await DisplayAlertAsync("Fotoğraf", ex.Message, "Tamam"); }
+        catch (Exception ex) { await DisplayAlertAsync("Fotoğraf", UserMessages.For(ex), "Tamam"); }
     }
 
     private async Task SaveAsync(Button save)
@@ -493,7 +493,7 @@ public sealed class ModernNewTicketPage : ContentPage
             await DisplayAlertAsync("Kaydedildi", "Araç başarıyla teslim alındı.", "Tamam");
             await Navigation.PopAsync();
         }
-        catch (Exception ex) { await DisplayAlertAsync("Kayıt başarısız", ex.Message, "Tamam"); }
+        catch (Exception ex) { await DisplayAlertAsync("Kayıt başarısız", UserMessages.For(ex), "Tamam"); }
         finally { save.IsEnabled = true; }
     }
 
@@ -540,7 +540,7 @@ public sealed class ModernTicketDetailPage : ContentPage
             var detail = await _api.GetTicketDetailAsync(_id);
             Render(detail);
         }
-        catch (Exception ex) { await DisplayAlertAsync("Araç detayı", ex.Message, "Tamam"); }
+        catch (Exception ex) { await DisplayAlertAsync("Araç detayı", UserMessages.For(ex), "Tamam"); }
         finally { _busy = false; }
     }
 
@@ -617,7 +617,7 @@ public sealed class ModernTicketDetailPage : ContentPage
     private async Task ChangeStatus(TicketStatus status)
     {
         try { await _api.UpdateStatusAsync(_id, status); await LoadAsync(); }
-        catch (Exception ex) { await DisplayAlertAsync("İşlem", ex.Message, "Tamam"); }
+        catch (Exception ex) { await DisplayAlertAsync("İşlem", UserMessages.For(ex), "Tamam"); }
     }
 
     private async Task Checkout(PaymentMethod method)
@@ -630,7 +630,7 @@ public sealed class ModernTicketDetailPage : ContentPage
             await DisplayAlertAsync("Teslim tamamlandı", $"Tahsilat: {result.PaidAmount:N2} TL", "Tamam");
             await LoadAsync();
         }
-        catch (Exception ex) { await DisplayAlertAsync("Teslim", ex.Message, "Tamam"); }
+        catch (Exception ex) { await DisplayAlertAsync("Teslim", UserMessages.For(ex), "Tamam"); }
     }
 
     private static void AddDetail(VerticalStackLayout layout, string name, string value)
@@ -813,7 +813,7 @@ public sealed class ModernReportsPage : ContentPage
             _dailyChart.Invalidate();
             _hourlyChart.Invalidate();
         }
-        catch (Exception ex) { await DisplayAlertAsync("Rapor alınamadı", ex.Message, "Tamam"); }
+        catch (Exception ex) { await DisplayAlertAsync("Rapor alınamadı", UserMessages.For(ex), "Tamam"); }
         finally { _loading = false; }
     }
 

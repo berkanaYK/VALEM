@@ -58,7 +58,7 @@ public sealed class ApiClient : IDisposable
     public async Task EnsureServerReadyAsync(IProgress<string>? progress = null, CancellationToken ct = default)
     {
         if (Connectivity.Current.NetworkAccess != NetworkAccess.Internet)
-            throw new InvalidOperationException("İnternet bağlantısı yok. Wi‑Fi veya mobil veriyi kontrol edin.");
+            throw new UserFacingException("İnternet bağlantısı yok. Wi‑Fi veya mobil veriyi kontrol edin.");
 
         var watch = Stopwatch.StartNew();
         var attempt = 0;
@@ -75,7 +75,7 @@ public sealed class ApiClient : IDisposable
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidOperationException) { lastError = ex; }
             await Task.Delay(TimeSpan.FromSeconds(2.5), ct);
         }
-        throw new InvalidOperationException("VALE sunucusuna şu anda ulaşılamıyor. Birkaç dakika sonra tekrar deneyin.", lastError);
+        throw new UserFacingException("VALE sunucusuna şu anda ulaşılamıyor. Birkaç dakika sonra tekrar deneyin.", lastError);
     }
 
     public async Task TestConnectionAsync(string? overrideUrl = null, CancellationToken ct = default)
@@ -86,12 +86,12 @@ public sealed class ApiClient : IDisposable
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(15));
         using var response = await client.SendAsync(request, HttpCompletionOption.ResponseContentRead, timeout.Token);
-        if (!response.IsSuccessStatusCode) throw new InvalidOperationException("Sunucu henüz hazır değil. Tekrar deneyin.");
+        if (!response.IsSuccessStatusCode) throw new UserFacingException("Sunucu henüz hazır değil. Tekrar deneyin.");
     }
 
     public async Task<LoginResponse> LoginAsync(string email, string password, bool rememberDevice = false, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password)) throw new InvalidOperationException("E-posta ve parola alanlarını doldurun.");
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password)) throw new UserFacingException("E-posta ve parola alanlarını doldurun.");
         using var response = await SendJsonAsync(HttpMethod.Post, "api/auth/login", new LoginRequest(email.Trim(), password, rememberDevice, DeviceName), false, ct);
         if (await IsTwoFactorRequiredAsync(response, ct)) throw new TwoFactorRequiredException();
         await EnsureSuccessAsync(response, ct);
@@ -123,21 +123,21 @@ public sealed class ApiClient : IDisposable
     {
         using var response = await SendJsonAsync(HttpMethod.Post, "api/auth/register", request, false, ct);
         await EnsureSuccessAsync(response, ct);
-        return await response.Content.ReadFromJsonAsync<RegisterResponse>(JsonOptions, ct) ?? throw new InvalidOperationException("Hesap oluşturma yanıtı alınamadı.");
+        return await response.Content.ReadFromJsonAsync<RegisterResponse>(JsonOptions, ct) ?? throw new UserFacingException("Hesap oluşturma yanıtı alınamadı.");
     }
 
     public async Task<RegisterResponse> RegisterOwnerAsync(OwnerRegisterRequest request, CancellationToken ct = default)
     {
         using var response = await SendJsonAsync(HttpMethod.Post, "api/registration/owner", request, false, ct, TimeSpan.FromSeconds(60));
         await EnsureSuccessAsync(response, ct);
-        return await response.Content.ReadFromJsonAsync<RegisterResponse>(JsonOptions, ct) ?? throw new InvalidOperationException("Firma hesabı oluşturma yanıtı alınamadı.");
+        return await response.Content.ReadFromJsonAsync<RegisterResponse>(JsonOptions, ct) ?? throw new UserFacingException("Firma hesabı oluşturma yanıtı alınamadı.");
     }
 
     public async Task<RegisterResponse> RegisterStaffAsync(StaffRegisterRequest request, CancellationToken ct = default)
     {
         using var response = await SendJsonAsync(HttpMethod.Post, "api/registration/staff", request, false, ct, TimeSpan.FromSeconds(60));
         await EnsureSuccessAsync(response, ct);
-        return await response.Content.ReadFromJsonAsync<RegisterResponse>(JsonOptions, ct) ?? throw new InvalidOperationException("Personel başvurusu yanıtı alınamadı.");
+        return await response.Content.ReadFromJsonAsync<RegisterResponse>(JsonOptions, ct) ?? throw new UserFacingException("Personel başvurusu yanıtı alınamadı.");
     }
 
     public async Task RequestPasswordResetAsync(string email, CancellationToken ct = default)
@@ -154,11 +154,23 @@ public sealed class ApiClient : IDisposable
 
     public Task<UserDto> GetMeAsync(CancellationToken ct = default) => GetAsync<UserDto>("api/auth/me", true, ct);
 
+    public async Task<UserDto> StartDemoAsync(CancellationToken ct = default)
+    {
+        using var response = await SendJsonAsync(HttpMethod.Post, "api/demo", new { }, false, ct);
+        await EnsureSuccessAsync(response, ct);
+        var session = await response.Content.ReadFromJsonAsync<LoginResponse>(JsonOptions, ct)
+            ?? throw new UserFacingException("Deneme ekranı açılamadı.");
+        TryRemoveRefreshToken();
+        _accessToken = session.AccessToken;
+        ResetBranchContext(session.User.BranchId);
+        return session.User;
+    }
+
     public async Task<UserDto> UpdateProfileAsync(string fullName, CancellationToken ct = default)
     {
         using var response = await SendJsonAsync(HttpMethod.Put, "api/auth/me", new UpdateProfileRequest(fullName.Trim()), true, ct);
         await EnsureSuccessAsync(response, ct);
-        return await response.Content.ReadFromJsonAsync<UserDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Profil yanıtı alınamadı.");
+        return await response.Content.ReadFromJsonAsync<UserDto>(JsonOptions, ct) ?? throw new UserFacingException("Profil yanıtı alınamadı.");
     }
 
     public Task<AccountProfileDto> GetAccountProfileAsync(CancellationToken ct = default) => GetAsync<AccountProfileDto>("api/auth/profile", true, ct);
@@ -167,21 +179,21 @@ public sealed class ApiClient : IDisposable
     {
         using var response = await SendJsonAsync(HttpMethod.Put, "api/auth/profile", request, true, ct);
         await EnsureSuccessAsync(response, ct);
-        return await response.Content.ReadFromJsonAsync<AccountProfileDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Profil kaydedilemedi.");
+        return await response.Content.ReadFromJsonAsync<AccountProfileDto>(JsonOptions, ct) ?? throw new UserFacingException("Profil kaydedilemedi.");
     }
 
     public async Task<AccountProfileDto> UpdateProfilePhotoAsync(string contentType, byte[] bytes, CancellationToken ct = default)
     {
         using var response = await SendJsonAsync(HttpMethod.Put, "api/auth/profile/photo", new ProfilePhotoUploadRequest(contentType, Convert.ToBase64String(bytes)), true, ct);
         await EnsureSuccessAsync(response, ct);
-        return await response.Content.ReadFromJsonAsync<AccountProfileDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Profil fotoğrafı kaydedilemedi.");
+        return await response.Content.ReadFromJsonAsync<AccountProfileDto>(JsonOptions, ct) ?? throw new UserFacingException("Profil fotoğrafı kaydedilemedi.");
     }
 
     public async Task<AccountProfileDto> DeleteProfilePhotoAsync(CancellationToken ct = default)
     {
         using var response = await SendJsonAsync(HttpMethod.Delete, "api/auth/profile/photo", new { }, true, ct);
         await EnsureSuccessAsync(response, ct);
-        return await response.Content.ReadFromJsonAsync<AccountProfileDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Profil fotoğrafı kaldırılamadı.");
+        return await response.Content.ReadFromJsonAsync<AccountProfileDto>(JsonOptions, ct) ?? throw new UserFacingException("Profil fotoğrafı kaldırılamadı.");
     }
 
     public async Task ChangePasswordAsync(string currentPassword, string newPassword, CancellationToken ct = default)
@@ -196,14 +208,14 @@ public sealed class ApiClient : IDisposable
     {
         using var response = await SendJsonAsync(HttpMethod.Post, "api/auth/2fa/setup", new { }, true, ct);
         await EnsureSuccessAsync(response, ct);
-        return await response.Content.ReadFromJsonAsync<TwoFactorSetupDto>(JsonOptions, ct) ?? throw new InvalidOperationException("2FA kurulumu başlatılamadı.");
+        return await response.Content.ReadFromJsonAsync<TwoFactorSetupDto>(JsonOptions, ct) ?? throw new UserFacingException("2FA kurulumu başlatılamadı.");
     }
 
     public async Task<TwoFactorRecoveryCodesDto> EnableTwoFactorAsync(string code, CancellationToken ct = default)
     {
         using var response = await SendJsonAsync(HttpMethod.Post, "api/auth/2fa/enable", new TwoFactorCodeRequest(code.Trim()), true, ct);
         await EnsureSuccessAsync(response, ct);
-        return await response.Content.ReadFromJsonAsync<TwoFactorRecoveryCodesDto>(JsonOptions, ct) ?? throw new InvalidOperationException("2FA etkinleştirilemedi.");
+        return await response.Content.ReadFromJsonAsync<TwoFactorRecoveryCodesDto>(JsonOptions, ct) ?? throw new UserFacingException("2FA etkinleştirilemedi.");
     }
 
     public async Task DisableTwoFactorAsync(string code, CancellationToken ct = default)
@@ -216,7 +228,7 @@ public sealed class ApiClient : IDisposable
     {
         using var response = await SendJsonAsync(HttpMethod.Post, "api/auth/2fa/recovery-codes", new TwoFactorCodeRequest(code.Trim()), true, ct);
         await EnsureSuccessAsync(response, ct);
-        return await response.Content.ReadFromJsonAsync<TwoFactorRecoveryCodesDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Kurtarma kodları oluşturulamadı.");
+        return await response.Content.ReadFromJsonAsync<TwoFactorRecoveryCodesDto>(JsonOptions, ct) ?? throw new UserFacingException("Kurtarma kodları oluşturulamadı.");
     }
 
     public Task<DashboardDto> GetDashboardAsync(CancellationToken ct = default) =>
@@ -239,14 +251,14 @@ public sealed class ApiClient : IDisposable
             : request with { BranchId = _activeBranchId };
         using var response = await SendJsonAsync(HttpMethod.Post, "api/tickets", scopedRequest, true, ct, TimeSpan.FromSeconds(45));
         await EnsureSuccessAsync(response, ct);
-        return await response.Content.ReadFromJsonAsync<TicketSummaryDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Araç kaydı oluşturulamadı.");
+        return await response.Content.ReadFromJsonAsync<TicketSummaryDto>(JsonOptions, ct) ?? throw new UserFacingException("Araç kaydı oluşturulamadı.");
     }
 
     public async Task<TicketSummaryDto> UpdateTicketDetailsAsync(Guid id, UpdateTicketDetailsRequest request, CancellationToken ct = default)
     {
         using var response = await SendJsonAsync(HttpMethod.Put, $"api/tickets/{id}", request, true, ct, TimeSpan.FromSeconds(45));
         await EnsureSuccessAsync(response, ct);
-        return await response.Content.ReadFromJsonAsync<TicketSummaryDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Araç kaydı güncellenemedi.");
+        return await response.Content.ReadFromJsonAsync<TicketSummaryDto>(JsonOptions, ct) ?? throw new UserFacingException("Araç kaydı güncellenemedi.");
     }
 
     public async Task DeleteTicketAsync(Guid id, string reason, CancellationToken ct = default)
@@ -259,14 +271,14 @@ public sealed class ApiClient : IDisposable
     {
         using var response = await SendJsonAsync(HttpMethod.Patch, $"api/tickets/{id}/status", new UpdateTicketStatusRequest(status), true, ct);
         await EnsureSuccessAsync(response, ct);
-        return await response.Content.ReadFromJsonAsync<TicketSummaryDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Araç durumu güncellenemedi.");
+        return await response.Content.ReadFromJsonAsync<TicketSummaryDto>(JsonOptions, ct) ?? throw new UserFacingException("Araç durumu güncellenemedi.");
     }
 
     public async Task<CheckoutResponse> CheckoutAsync(Guid id, PaymentMethod method, CancellationToken ct = default)
     {
         using var response = await SendJsonAsync(HttpMethod.Post, $"api/tickets/{id}/checkout", new CheckoutTicketRequest(method), true, ct);
         await EnsureSuccessAsync(response, ct);
-        return await response.Content.ReadFromJsonAsync<CheckoutResponse>(JsonOptions, ct) ?? throw new InvalidOperationException("Teslim işlemi tamamlanamadı.");
+        return await response.Content.ReadFromJsonAsync<CheckoutResponse>(JsonOptions, ct) ?? throw new UserFacingException("Teslim işlemi tamamlanamadı.");
     }
 
     public Task<ReportSummaryDto> GetReportAsync(DateTimeOffset from, DateTimeOffset to, CancellationToken ct = default) =>
@@ -308,21 +320,21 @@ public sealed class ApiClient : IDisposable
     {
         using var response = await SendJsonAsync(HttpMethod.Post, "api/admin/users", request, true, ct);
         await EnsureSuccessAsync(response, ct);
-        return await response.Content.ReadFromJsonAsync<AdminUserDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Personel hesabı oluşturulamadı.");
+        return await response.Content.ReadFromJsonAsync<AdminUserDto>(JsonOptions, ct) ?? throw new UserFacingException("Personel hesabı oluşturulamadı.");
     }
 
     public async Task<AdminUserDetailDto> UpdateAdminUserAsync(Guid id, UpdateAdminUserRequest request, CancellationToken ct = default)
     {
         using var response = await SendJsonAsync(HttpMethod.Put, $"api/admin/users/{id}", request, true, ct);
         await EnsureSuccessAsync(response, ct);
-        return await response.Content.ReadFromJsonAsync<AdminUserDetailDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Personel bilgileri güncellenemedi.");
+        return await response.Content.ReadFromJsonAsync<AdminUserDetailDto>(JsonOptions, ct) ?? throw new UserFacingException("Personel bilgileri güncellenemedi.");
     }
 
     public async Task<AdminUserDto> SetUserActiveAsync(Guid id, bool active, CancellationToken ct = default)
     {
         using var response = await SendJsonAsync(HttpMethod.Patch, $"api/admin/users/{id}/status", new UpdateUserStatusRequest(active), true, ct);
         await EnsureSuccessAsync(response, ct);
-        return await response.Content.ReadFromJsonAsync<AdminUserDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Kullanıcı durumu güncellenemedi.");
+        return await response.Content.ReadFromJsonAsync<AdminUserDto>(JsonOptions, ct) ?? throw new UserFacingException("Kullanıcı durumu güncellenemedi.");
     }
 
     public async Task<IReadOnlyList<UserBranchMembershipDto>> UpdateUserBranchMembershipsAsync(
@@ -333,14 +345,14 @@ public sealed class ApiClient : IDisposable
         using var response = await SendJsonAsync(HttpMethod.Put, $"api/admin/users/{id}/branches", request, true, ct);
         await EnsureSuccessAsync(response, ct);
         return await response.Content.ReadFromJsonAsync<IReadOnlyList<UserBranchMembershipDto>>(JsonOptions, ct)
-            ?? throw new InvalidOperationException("Şube erişimleri güncellenemedi.");
+            ?? throw new UserFacingException("Şube erişimleri güncellenemedi.");
     }
 
     public async Task<BranchDto> CreateBranchAsync(CreateBranchRequest request, CancellationToken ct = default)
     {
         using var response = await SendJsonAsync(HttpMethod.Post, "api/admin/branches", request, true, ct);
         await EnsureSuccessAsync(response, ct);
-        return await response.Content.ReadFromJsonAsync<BranchDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Şube oluşturulamadı.");
+        return await response.Content.ReadFromJsonAsync<BranchDto>(JsonOptions, ct) ?? throw new UserFacingException("Şube oluşturulamadı.");
     }
 
     public Task<IReadOnlyList<AuditEntryDto>> GetAuditAsync(Guid? userId = null, int limit = 150, CancellationToken ct = default)
@@ -357,7 +369,7 @@ public sealed class ApiClient : IDisposable
     {
         using var response = await SendJsonAsync(HttpMethod.Post, $"api/registration/{id}/decision", new RegistrationDecisionRequest(approve, note), true, ct);
         await EnsureSuccessAsync(response, ct);
-        return await response.Content.ReadFromJsonAsync<RegistrationRequestDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Başvuru sonucu alınamadı.");
+        return await response.Content.ReadFromJsonAsync<RegistrationRequestDto>(JsonOptions, ct) ?? throw new UserFacingException("Başvuru sonucu alınamadı.");
     }
 
     public Task<IReadOnlyList<NotificationDto>> GetNotificationsAsync(bool unreadOnly = false, CancellationToken ct = default) =>
@@ -367,7 +379,7 @@ public sealed class ApiClient : IDisposable
     {
         using var response = await SendJsonAsync(HttpMethod.Patch, $"api/notifications/{id}", new MarkNotificationReadRequest(read), true, ct);
         await EnsureSuccessAsync(response, ct);
-        return await response.Content.ReadFromJsonAsync<NotificationDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Bildirim güncellenemedi.");
+        return await response.Content.ReadFromJsonAsync<NotificationDto>(JsonOptions, ct) ?? throw new UserFacingException("Bildirim güncellenemedi.");
     }
 
     public async Task ReadAllNotificationsAsync(CancellationToken ct = default)
@@ -383,7 +395,7 @@ public sealed class ApiClient : IDisposable
     {
         using var response = await SendJsonAsync(HttpMethod.Put, "api/push/register", request, true, ct);
         await EnsureSuccessAsync(response, ct);
-        return await response.Content.ReadFromJsonAsync<PushRegistrationDto>(JsonOptions, ct) ?? throw new InvalidOperationException("Bildirim cihaz kaydı oluşturulamadı.");
+        return await response.Content.ReadFromJsonAsync<PushRegistrationDto>(JsonOptions, ct) ?? throw new UserFacingException("Bildirim cihaz kaydı oluşturulamadı.");
     }
 
     public async Task UnregisterPushTokenAsync(PushRegistrationRequest request, CancellationToken ct = default)
@@ -396,7 +408,7 @@ public sealed class ApiClient : IDisposable
     {
         using var response = await SendJsonAsync(HttpMethod.Post, "api/push/test", new { }, true, ct);
         await EnsureSuccessAsync(response, ct);
-        return await response.Content.ReadFromJsonAsync<PushTestResponse>(JsonOptions, ct) ?? throw new InvalidOperationException("Push test yanıtı alınamadı.");
+        return await response.Content.ReadFromJsonAsync<PushTestResponse>(JsonOptions, ct) ?? throw new UserFacingException("Push test yanıtı alınamadı.");
     }
 
     public async Task<LoginResponse?> TryRestoreSessionAsync(CancellationToken ct = default)
@@ -463,7 +475,7 @@ public sealed class ApiClient : IDisposable
 
     private async Task<LoginResponse> AcceptLoginAsync(HttpResponseMessage response, CancellationToken ct)
     {
-        var login = await response.Content.ReadFromJsonAsync<LoginResponse>(JsonOptions, ct) ?? throw new InvalidOperationException("Sunucudan geçerli giriş yanıtı alınamadı.");
+        var login = await response.Content.ReadFromJsonAsync<LoginResponse>(JsonOptions, ct) ?? throw new UserFacingException("Sunucudan geçerli giriş yanıtı alınamadı.");
         _accessToken = login.AccessToken;
         if (string.IsNullOrWhiteSpace(login.RefreshToken))
             TryRemoveRefreshToken();
@@ -505,7 +517,7 @@ public sealed class ApiClient : IDisposable
     {
         using var response = await SendWithTimeoutAsync(() => CreateRequest(HttpMethod.Get, path, authorized), TimeSpan.FromSeconds(25), ct);
         await EnsureSuccessAsync(response, ct);
-        return await response.Content.ReadFromJsonAsync<T>(JsonOptions, ct) ?? throw new InvalidOperationException("Sunucudan geçerli veri alınamadı.");
+        return await response.Content.ReadFromJsonAsync<T>(JsonOptions, ct) ?? throw new UserFacingException("Sunucudan geçerli veri alınamadı.");
     }
 
     private Task<HttpResponseMessage> SendJsonAsync<T>(HttpMethod method, string path, T value, bool authorized, CancellationToken ct, TimeSpan? timeout = null)
@@ -525,7 +537,7 @@ public sealed class ApiClient : IDisposable
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         if (authorized)
         {
-            if (string.IsNullOrWhiteSpace(_accessToken)) throw new InvalidOperationException("Oturum süreniz sona ermiş. Tekrar giriş yapın.");
+            if (string.IsNullOrWhiteSpace(_accessToken)) throw new UserFacingException("Oturum süreniz sona ermiş. Tekrar giriş yapın.");
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
         }
         return request;
@@ -537,9 +549,9 @@ public sealed class ApiClient : IDisposable
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct);
         linked.CancelAfter(timeout);
         try { return await _httpClient.SendAsync(request, HttpCompletionOption.ResponseContentRead, linked.Token); }
-        catch (TaskCanceledException) when (!ct.IsCancellationRequested) { throw new InvalidOperationException("Sunucu yanıt vermedi. Tekrar deneyin."); }
-        catch (HttpRequestException ex) { throw new InvalidOperationException($"VALE sunucusuna bağlanılamadı. {GetDeepestMessage(ex)}", ex); }
-        catch (Exception ex) when (ex.GetType().FullName?.StartsWith("Java.", StringComparison.Ordinal) == true) { throw new InvalidOperationException($"Android bağlantı hatası: {GetDeepestMessage(ex)}", ex); }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested) { throw new UserFacingException("Sunucu yanıt vermedi. Tekrar deneyin."); }
+        catch (HttpRequestException ex) { throw new UserFacingException("Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.", ex); }
+        catch (Exception ex) when (ex.GetType().FullName?.StartsWith("Java.", StringComparison.Ordinal) == true) { throw new UserFacingException("Telefonunuz sunucuya bağlanamadı. Bağlantınızı kontrol edip tekrar deneyin.", ex); }
     }
 
     private static async Task<bool> IsTwoFactorRequiredAsync(HttpResponseMessage response, CancellationToken ct)
@@ -563,7 +575,7 @@ public sealed class ApiClient : IDisposable
             HttpStatusCode.ServiceUnavailable => detail ?? "Sunucu veya bağlı servis şu anda hazır değil.",
             _ => detail ?? $"İşlem tamamlanamadı ({(int)response.StatusCode})."
         };
-        throw new InvalidOperationException(message);
+        throw new UserFacingException(message);
     }
 
     private static async Task<string?> ReadProblemDetailAsync(HttpResponseMessage response, CancellationToken ct)
@@ -573,12 +585,19 @@ public sealed class ApiClient : IDisposable
         try
         {
             using var document = JsonDocument.Parse(body);
+            if (document.RootElement.TryGetProperty("errors", out var errors) && errors.ValueKind == JsonValueKind.Object)
+            {
+                var messages = errors.EnumerateObject().Where(x => x.Value.ValueKind == JsonValueKind.Array)
+                    .SelectMany(x => x.Value.EnumerateArray()).Where(x => x.ValueKind == JsonValueKind.String)
+                    .Select(x => x.GetString()).Distinct().Take(4).ToArray();
+                if (messages.Length > 0) return string.Join(Environment.NewLine, messages);
+            }
             if (document.RootElement.TryGetProperty("detail", out var detail) && detail.ValueKind == JsonValueKind.String) return detail.GetString();
             if (document.RootElement.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String) return message.GetString();
             if (document.RootElement.TryGetProperty("title", out var title) && title.ValueKind == JsonValueKind.String) return title.GetString();
         }
         catch (JsonException) { }
-        return body.Length <= 300 ? body : body[..300];
+        return null;
     }
 
     private void RebuildClient(string baseUrl)
@@ -628,9 +647,9 @@ public sealed class ApiClient : IDisposable
     {
         if (!Uri.TryCreate(baseUrl.Trim(), UriKind.Absolute, out var uri) ||
             (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp))
-            throw new InvalidOperationException("Geçerli bir HTTPS sunucu adresi girin.");
+            throw new UserFacingException("Geçerli bir HTTPS sunucu adresi girin.");
         if (uri.Scheme == Uri.UriSchemeHttp && !uri.IsLoopback)
-            throw new InvalidOperationException("HTTP yalnızca localhost geliştirme sunucusunda kullanılabilir. Uzak sunucular HTTPS olmalıdır.");
+            throw new UserFacingException("HTTP yalnızca localhost geliştirme sunucusunda kullanılabilir. Uzak sunucular HTTPS olmalıdır.");
         var builder = new UriBuilder(uri);
         if (!builder.Path.EndsWith('/')) builder.Path += "/";
         return builder.Uri.AbsoluteUri;

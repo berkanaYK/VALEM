@@ -12,6 +12,8 @@ public sealed class ValeAppShellV31 : Shell
     private bool _restoringHistory;
     private readonly Image _headerAvatar = new() { Aspect = Aspect.AspectFill, IsVisible = false };
     private readonly Label _headerInitials = UiKit.Label("VA", 20, true);
+    private readonly Label _headerName = UiKit.Label("", 13, true);
+    private bool _loadingAvatar;
 
     public ValeAppShellV31(ApiClient api, UserDto user)
     {
@@ -24,6 +26,7 @@ public sealed class ValeAppShellV31 : Shell
         Shell.SetNavBarHasShadow(this, false);
 
         _headerInitials.Text = string.Concat(user.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
+        _headerName.Text = user.FullName;
         _headerInitials.TextColor = Colors.White; _headerInitials.HorizontalTextAlignment = TextAlignment.Center; _headerInitials.VerticalTextAlignment = TextAlignment.Center;
         var avatarLayer = new Grid(); avatarLayer.Add(_headerInitials); avatarLayer.Add(_headerAvatar);
         var avatar = new Border { WidthRequest = 62, HeightRequest = 62, StrokeThickness = 2, Stroke = new SolidColorBrush(Colors.White), StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 31 }, BackgroundColor = ThemeService.Palette.Accent, Content = avatarLayer };
@@ -44,7 +47,7 @@ public sealed class ValeAppShellV31 : Shell
                 {
                     avatar,
                     UiKit.Label("VALE", 26, true),
-                    UiKit.Label(user.FullName, 13, true),
+                    _headerName,
                     UiKit.Label(user.BranchName ?? "Şube atanmamış", 11.5, false, true)
                 }
             }
@@ -73,14 +76,20 @@ public sealed class ValeAppShellV31 : Shell
         _observedItem = tabs;
         Navigated += (_, _) => TrackTopLevelNavigation();
         _ = LoadHeaderAvatarAsync(api);
+        PropertyChanged += (_, e) => { if (e.PropertyName == nameof(FlyoutIsPresented) && FlyoutIsPresented) _ = LoadHeaderAvatarAsync(api); };
     }
 
     private async Task LoadHeaderAvatarAsync(ApiClient api)
     {
+        if (_loadingAvatar) return;
         try
         {
+            _loadingAvatar = true;
             var profile = await api.GetAccountProfileAsync();
-            if (string.IsNullOrWhiteSpace(profile.ProfilePhotoDataUrl)) return;
+            _headerName.Text = profile.FullName;
+            _headerInitials.Text = string.Concat(profile.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
+            if (string.IsNullOrWhiteSpace(profile.ProfilePhotoDataUrl))
+            { _headerAvatar.Source = null; _headerAvatar.IsVisible = false; _headerInitials.IsVisible = true; return; }
             var comma = profile.ProfilePhotoDataUrl.IndexOf(',');
             if (comma < 0) return;
             var bytes = Convert.FromBase64String(profile.ProfilePhotoDataUrl[(comma + 1)..]);
@@ -89,6 +98,7 @@ public sealed class ValeAppShellV31 : Shell
             _headerInitials.IsVisible = false;
         }
         catch { /* Header remains usable with initials when profile media is unavailable. */ }
+        finally { _loadingAvatar = false; }
     }
 
     private void TrackTopLevelNavigation()
@@ -191,7 +201,7 @@ public sealed class CompanyManagementPage : ContentPage
                 Children =
                 {
                     UiKit.Label("Firma ve şubeler", 27, true),
-                    UiKit.Label("Şube kodları yalnızca kendi firmanız içinde benzersizdir. Personel, firma + şube koduyla veya davet koduyla katılabilir.", 12.5, false, true),
+                    UiKit.Label("Personeliniz firma ve şube kodlarıyla başvurabilir. Katılım bilgilerini paylaşın; başvuruyu Ekip ekranından onaylayın.", 12.5, false, true),
                     add,
                     _list
                 }
@@ -225,15 +235,15 @@ public sealed class CompanyManagementPage : ContentPage
                         UiKit.Label(string.IsNullOrWhiteSpace(branch.Address) ? "Adres girilmemiş" : branch.Address, 11, false, true)
                     }
                 };
-                if (!string.IsNullOrWhiteSpace(branch.InviteCode))
+                if (!string.IsNullOrWhiteSpace(branch.CompanyCode))
                 {
-                    var invite = UiKit.Label($"Davet kodu: {branch.InviteCode}", 12, true);
+                    var invite = UiKit.Label($"Firma kodu: {branch.CompanyCode} • Şube kodu: {branch.Code}", 12, true);
                     stack.Add(invite);
-                    var copy = UiKit.TextButton("Davet kodunu kopyala");
+                    var copy = UiKit.TextButton("Katılım bilgilerini kopyala");
                     copy.Clicked += async (_, _) =>
                     {
-                        await Clipboard.Default.SetTextAsync(branch.InviteCode);
-                        await DisplayAlertAsync("Davet kodu", "Davet kodu panoya kopyalandı.", "Tamam");
+                        await Clipboard.Default.SetTextAsync($"VALEM uygulamasında 'Mevcut firmama katıl' seçeneğini açın. Firma kodu: {branch.CompanyCode}, şube kodu: {branch.Code}.");
+                        await DisplayAlertAsync("Katılım bilgileri", "Firma ve şube kodu panoya kopyalandı.", "Tamam");
                     };
                     stack.Add(copy);
                 }
@@ -241,7 +251,7 @@ public sealed class CompanyManagementPage : ContentPage
             }
             if (branches.Count == 0) _list.Add(UiKit.Label("Aktif şube bulunamadı.", 13, false, true));
         }
-        catch (Exception ex) { await DisplayAlertAsync("Şubeler", ex.Message, "Tamam"); }
+        catch (Exception ex) { await DisplayAlertAsync("Şubeler", UserMessages.For(ex), "Tamam"); }
         finally { _busy = false; }
     }
 
@@ -257,11 +267,10 @@ public sealed class CompanyManagementPage : ContentPage
         try
         {
             var created = await _api.CreateBranchAsync(new CreateBranchRequest(code.Trim(), name.Trim(), city.Trim(), string.IsNullOrWhiteSpace(address) ? null : address.Trim()));
-            if (!string.IsNullOrWhiteSpace(created.InviteCode))
-                await DisplayAlertAsync("Şube oluşturuldu", $"Personel davet kodu: {created.InviteCode}", "Tamam");
+            await DisplayAlertAsync("Şube oluşturuldu", $"Şube kodu: {created.Code}. Liste üzerinden firma ve şube kodunu personelinizle paylaşabilirsiniz.", "Tamam");
             await RefreshAsync();
         }
-        catch (Exception ex) { await DisplayAlertAsync("Şube oluşturulamadı", ex.Message, "Tamam"); }
+        catch (Exception ex) { await DisplayAlertAsync("Şube oluşturulamadı", UserMessages.For(ex), "Tamam"); }
     }
 }
 
@@ -279,7 +288,7 @@ public sealed class ValeHelpPage : ContentPage
                 Children =
                 {
                     UiKit.Label("VALE Yardım", 27, true),
-                    UiKit.Card(new VerticalStackLayout { Spacing = 6, Children = { UiKit.Label("Personel katılımı", 16, true), UiKit.Label("Firma yöneticinizden firma + şube kodunu veya davet kodunu alın. Başvurunuz yalnızca ilgili firmanın yöneticilerine düşer.", 12.5, false, true) } }),
+                    UiKit.Card(new VerticalStackLayout { Spacing = 6, Children = { UiKit.Label("Personel katılımı", 16, true), UiKit.Label("Firma yöneticinizden firma ve şube kodlarını alın. Hesap Oluştur → Mevcut firmama katıl ekranından başvurun. Firmanın yöneticisi onayladığında erişiminiz açılır.", 12.5, false, true) } }),
                     UiKit.Card(new VerticalStackLayout { Spacing = 6, Children = { UiKit.Label("Araç ücreti", 16, true), UiKit.Label("Aktif aracın tahmini ücreti araç detayında anlık gösterilir; kesin tahsilat teslim anında hesaplanır.", 12.5, false, true) } }),
                     UiKit.Card(new VerticalStackLayout { Spacing = 6, Children = { UiKit.Label("Bildirim ve güvenlik", 16, true), UiKit.Label("Google/Microsoft Authenticator TOTP, e-posta ile giriş ve gerçek Firebase push bildirimleri kullanılabilir.", 12.5, false, true) } })
                 }

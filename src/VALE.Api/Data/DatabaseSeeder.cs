@@ -30,6 +30,7 @@ public static class DatabaseSeeder
         }
 
         await EnsurePlatformAdminAsync(userManager, platformOptions, logger);
+        await VALE.Api.Services.DemoData.EnsureAsync(db, userManager);
         var company = await EnsureLegacyCompanyAsync(db, cancellationToken);
 
         if (string.IsNullOrWhiteSpace(options.AdminEmail) || string.IsNullOrWhiteSpace(options.AdminPassword))

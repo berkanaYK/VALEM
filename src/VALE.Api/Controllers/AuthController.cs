@@ -191,6 +191,12 @@ public sealed class AuthController(
         var user = await GetCurrentUserAsync(cancellationToken);
         user.FullName = request.FullName.Trim();
         user.PhoneNumber = Clean(request.PhoneNumber);
+        if (request.BirthDate is { } birthDate &&
+            (birthDate > DateOnly.FromDateTime(DateTime.UtcNow) || birthDate < DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-120)))
+            throw new ApiException(400, "Doğum tarihi geçersiz", "Doğum tarihinizi kontrol edin veya bu isteğe bağlı alanı boş bırakın.");
+        user.BirthDate = request.BirthDate;
+        user.City = Clean(request.City);
+        user.About = Clean(request.About);
         user.PreferredTheme = theme;
         user.AccentTheme = accent;
         user.ProfileColor = request.ProfileColor.ToUpperInvariant();
@@ -202,6 +208,7 @@ public sealed class AuthController(
     }
 
     [HttpPut("profile/photo")]
+    [RequestSizeLimit(2_100_000)]
     [Authorize]
     [EnableRateLimiting("session")]
     public async Task<ActionResult<AccountProfileDto>> UpdateProfilePhoto(ProfilePhotoUploadRequest request, CancellationToken cancellationToken)
@@ -219,7 +226,8 @@ public sealed class AuthController(
         var user = await GetCurrentUserAsync(cancellationToken);
         user.ProfilePhoto = bytes;
         user.ProfilePhotoContentType = contentType;
-        await userManager.UpdateAsync(user);
+        var result = await userManager.UpdateAsync(user);
+        if (!result.Succeeded) throw new ApiException(400, "Fotoğraf kaydedilemedi", "Fotoğrafınızı yeniden seçip tekrar deneyin.");
         await audit.RecordAsync(user.Id, user.BranchId, "profile.photo.updated", "User", user.Id.ToString(), "Profil fotoğrafı güncellendi.", cancellationToken: cancellationToken);
         return Ok(await MapProfileAsync(user));
     }
@@ -231,7 +239,8 @@ public sealed class AuthController(
         var user = await GetCurrentUserAsync(cancellationToken);
         user.ProfilePhoto = null;
         user.ProfilePhotoContentType = null;
-        await userManager.UpdateAsync(user);
+        var result = await userManager.UpdateAsync(user);
+        if (!result.Succeeded) throw new ApiException(400, "Fotoğraf kaldırılamadı", "Lütfen tekrar deneyin.");
         await audit.RecordAsync(user.Id, user.BranchId, "profile.photo.deleted", "User", user.Id.ToString(), "Profil fotoğrafı kaldırıldı.", cancellationToken: cancellationToken);
         return Ok(await MapProfileAsync(user));
     }
@@ -382,7 +391,7 @@ public sealed class AuthController(
         user.PreferredTheme, user.AccentTheme, user.ProfileColor, user.TwoFactorEnabled, user.BackgroundTheme,
         user.ProfilePhoto is { Length: > 0 } && !string.IsNullOrWhiteSpace(user.ProfilePhotoContentType)
             ? $"data:{user.ProfilePhotoContentType};base64,{Convert.ToBase64String(user.ProfilePhoto)}"
-            : null);
+            : null, user.BirthDate, user.City, user.About);
 
     private static bool HasValidImageSignature(string contentType, byte[] bytes) => contentType switch
     {

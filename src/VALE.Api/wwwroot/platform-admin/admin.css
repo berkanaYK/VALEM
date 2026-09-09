@@ -108,6 +108,11 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fo
 .system-grid .form-panel { max-width: none; width: 100%; }
 .migration-list { display: grid; gap: 8px; margin: 0; padding-left: 24px; }
 .migration-list li { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #f8fafc; }
+.panel:has(> h2) { padding: 22px; }
+.panel:has(> h2) form { display: grid; gap: 14px; max-width: 960px; }
+.panel:has(> h2) label { display: grid; gap: 6px; }
+.panel:has(> h2) textarea { min-height: 110px; resize: vertical; }
+.panel:has(> h2) button { justify-self: start; min-height: 44px; padding: 10px 18px; border: 0; border-radius: 9px; background: var(--blue); color: white; cursor: pointer; }
 
 @media (max-width: 1160px) {
     .topbar { flex-wrap: wrap; gap: 10px; }

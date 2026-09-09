@@ -82,8 +82,8 @@ public sealed class AuthenticatorLoginPage : ContentPage
         }
         catch (Exception ex)
         {
-            _status.Text = ex.Message;
-            await DisplayAlertAsync("Giriş yapılamadı", ex.Message, "Tamam");
+            _status.Text = UserMessages.For(ex);
+            await DisplayAlertAsync("Giriş yapılamadı", UserMessages.For(ex), "Tamam");
         }
         finally { button.IsEnabled = true; }
     }
@@ -148,7 +148,7 @@ public sealed class AuthenticatorSecurityPage : ContentPage
                 _body.Add(setup);
             }
         }
-        catch (Exception ex) { _status.Text = ex.Message; }
+        catch (Exception ex) { _status.Text = UserMessages.For(ex); }
     }
 
     private async Task SetupAsync()
@@ -191,7 +191,7 @@ public sealed class AuthenticatorSecurityPage : ContentPage
                     await ShowRecoveryAsync(result.RecoveryCodes);
                     await RefreshAsync();
                 }
-                catch (Exception ex) { await DisplayAlertAsync("Authenticator açılamadı", ex.Message, "Tamam"); }
+                catch (Exception ex) { await DisplayAlertAsync("Authenticator açılamadı", UserMessages.For(ex), "Tamam"); }
                 finally { enable.IsEnabled = true; }
             };
 
@@ -208,7 +208,7 @@ public sealed class AuthenticatorSecurityPage : ContentPage
         catch (Exception ex)
         {
             _status.Text = "Kurulum başlatılamadı";
-            await DisplayAlertAsync("Authenticator kurulumu", ex.Message, "Tamam");
+            await DisplayAlertAsync("Authenticator kurulumu", UserMessages.For(ex), "Tamam");
         }
     }
 
@@ -222,7 +222,7 @@ public sealed class AuthenticatorSecurityPage : ContentPage
             await ShowRecoveryAsync(result.RecoveryCodes);
             await RefreshAsync();
         }
-        catch (Exception ex) { await DisplayAlertAsync("Kurtarma kodları", ex.Message, "Tamam"); }
+        catch (Exception ex) { await DisplayAlertAsync("Kurtarma kodları", UserMessages.For(ex), "Tamam"); }
     }
 
     private async Task DisableAsync()
@@ -236,7 +236,7 @@ public sealed class AuthenticatorSecurityPage : ContentPage
             await _api.DisableTwoFactorAsync(code.Trim());
             await RefreshAsync();
         }
-        catch (Exception ex) { await DisplayAlertAsync("Authenticator kapatılamadı", ex.Message, "Tamam"); }
+        catch (Exception ex) { await DisplayAlertAsync("Authenticator kapatılamadı", UserMessages.For(ex), "Tamam"); }
     }
 
     private async Task ShowRecoveryAsync(IReadOnlyList<string> codes)

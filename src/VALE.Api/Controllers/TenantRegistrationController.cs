@@ -171,7 +171,7 @@ public sealed class TenantRegistrationController(
             branch = await db.Branches.Include(x => x.Company)
                 .SingleOrDefaultAsync(x => x.IsActive && x.Company.IsActive && x.Company.Code == companyCode && x.Code == branchCode, cancellationToken);
         }
-        if (branch is null)
+        if (branch is null || branch.Company.IsDemo)
             throw new ApiException(StatusCodes.Status404NotFound, "Firma / şube bulunamadı", "Davet kodunu veya firma ve şube kodlarını kontrol edin.");
 
         var employeeCode = Clean(request.EmployeeCode)?.ToUpperInvariant();

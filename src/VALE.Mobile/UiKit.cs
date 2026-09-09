@@ -46,7 +46,7 @@ public static class UiKit
             HorizontalOptions = LayoutOptions.Fill,
             ClearButtonVisibility = password ? ClearButtonVisibility.Never : ClearButtonVisibility.WhileEditing
         };
-        entry.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeSoftCard");
+        entry.BackgroundColor = Colors.Transparent;
         entry.SetDynamicResource(Microsoft.Maui.Controls.Entry.TextColorProperty, "ValeText");
         entry.SetDynamicResource(Microsoft.Maui.Controls.Entry.PlaceholderColorProperty, "ValeSecondary");
         return entry;
@@ -63,7 +63,7 @@ public static class UiKit
             FontAutoScalingEnabled = true,
             HorizontalOptions = LayoutOptions.Fill
         };
-        editor.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeSoftCard");
+        editor.BackgroundColor = Colors.Transparent;
         editor.SetDynamicResource(Microsoft.Maui.Controls.Editor.TextColorProperty, "ValeText");
         editor.SetDynamicResource(Microsoft.Maui.Controls.Editor.PlaceholderColorProperty, "ValeSecondary");
         return editor;
@@ -79,7 +79,7 @@ public static class UiKit
             FontAutoScalingEnabled = true,
             HorizontalOptions = LayoutOptions.Fill
         };
-        picker.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeSoftCard");
+        picker.BackgroundColor = Colors.Transparent;
         picker.SetDynamicResource(Microsoft.Maui.Controls.Picker.TextColorProperty, "ValeText");
         picker.SetDynamicResource(Microsoft.Maui.Controls.Picker.TitleColorProperty, "ValeSecondary");
         return picker;
@@ -235,8 +235,15 @@ public sealed class ThemeBackgroundHost : Grid
         Add(_background);
         Add(_overlay);
         Add(content);
-        ThemeService.Changed += OnThemeChanged;
+        Loaded += (_, _) => { ThemeService.Changed -= OnThemeChanged; ThemeService.Changed += OnThemeChanged; Refresh(); };
         Unloaded += (_, _) => ThemeService.Changed -= OnThemeChanged;
+        _background.HandlerChanged += (_, _) =>
+        {
+#if ANDROID
+            if (OperatingSystem.IsAndroidVersionAtLeast(31) && _background.Handler?.PlatformView is Android.Views.View native)
+                native.SetRenderEffect(Android.Graphics.RenderEffect.CreateBlurEffect(12f, 12f, Android.Graphics.Shader.TileMode.Clamp!));
+#endif
+        };
         Refresh();
     }
 

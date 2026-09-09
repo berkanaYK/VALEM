@@ -1,0 +1,11 @@
+@model IReadOnlyList<VALE.Api.Services.RequestFailure>
+@{ ViewData["Title"] = "Hata kayıtları"; }
+<h1>Hata kayıtları</h1>
+<p>Son 250 kayıt gösterilir. Parolalar, doğrulama kodları, sorgu metinleri ve istek içerikleri kaydedilmez.</p>
+<form method="get"><label>Destek kayıt numarası <input name="traceId" /></label><label>Firma kimliği <input name="companyId" /></label><button type="submit">Filtrele</button></form>
+<div class="table-wrap"><table><thead><tr><th>Zaman</th><th>İşlem</th><th>Durum</th><th>Kategori</th><th>Firma / kullanıcı</th><th>Destek numarası</th></tr></thead><tbody>
+@foreach (var item in Model)
+{
+    <tr><td>@item.OccurredAt.ToString("dd.MM.yyyy HH:mm 'UTC'")</td><td>@item.Method @item.Route</td><td>@item.StatusCode</td><td>@item.Category</td><td>@item.CompanyId<br />@item.UserId</td><td>@item.TraceId</td></tr>
+}
+</tbody></table></div>

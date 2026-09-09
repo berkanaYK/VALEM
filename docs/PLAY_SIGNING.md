@@ -1,7 +1,7 @@
 # Play imzalama ve dağıtım
 
-Android uygulama kimliği: `com.berkanayk.vale`. Mobil sürüm 3.3.2 / build 17.
-API sözleşmesi 3.3.1 ile devam eder.
+Android uygulama kimliği: `com.berkanayk.vale`. Mobil sürüm 3.4.0 / build 18.
+Yeni profil, demo ve geliştirici özellikleri API 3.4.0 gerektirir.
 
 ## Kalıcı anahtar
 

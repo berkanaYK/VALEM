@@ -23,6 +23,9 @@ public sealed class TenantRegisterPage : ContentPage
     private readonly Entry _branchCode = UiKit.Entry("Şube kodu (örn. 01)");
     private readonly Entry _city = UiKit.Entry("Şehir (isteğe bağlı)");
     private readonly Entry _employeeCode = UiKit.Entry("Personel kodu (isteğe bağlı)");
+    private readonly VerticalStackLayout _joinFields = new() { Spacing = 10 };
+    private readonly Entry _joinCompanyCode = UiKit.Entry("Yöneticinizin paylaştığı firma kodu");
+    private readonly Entry _joinBranchCode = UiKit.Entry("Çalışacağınız şubenin kodu");
 
     public TenantRegisterPage(ApiClient api)
     {
@@ -44,7 +47,7 @@ public sealed class TenantRegisterPage : ContentPage
         _city.AutomationId = "register-city";
         _employeeCode.AutomationId = "register-employee-code";
 
-        _accountType.ItemsSource = new[] { "Firma sahibi / yönetici", "Personel / deneme hesabı" };
+        _accountType.ItemsSource = new[] { "Kendi firmamı oluştur", "Kişisel hesap oluştur", "Mevcut firmama katıl" };
         _accountType.SelectedIndex = 0;
         _accountType.SelectedIndexChanged += (_, _) => UpdateMode();
 
@@ -85,6 +88,9 @@ public sealed class TenantRegisterPage : ContentPage
 
         _staffFields.Children.Add(UiKit.Label("Deneme için istediğiniz firma adını yazabilirsiniz. Size özel firma ve Merkez şube kodları otomatik oluşturulur; davet veya yönetici onayı gerekmez.", 11.5, false, true));
         _staffFields.Children.Add(_employeeCode);
+        _joinFields.Add(UiKit.Label("Firma ve şube kodunu yöneticinizden alın. Başvurunuz onaylandığında firmanın izin verilen kayıtlarına erişebilirsiniz. Davet kodu gerekmez.", 11.5, false, true));
+        _joinFields.Add(_joinCompanyCode);
+        _joinFields.Add(_joinBranchCode);
 
         var save = UiKit.PrimaryButton("Hesabı Oluştur");
         save.AutomationId = "register-submit";
@@ -133,9 +139,10 @@ public sealed class TenantRegisterPage : ContentPage
                             _companyName,
                             _ownerFields,
                             _staffFields,
+                            _joinFields,
                             signInToggle,
                             signInCard,
-                            UiKit.Label("Hesap oluşturulduktan sonra seçtiğiniz yöntemle hemen giriş yapabilirsiniz. E-posta sahipliği bağlantısını ayrıca onaylamanız önerilir.", 11, false, true),
+                            UiKit.Label("Yeni firma ve kişisel hesapla hemen giriş yapabilirsiniz. Mevcut firmaya katılım için e-posta doğrulaması ve yönetici onayı gerekir.", 11, false, true),
                             save
                         }
                     })
@@ -148,9 +155,11 @@ public sealed class TenantRegisterPage : ContentPage
 
     private void UpdateMode()
     {
-        var owner = _accountType.SelectedIndex != 1;
+        var owner = _accountType.SelectedIndex == 0;
         _ownerFields.IsVisible = owner;
-        _staffFields.IsVisible = !owner;
+        _staffFields.IsVisible = _accountType.SelectedIndex == 1;
+        _joinFields.IsVisible = _accountType.SelectedIndex == 2;
+        _companyName.IsVisible = _accountType.SelectedIndex != 2;
         if (!owner && _loginMethod.SelectedIndex == 0)
             _loginMethod.SelectedIndex = 1;
     }
@@ -200,7 +209,18 @@ public sealed class TenantRegisterPage : ContentPage
         {
             save.IsEnabled = false;
             RegisterResponse result;
-            if (_accountType.SelectedIndex != 1)
+            if (_accountType.SelectedIndex == 2)
+            {
+                if (string.IsNullOrWhiteSpace(_joinCompanyCode.Text) || string.IsNullOrWhiteSpace(_joinBranchCode.Text))
+                {
+                    await DisplayAlertAsync("Firma bilgileri", "Firma ve şube kodunu doldurun.", "Tamam");
+                    return;
+                }
+                result = await _api.RegisterStaffAsync(new StaffRegisterRequest(
+                    _name.Text.Trim(), _email.Text.Trim(), loginMethod == LoginMethods.EmailCode ? null : _password.Text,
+                    N(_phone.Text), N(_joinCompanyCode.Text), N(_joinBranchCode.Text), null, null, loginMethod, null));
+            }
+            else if (_accountType.SelectedIndex == 0)
             {
                 if (string.IsNullOrWhiteSpace(_companyName.Text))
                 {
@@ -229,7 +249,7 @@ public sealed class TenantRegisterPage : ContentPage
         }
         catch (Exception ex)
         {
-            await DisplayAlertAsync("Hesap oluşturulamadı", ex.Message, "Tamam");
+            await DisplayAlertAsync("Hesap oluşturulamadı", UserMessages.For(ex), "Tamam");
         }
         finally
         {

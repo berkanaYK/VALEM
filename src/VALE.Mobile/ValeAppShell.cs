@@ -46,253 +46,35 @@ public sealed class ValeAppShell : Shell
 
 public sealed class MoreHubPage : ContentPage
 {
-    private readonly ApiClient _api;
-    private readonly UserDto _user;
-    private readonly Entry _name = UiKit.Entry("Ad soyad");
-    private readonly Entry _phone = UiKit.Entry("Telefon", Keyboard.Telephone);
-    private readonly Label _email = UiKit.Label("—", 13.5);
-    private readonly Label _branch = UiKit.Label("—", 13.5);
-    private readonly Label _roles = UiKit.Label("—", 12.5, false, true);
-    private readonly Picker _theme = UiKit.Picker("Tema");
-    private readonly Picker _accent = UiKit.Picker("Vurgu rengi");
-    private readonly Label _connection = UiKit.Label("Sunucu durumu henüz kontrol edilmedi.", 11.5, false, true);
-    private AccountProfileDto? _profile;
-    private bool _loading;
-
     public MoreHubPage(ApiClient api, UserDto user)
     {
-        _api = api;
-        _user = user;
-        Title = "Daha Fazla";
+        Title = "Ayarlar";
         UiKit.StylePage(this);
-
-        _theme.ItemsSource = new[] { "Sistem", "Açık", "Koyu" };
-        _accent.ItemsSource = new[] { "Mavi", "İndigo", "Zümrüt", "Turuncu" };
-        _theme.SelectedIndex = ThemeService.CurrentMode == ValeThemeMode.Dark ? 2 : ThemeService.CurrentMode == ValeThemeMode.Light ? 1 : 0;
-        _accent.SelectedIndex = (int)ThemeService.CurrentAccent;
-
-        var saveProfile = UiKit.PrimaryButton("Profil Bilgilerini Kaydet");
-        saveProfile.Clicked += async (_, _) => await SaveProfileAsync(saveProfile);
-
-        var twoFactor = UiKit.SecondaryButton("İki Adımlı Doğrulama");
-        twoFactor.Clicked += async (_, _) => await Navigation.PushAsync(new ValeTwoFactorPage(_api));
-
-        var password = UiKit.SecondaryButton("Parolayı Değiştir");
-        password.Clicked += async (_, _) => await Navigation.PushAsync(new ChangePasswordPage(_api));
-
-        var applyTheme = UiKit.PrimaryButton("Görünümü Uygula");
-        applyTheme.Clicked += async (_, _) => await ApplyThemeAsync(applyTheme);
-
-        var testConnection = UiKit.SecondaryButton("Bağlantıyı Kontrol Et");
-        testConnection.Clicked += async (_, _) => await TestConnectionAsync(testConnection);
-
-        var operations = new VerticalStackLayout { Spacing = 9 };
-        if (CompanyAccess.CanAudit(user))
+        var content = new VerticalStackLayout { Padding = 18, Spacing = 14 };
+        content.Add(UiKit.Label("Ayarlar", 27, true));
+        content.Add(UiKit.Label("Profilinizi, güvenliğinizi ve görünüm tercihlerinizi yönetin.", 13, false, true));
+        void Link(string title, string detail, Func<Page> page)
         {
-            var audit = UiKit.SecondaryButton("Denetim Kayıtları");
-            audit.Clicked += async (_, _) => await Navigation.PushAsync(new AuditPage(_api));
-            operations.Add(audit);
+            var button = UiKit.SecondaryButton(title);
+            button.Clicked += async (_, _) => await Navigation.PushAsync(page());
+            content.Add(UiKit.Card(new VerticalStackLayout { Spacing = 6, Children = { button, UiKit.Label(detail, 12, false, true) } }));
         }
-        if (CompanyAccess.HasAny(user, ["Owner", "Admin"]))
-        {
-            var advancedConnection = UiKit.SecondaryButton("Gelişmiş Bağlantı Ayarları");
-            advancedConnection.Clicked += async (_, _) => await Navigation.PushAsync(new ConnectionSettingsPage(_api));
-            operations.Add(advancedConnection);
-        }
-
+        Link("Profilim ve Fotoğrafım", "Fotoğraf, telefon, doğum tarihi, şehir ve kişisel bilgiler.", () => new CompanyProfilePage(api, user));
+        Link("Görünüm ve Resimli Temalar", "Arka plan görseli, renkler, açık veya koyu görünüm.", () => new CompanyProfilePage(api, user));
+        Link("Hesap Güvenliği", "İki adımlı doğrulama ve kurtarma kodları.", () => new TwoFactorPage(api));
+        Link("Parolayı Değiştir", "Mevcut parolanızı güncelleyin.", () => new ChangePasswordPage(api));
+        if (CompanyAccess.CanAudit(user)) Link("Denetim Kayıtları", "Firmanızdaki önemli işlemleri inceleyin.", () => new AuditPage(api));
+        if (CompanyAccess.HasAny(user, ["Owner", "Admin"])) Link("Bağlantı Ayarları", "Sunucu bağlantısını kontrol edin.", () => new ConnectionSettingsPage(api));
+        var developer = UiKit.TextButton("Geliştirici");
+        developer.Clicked += async (_, _) => await Navigation.PushAsync(new DeveloperSettingsPage(api));
+        content.Add(developer);
+        content.Add(UiKit.Label($"VALEM {AppInfo.Current.VersionString} • Android", 12, false, true));
         var logout = UiKit.TextButton("Oturumu Kapat");
         logout.TextColor = ThemeService.Palette.Danger;
-        logout.Clicked += async (_, _) =>
-        {
-            await _api.LogoutAsync();
-            App.ShowLogin();
-        };
-
-        var content = new VerticalStackLayout
-        {
-            Padding = new Thickness(16, 18, 16, 28),
-            Spacing = 14,
-            Children =
-            {
-                UiKit.Label("Daha fazla", 27, true),
-                UiKit.Label("Profil, güvenlik, görünüm ve uygulama ayarlarını buradan yönetin.", 12.5, false, true),
-                UiKit.Card(new VerticalStackLayout
-                {
-                    Spacing = 10,
-                    Children =
-                    {
-                        UiKit.Label("Profil", 17, true),
-                        _name,
-                        _phone,
-                        Detail("E-posta", _email),
-                        Detail("Şube", _branch),
-                        Detail("Yetkiler", _roles),
-                        saveProfile
-                    }
-                }),
-                UiKit.Card(new VerticalStackLayout
-                {
-                    Spacing = 9,
-                    Children =
-                    {
-                        UiKit.Label("Hesap güvenliği", 17, true),
-                        UiKit.Label("İki adımlı doğrulama ve parola ayarlarınızı yönetin.", 11.5, false, true),
-                        twoFactor,
-                        password
-                    }
-                }),
-                UiKit.Card(new VerticalStackLayout
-                {
-                    Spacing = 9,
-                    Children =
-                    {
-                        UiKit.Label("Görünüm", 17, true),
-                        _theme,
-                        _accent,
-                        applyTheme
-                    }
-                }),
-                UiKit.Card(new VerticalStackLayout
-                {
-                    Spacing = 9,
-                    Children =
-                    {
-                        UiKit.Label("Bağlantı", 17, true),
-                        _connection,
-                        testConnection,
-                        operations
-                    }
-                }),
-                UiKit.Card(new VerticalStackLayout
-                {
-                    Spacing = 4,
-                    Children =
-                    {
-                        UiKit.Label("Uygulama", 17, true),
-                        UiKit.Label($"VALE {AppInfo.Current.VersionString} • Android", 12.5, false, true),
-                        UiKit.Label("Yetkiler sunucu tarafından kontrol edilir ve önemli hesap işlemleri denetim kaydına alınır.", 11, false, true)
-                    }
-                }),
-                logout
-            }
-        };
-
+        logout.Clicked += async (_, _) => { await api.LogoutAsync(); App.ShowLogin(); };
+        content.Add(logout);
         Content = new ScrollView { Content = content };
     }
-
-    protected override async void OnAppearing()
-    {
-        base.OnAppearing();
-        if (!_loading) await LoadProfileAsync();
-    }
-
-    private async Task LoadProfileAsync()
-    {
-        try
-        {
-            _loading = true;
-            _profile = await _api.GetAccountProfileAsync();
-            _name.Text = _profile.FullName;
-            _phone.Text = _profile.PhoneNumber;
-            _email.Text = _profile.Email;
-            _branch.Text = _profile.BranchName ?? "—";
-            _roles.Text = CompanyAccess.RolesText(_profile.Roles);
-        }
-        catch (Exception ex)
-        {
-            await DisplayAlertAsync("Profil yüklenemedi", ex.Message, "Tamam");
-        }
-        finally
-        {
-            _loading = false;
-        }
-    }
-
-    private async Task SaveProfileAsync(Button button)
-    {
-        if (_profile is null) await LoadProfileAsync();
-        if (_profile is null) return;
-
-        try
-        {
-            button.IsEnabled = false;
-            var updated = await _api.UpdateAccountProfileAsync(new UpdateAccountProfileRequest(
-                (_name.Text ?? string.Empty).Trim(),
-                NullIfEmpty(_phone.Text),
-                _profile.PreferredTheme,
-                _profile.AccentTheme,
-                _profile.ProfileColor,
-                _profile.BackgroundTheme));
-            _profile = updated;
-            await DisplayAlertAsync("Kaydedildi", "Profil bilgileriniz güncellendi.", "Tamam");
-        }
-        catch (Exception ex)
-        {
-            await DisplayAlertAsync("Profil kaydedilemedi", ex.Message, "Tamam");
-        }
-        finally
-        {
-            button.IsEnabled = true;
-        }
-    }
-
-    private async Task ApplyThemeAsync(Button button)
-    {
-        var mode = _theme.SelectedIndex == 2 ? ValeThemeMode.Dark : _theme.SelectedIndex == 1 ? ValeThemeMode.Light : ValeThemeMode.System;
-        var accent = (ValeAccent)Math.Clamp(_accent.SelectedIndex, 0, 3);
-        ThemeService.Apply(mode, accent);
-
-        if (_profile is null) await LoadProfileAsync();
-        if (_profile is null) return;
-
-        try
-        {
-            button.IsEnabled = false;
-            _profile = await _api.UpdateAccountProfileAsync(new UpdateAccountProfileRequest(
-                _profile.FullName,
-                _profile.PhoneNumber,
-                mode.ToString(),
-                accent.ToString(),
-                _profile.ProfileColor,
-                _profile.BackgroundTheme));
-        }
-        catch (Exception ex)
-        {
-            await DisplayAlertAsync("Görünüm kaydedilemedi", ex.Message, "Tamam");
-        }
-        finally
-        {
-            button.IsEnabled = true;
-        }
-    }
-
-    private async Task TestConnectionAsync(Button button)
-    {
-        try
-        {
-            button.IsEnabled = false;
-            _connection.Text = "Sunucu kontrol ediliyor…";
-            await _api.TestConnectionAsync();
-            _connection.Text = "Bağlantı hazır • VALE sunucusuna erişiliyor.";
-        }
-        catch (Exception ex)
-        {
-            _connection.Text = "Bağlantı kurulamadı.";
-            await DisplayAlertAsync("Bağlantı", ex.Message, "Tamam");
-        }
-        finally
-        {
-            button.IsEnabled = true;
-        }
-    }
-
-    private static View Detail(string title, Label value) => new VerticalStackLayout
-    {
-        Spacing = 2,
-        Children = { UiKit.Label(title, 10.5, true, true), value }
-    };
-
-    private static string? NullIfEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
 
 public sealed class ValeTwoFactorPage : ContentPage
@@ -480,7 +262,7 @@ public sealed class ValeTwoFactorPage : ContentPage
 
     private static string FriendlySecurityError(Exception ex)
     {
-        var message = ex.Message ?? string.Empty;
+        var message = UserMessages.For(ex) ?? string.Empty;
         if (message.Contains("Giriş bilgileri hatalı", StringComparison.OrdinalIgnoreCase) ||
             message.Contains("Oturum geçersiz", StringComparison.OrdinalIgnoreCase) ||
             message.Contains("401", StringComparison.OrdinalIgnoreCase))

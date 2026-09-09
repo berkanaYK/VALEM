@@ -102,6 +102,13 @@ public sealed class PlatformUserEditModel
     [Display(Name = "Telefon")]
     public string? PhoneNumber { get; set; }
 
+    [DataType(DataType.Date), Display(Name = "Doğum tarihi (isteğe bağlı)")]
+    public DateOnly? BirthDate { get; set; }
+    [MaxLength(80), Display(Name = "Yaşadığı şehir")]
+    public string? City { get; set; }
+    [MaxLength(300), Display(Name = "Hakkımda")]
+    public string? About { get; set; }
+
     [MaxLength(80)]
     [Display(Name = "Görev")]
     public string? JobTitle { get; set; }

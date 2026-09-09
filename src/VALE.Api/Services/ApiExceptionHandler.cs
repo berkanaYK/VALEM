@@ -8,13 +8,14 @@ public sealed class ApiException(int statusCode, string title, string detail) : 
     public string Title { get; } = title;
 }
 
-public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : IExceptionHandler
+public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger, RequestDiagnostics diagnostics) : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext,
         Exception exception,
         CancellationToken cancellationToken)
     {
+        await diagnostics.RecordAsync(httpContext, exception is ApiException known ? known.StatusCode : 500, exception);
         if (exception is ApiException apiException)
         {
             logger.LogWarning(
@@ -26,7 +27,8 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
             await Results.Problem(
                     statusCode: apiException.StatusCode,
                     title: apiException.Title,
-                    detail: apiException.Message)
+                    detail: apiException.Message,
+                    extensions: new Dictionary<string, object?> { ["traceId"] = httpContext.TraceIdentifier })
                 .ExecuteAsync(httpContext);
             return true;
         }
@@ -40,7 +42,8 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
         await Results.Problem(
                 statusCode: StatusCodes.Status500InternalServerError,
                 title: "Sunucu hatası",
-                detail: "İşlem sırasında beklenmeyen bir sunucu hatası oluştu. Lütfen tekrar deneyin.")
+                detail: $"İşlem tamamlanamadı. Lütfen tekrar deneyin. Destek kayıt numarası: {httpContext.TraceIdentifier}",
+                extensions: new Dictionary<string, object?> { ["traceId"] = httpContext.TraceIdentifier })
             .ExecuteAsync(httpContext);
         return true;
     }

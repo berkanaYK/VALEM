@@ -122,7 +122,7 @@ public sealed class ReportsV31Page : ContentPage
         catch (Exception ex)
         {
             _status.Text = "Rapor alınamadı.";
-            await DisplayAlertAsync("Rapor alınamadı", ex.Message, "Tamam");
+            await DisplayAlertAsync("Rapor alınamadı", UserMessages.For(ex), "Tamam");
         }
         finally { _busy = false; }
     }
@@ -188,7 +188,7 @@ public sealed class ReportsV31Page : ContentPage
                 File = new ShareFile(path)
             });
         }
-        catch (Exception ex) { await DisplayAlertAsync("Dışa aktarma", ex.Message, "Tamam"); }
+        catch (Exception ex) { await DisplayAlertAsync("Dışa aktarma", UserMessages.For(ex), "Tamam"); }
     }
 
     private static View MetricCard(string title, Label value, string subtitle) =>

@@ -1,0 +1,38 @@
+@model IReadOnlyList<VALE.Api.Domain.Company>
+@{ ViewData["Title"] = "Veritabanı araçları"; }
+<h1>Veritabanı araçları</h1>
+<p>Yalnız platform geliştiricisi kullanabilir. Her işlemde geliştirici parolası yeniden doğrulanır ve denetim kaydı tutulur.</p>
+@if (ViewBag.Error is string error) { <div class="alert error" role="alert">@error</div> }
+@if (ViewBag.Message is string message) { <div class="alert success" role="status">@message</div> }
+<section class="panel"><h2>Firma verilerini dışa aktar</h2>
+<p>Araçlar, müşteriler, vale kayıtları ve ödemeler JSON olarak indirilir. Parolalar, oturumlar ve kimlik doğrulama anahtarları dahil edilmez. Bu dosya tam sunucu yedeğinin yerini almaz; kişisel veri içerdiği için güvenli saklayın.</p>
+<form asp-action="Export" method="post">
+    <label>Firma <select name="companyId" required><option value="">Firma seçin</option>@foreach (var company in Model) { <option value="@company.Id">@company.Name (@company.Code)</option> }</select></label>
+    <label>Geliştirici parolası <input type="password" name="password" maxlength="128" autocomplete="current-password" required /></label>
+    <button type="submit">JSON dosyasını indir</button>
+</form></section>
+<section class="panel"><h2>Firma verilerini içe aktar</h2>
+<p>Dosya yalnız alındığı firmaya geri yüklenir; firma, şube ve personel hesaplarının önceden bulunması gerekir. Mevcut kayıtlar korunur. Önizleme tüm kayıt ilişkilerini veritabanında sınar ve geri alır; ikinci adım onayınızla eksik kayıtları ekler. En fazla 20 MB ve tablo başına 5.000 kayıt.</p>
+<form asp-action="Import" method="post" enctype="multipart/form-data">
+    <label>VALEM aktarım dosyası <input type="file" name="file" accept="application/json,.json" required /></label>
+    <label>Geliştirici parolası <input type="password" name="password" maxlength="128" autocomplete="current-password" required /></label>
+    @if (ViewBag.Confirmation is string confirmation)
+    { <input type="hidden" name="confirmation" value="@confirmation" /><button type="submit">Önizlenen dosyayı içe aktar</button> }
+    else { <button type="submit">Dosyayı doğrula ve önizle</button> }
+</form></section>
+<section class="panel"><h2>SQL sorgusu</h2>
+<p>Ayrı ve yalnız okuma yetkili veritabanı bağlantısını kullanır. SELECT / WITH sorguları; en fazla 200 satır ve 5 saniye. Yazma işlemleri yönetim ekranlarından yapılır.</p>
+@if (ViewBag.QueryEnabled != true) { <div class="alert">Sorgu bağlantısı henüz tanımlı değil. Sunucunun DeveloperTools:ReadOnlyConnectionString ayarını tamamlayın.</div> }
+<form asp-action="Query" method="post">
+    <label>Sorgu <textarea name="sql" rows="7" maxlength="8000" spellcheck="false" required>@(ViewBag.Sql ?? "SELECT \"Id\", \"Name\", \"Code\" FROM \"Companies\"")</textarea></label>
+    <label>Geliştirici parolası <input type="password" name="password" maxlength="128" autocomplete="current-password" required /></label>
+    <button type="submit">Sorgula</button>
+</form>
+@if (ViewBag.Result is VALE.Api.Services.DeveloperQueryResult result)
+{
+    <p>@result.Rows.Count satır. @(result.Truncated ? "İlk 200 satır gösteriliyor; sorgunuza filtre ekleyin." : "")</p>
+    <div class="table-wrap"><table><thead><tr>@foreach (var column in result.Columns) { <th>@column</th> }</tr></thead><tbody>
+    @foreach (var row in result.Rows) { <tr>@foreach (var value in row) { <td>@(value ?? "—")</td> }</tr> }
+    </tbody></table></div>
+}
+</section>

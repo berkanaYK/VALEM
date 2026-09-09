@@ -42,7 +42,10 @@ public sealed record AccountProfileDto(
     string ProfileColor,
     bool TwoFactorEnabled,
     string BackgroundTheme,
-    string? ProfilePhotoDataUrl);
+    string? ProfilePhotoDataUrl,
+    DateOnly? BirthDate = null,
+    string? City = null,
+    string? About = null);
 
 public sealed record UpdateAccountProfileRequest(
     [param: Required, MinLength(2), MaxLength(120)] string FullName,
@@ -50,11 +53,14 @@ public sealed record UpdateAccountProfileRequest(
     [param: Required, MaxLength(20)] string PreferredTheme,
     [param: Required, MaxLength(20)] string AccentTheme,
     [param: Required, RegularExpression("^#[0-9A-Fa-f]{6}$")] string ProfileColor,
-    [param: Required, MaxLength(30)] string BackgroundTheme);
+    [param: Required, MaxLength(30)] string BackgroundTheme,
+    DateOnly? BirthDate = null,
+    [param: MaxLength(80)] string? City = null,
+    [param: MaxLength(300)] string? About = null);
 
 public sealed record ProfilePhotoUploadRequest(
     [param: Required, MaxLength(30)] string ContentType,
-    [param: Required] string Base64Data);
+    [param: Required, MaxLength(2_000_000)] string Base64Data);
 
 public sealed record AdminUserDetailDto(
     Guid Id,

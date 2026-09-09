@@ -185,7 +185,7 @@ public sealed class CompanyDashboardPage : ContentPage
             if (_revenue is not null) _revenue.Text = $"{data.RevenueToday:N0} TL";
             _recent.Clear(); foreach (var item in data.RecentTickets) _recent.Add(item);
         }
-        catch (Exception ex) { await DisplayAlertAsync("Ana sayfa", ex.Message, "Tamam"); }
+        catch (Exception ex) { await DisplayAlertAsync("Ana sayfa", UserMessages.For(ex), "Tamam"); }
         finally { _busy = false; }
     }
 
@@ -226,7 +226,7 @@ public sealed class AdvancedRegisterPage : ContentPage
                 await DisplayAlertAsync("Başvuru alındı", result.Message, "Tamam");
                 await Navigation.PopAsync();
             }
-            catch (Exception ex) { await DisplayAlertAsync("Hesap oluşturulamadı", ex.Message, "Tamam"); }
+            catch (Exception ex) { await DisplayAlertAsync("Hesap oluşturulamadı", UserMessages.For(ex), "Tamam"); }
             finally { save.IsEnabled = true; }
         };
 
@@ -261,7 +261,7 @@ public sealed class EmailCodeLoginPage : ContentPage
                 code.IsVisible = verify.IsVisible = true;
                 info.Text = "Kod gönderildi. E-postanızdaki 6 haneli kodu girin.";
             }
-            catch (Exception ex) { await DisplayAlertAsync("Kod gönderilemedi", ex.Message, "Tamam"); }
+            catch (Exception ex) { await DisplayAlertAsync("Kod gönderilemedi", UserMessages.For(ex), "Tamam"); }
             finally { send.IsEnabled = true; }
         };
 
@@ -280,7 +280,7 @@ public sealed class EmailCodeLoginPage : ContentPage
                 }
                 App.ShowAuthenticated(api, login.User);
             }
-            catch (Exception ex) { await DisplayAlertAsync("Giriş yapılamadı", ex.Message, "Tamam"); }
+            catch (Exception ex) { await DisplayAlertAsync("Giriş yapılamadı", UserMessages.For(ex), "Tamam"); }
             finally { verify.IsEnabled = true; }
         };
 
@@ -294,6 +294,9 @@ public sealed class CompanyProfilePage : ContentPage
     private UserDto _user;
     private readonly Entry _name = UiKit.Entry("Ad soyad");
     private readonly Entry _phone = UiKit.Entry("Telefon", Keyboard.Telephone);
+    private readonly Entry _birthDate = UiKit.Entry("Doğum tarihi (gg.aa.yyyy, isteğe bağlı)");
+    private readonly Entry _city = UiKit.Entry("Yaşadığınız şehir (isteğe bağlı)");
+    private readonly Editor _about = new() { Placeholder = "Hakkımda (isteğe bağlı)", MaxLength = 300, AutoSize = EditorAutoSizeOption.TextChanges, BackgroundColor = Colors.Transparent };
     private readonly Label _email = UiKit.Label("—", 13.5);
     private readonly Label _employee = UiKit.Label("—", 13.5);
     private readonly Label _job = UiKit.Label("—", 13.5);
@@ -311,6 +314,8 @@ public sealed class CompanyProfilePage : ContentPage
     public CompanyProfilePage(ApiClient api, UserDto user)
     {
         _api = api; _user = user; UiKit.StylePage(this);
+        _about.SetDynamicResource(Editor.TextColorProperty, "ValeText");
+        _about.SetDynamicResource(Editor.PlaceholderColorProperty, "ValeSecondary");
         _theme.ItemsSource = new[] { "Sistem", "Açık", "Koyu" };
         _accent.ItemsSource = new[] { "Mavi", "İndigo", "Zümrüt", "Turuncu" };
         _profileColor.ItemsSource = new[] { "Mavi", "İndigo", "Zümrüt", "Turuncu", "Kırmızı", "Mor" };
@@ -335,7 +340,7 @@ public sealed class CompanyProfilePage : ContentPage
 
         Content = new ScrollView { Content = new VerticalStackLayout { Padding = 16, Spacing = 14, Children = {
             _avatarBox, photo, UiKit.Label("Profilim", 27, true),
-            UiKit.Card(new VerticalStackLayout { Spacing = 9, Children = { UiKit.Label("Kişisel bilgiler", 16, true), _name, _phone, Detail("E-posta", _email), Detail("Personel kodu", _employee), Detail("Görev", _job), Detail("Şube", _branch), Detail("Yetkiler", _roles) } }),
+            UiKit.Card(new VerticalStackLayout { Spacing = 9, Children = { UiKit.Label("Kişisel bilgiler", 16, true), _name, _phone, _birthDate, _city, _about, UiKit.Label("Telefon, doğum tarihi, şehir ve hakkımda alanları isteğe bağlıdır. Boş bırakabilir veya daha sonra silebilirsiniz.", 11, false, true), Detail("E-posta", _email), Detail("Personel kodu", _employee), Detail("Görev", _job), Detail("Şube", _branch), Detail("Yetkiler", _roles) } }),
             UiKit.Card(new VerticalStackLayout { Spacing = 9, Children = { UiKit.Label("Görünüm", 16, true), _theme, _accent, _profileColor, _background, customBackground, UiKit.Label("Tema tüm sayfalara uygulanır. Görsel arka planda kartlar koyulaşır ve yazılar otomatik olarak yüksek kontrasta geçer.", 11, false, true) } }),
             save, security, password, logout
         } } };
@@ -349,11 +354,12 @@ public sealed class CompanyProfilePage : ContentPage
         {
             _profile = await _api.GetAccountProfileAsync();
             _name.Text = _profile.FullName; _phone.Text = _profile.PhoneNumber;
+            _birthDate.Text = _profile.BirthDate?.ToString("dd.MM.yyyy"); _city.Text = _profile.City; _about.Text = _profile.About;
             _email.Text = _profile.Email; _employee.Text = _profile.EmployeeCode ?? "—"; _job.Text = _profile.JobTitle ?? "—"; _branch.Text = _profile.BranchName ?? "—";
             _roles.Text = CompanyAccess.RolesText(_profile.Roles); SetAvatar(_profile);
             _theme.SelectedIndex = ThemeIndex(_profile.PreferredTheme); _accent.SelectedIndex = AccentIndex(_profile.AccentTheme); _profileColor.SelectedIndex = ProfileColorIndex(_profile.ProfileColor); _background.SelectedIndex = BackgroundIndex(_profile.BackgroundTheme);
         }
-        catch (Exception ex) { await DisplayAlertAsync("Profil", ex.Message, "Tamam"); }
+        catch (Exception ex) { await DisplayAlertAsync("Profil", UserMessages.For(ex), "Tamam"); }
     }
 
     private async Task SaveAsync(Button button, Border avatarBox)
@@ -361,13 +367,23 @@ public sealed class CompanyProfilePage : ContentPage
         try
         {
             button.IsEnabled = false;
-            var request = new UpdateAccountProfileRequest(_name.Text ?? "", N(_phone.Text), ThemeValue(_theme.SelectedIndex), AccentValue(_accent.SelectedIndex), ProfileColorValue(_profileColor.SelectedIndex), BackgroundValue(_background.SelectedIndex));
+            DateOnly? birthDate = null;
+            if (!string.IsNullOrWhiteSpace(_birthDate.Text))
+            {
+                if (!DateOnly.TryParseExact(_birthDate.Text.Trim(), "dd.MM.yyyy", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsed))
+                {
+                    await DisplayAlertAsync("Doğum tarihi", "Tarihi gün.ay.yıl şeklinde yazın. Örneğin: 15.06.1995", "Tamam");
+                    return;
+                }
+                birthDate = parsed;
+            }
+            var request = new UpdateAccountProfileRequest(_name.Text ?? "", N(_phone.Text), ThemeValue(_theme.SelectedIndex), AccentValue(_accent.SelectedIndex), ProfileColorValue(_profileColor.SelectedIndex), BackgroundValue(_background.SelectedIndex), birthDate, N(_city.Text), N(_about.Text));
             _profile = await _api.UpdateAccountProfileAsync(request);
             ThemeService.ApplyServerPreferences(_profile.PreferredTheme, _profile.AccentTheme, _profile.BackgroundTheme);
             avatarBox.BackgroundColor = Color.FromArgb(_profile.ProfileColor); SetAvatar(_profile);
             await DisplayAlertAsync("Kaydedildi", "Profil ve görünüm tercihleriniz güncellendi.", "Tamam");
         }
-        catch (Exception ex) { await DisplayAlertAsync("Profil kaydedilemedi", ex.Message, "Tamam"); }
+        catch (Exception ex) { await DisplayAlertAsync("Profil kaydedilemedi", UserMessages.For(ex), "Tamam"); }
         finally { button.IsEnabled = true; }
     }
 
@@ -388,7 +404,7 @@ public sealed class CompanyProfilePage : ContentPage
             }
             if (_profile is not null) SetAvatar(_profile);
         }
-        catch (Exception ex) { await DisplayAlertAsync("Fotoğraf güncellenemedi", ex.Message, "Tamam"); }
+        catch (Exception ex) { await DisplayAlertAsync("Fotoğraf güncellenemedi", UserMessages.For(ex), "Tamam"); }
         finally { button.IsEnabled = true; }
     }
 
@@ -408,7 +424,7 @@ public sealed class CompanyProfilePage : ContentPage
             _background.SelectedIndex = 5;
             await DisplayAlertAsync("Arka plan hazır", "Görselin baskın rengine göre vurgu ve yazı kontrastı ayarlandı. Kaydet düğmesiyle hesabınıza tema seçimini kaydedebilirsiniz.", "Tamam");
         }
-        catch (Exception ex) { await DisplayAlertAsync("Arka plan seçilemedi", ex.Message, "Tamam"); }
+        catch (Exception ex) { await DisplayAlertAsync("Arka plan seçilemedi", UserMessages.For(ex), "Tamam"); }
         finally { button.IsEnabled = true; }
     }
 
@@ -477,7 +493,7 @@ public sealed class TwoFactorPage : ContentPage
                 var disable = UiKit.TextButton("2FA'yı Kapat"); disable.TextColor = ThemeService.Palette.Danger; disable.Clicked += async (_, _) => await DisableAsync(); _body.Add(disable);
             }
         }
-        catch (Exception ex) { _status.Text = ex.Message; }
+        catch (Exception ex) { _status.Text = UserMessages.For(ex); }
     }
 
     private async Task SetupAsync()
@@ -497,11 +513,11 @@ public sealed class TwoFactorPage : ContentPage
                     await ShowRecoveryAsync(result.RecoveryCodes);
                     await RefreshAsync();
                 }
-                catch (Exception ex) { await DisplayAlertAsync("2FA açılamadı", ex.Message, "Tamam"); }
+                catch (Exception ex) { await DisplayAlertAsync("2FA açılamadı", UserMessages.For(ex), "Tamam"); }
             };
             _body.Add(UiKit.Label("1. Authenticator uygulamanızda yeni hesap ekleyin.", 12.5)); _body.Add(UiKit.Label("2. Aşağıdaki anahtarı girin:", 12.5)); _body.Add(key); _body.Add(copy); _body.Add(code); _body.Add(enable);
         }
-        catch (Exception ex) { await DisplayAlertAsync("2FA kurulumu", ex.Message, "Tamam"); }
+        catch (Exception ex) { await DisplayAlertAsync("2FA kurulumu", UserMessages.For(ex), "Tamam"); }
     }
 
     private async Task RecoveryAsync()
@@ -509,7 +525,7 @@ public sealed class TwoFactorPage : ContentPage
         var code = await DisplayPromptAsync("Kurtarma kodları", "Authenticator kodunuzu girin.", "Yenile", "Vazgeç", keyboard: Keyboard.Numeric, maxLength: 6);
         if (string.IsNullOrWhiteSpace(code)) return;
         try { var result = await _api.RegenerateRecoveryCodesAsync(code); await ShowRecoveryAsync(result.RecoveryCodes); await RefreshAsync(); }
-        catch (Exception ex) { await DisplayAlertAsync("Kurtarma kodları", ex.Message, "Tamam"); }
+        catch (Exception ex) { await DisplayAlertAsync("Kurtarma kodları", UserMessages.For(ex), "Tamam"); }
     }
 
     private async Task DisableAsync()
@@ -517,7 +533,7 @@ public sealed class TwoFactorPage : ContentPage
         var code = await DisplayPromptAsync("2FA'yı kapat", "Authenticator kodunuzu girin.", "Kapat", "Vazgeç", keyboard: Keyboard.Numeric, maxLength: 6);
         if (string.IsNullOrWhiteSpace(code)) return;
         try { await _api.DisableTwoFactorAsync(code); await RefreshAsync(); }
-        catch (Exception ex) { await DisplayAlertAsync("2FA kapatılamadı", ex.Message, "Tamam"); }
+        catch (Exception ex) { await DisplayAlertAsync("2FA kapatılamadı", UserMessages.For(ex), "Tamam"); }
     }
 
     private async Task ShowRecoveryAsync(IReadOnlyList<string> codes)
@@ -535,14 +551,35 @@ public sealed class CompanySettingsPage : ContentPage
         UiKit.StylePage(this);
         var theme = UiKit.Picker("Tema"); theme.ItemsSource = new[] { "Sistem", "Açık", "Koyu" }; theme.SelectedIndex = ThemeService.CurrentMode == ValeThemeMode.Dark ? 2 : ThemeService.CurrentMode == ValeThemeMode.Light ? 1 : 0;
         var accent = UiKit.Picker("Vurgu rengi"); accent.ItemsSource = new[] { "Mavi", "İndigo", "Zümrüt", "Turuncu" }; accent.SelectedIndex = (int)ThemeService.CurrentAccent;
-        var apply = UiKit.PrimaryButton("Görünümü Uygula"); apply.Clicked += (_, _) => ThemeService.Apply(theme.SelectedIndex == 2 ? ValeThemeMode.Dark : theme.SelectedIndex == 1 ? ValeThemeMode.Light : ValeThemeMode.System, (ValeAccent)Math.Clamp(accent.SelectedIndex, 0, 3));
-        var test = UiKit.SecondaryButton("Bağlantıyı Kontrol Et"); test.Clicked += async (_, _) => { try { test.IsEnabled = false; await api.TestConnectionAsync(); await DisplayAlertAsync("Bağlantı", "VALE sunucusu hazır.", "Tamam"); } catch (Exception ex) { await DisplayAlertAsync("Bağlantı", ex.Message, "Tamam"); } finally { test.IsEnabled = true; } };
+        var apply = UiKit.PrimaryButton("Görünümü Kaydet"); apply.Clicked += async (_, _) =>
+        {
+            try
+            {
+                apply.IsEnabled = false;
+                var current = await api.GetAccountProfileAsync();
+                var saved = await api.UpdateAccountProfileAsync(new UpdateAccountProfileRequest(current.FullName, current.PhoneNumber,
+                    theme.SelectedIndex == 2 ? "Dark" : theme.SelectedIndex == 1 ? "Light" : "System",
+                    new[] { "Blue", "Indigo", "Emerald", "Orange" }[Math.Clamp(accent.SelectedIndex, 0, 3)], current.ProfileColor,
+                    current.BackgroundTheme, current.BirthDate, current.City, current.About));
+                ThemeService.ApplyServerPreferences(saved.PreferredTheme, saved.AccentTheme, saved.BackgroundTheme);
+                await DisplayAlertAsync("Kaydedildi", "Görünüm tercihleriniz hesabınıza kaydedildi.", "Tamam");
+            }
+            catch (Exception ex) { await DisplayAlertAsync("Görünüm kaydedilemedi", UserMessages.For(ex), "Tamam"); }
+            finally { apply.IsEnabled = true; }
+        };
+        var test = UiKit.SecondaryButton("Bağlantıyı Kontrol Et"); test.Clicked += async (_, _) => { try { test.IsEnabled = false; await api.TestConnectionAsync(); await DisplayAlertAsync("Bağlantı", "VALE sunucusu hazır.", "Tamam"); } catch (Exception ex) { await DisplayAlertAsync("Bağlantı", UserMessages.For(ex), "Tamam"); } finally { test.IsEnabled = true; } };
         var content = new VerticalStackLayout { Padding = 16, Spacing = 14, Children = { UiKit.Label("Ayarlar", 27, true), UiKit.Card(new VerticalStackLayout { Spacing = 9, Children = { UiKit.Label("Görünüm", 16, true), theme, accent, apply } }), UiKit.Card(new VerticalStackLayout { Spacing = 9, Children = { UiKit.Label("Bağlantı", 16, true), test } }) } };
         if (CompanyAccess.HasAny(user, ["Owner", "Admin"]))
         {
             var advanced = UiKit.SecondaryButton("Gelişmiş Bağlantı Ayarları"); advanced.Clicked += async (_, _) => await Navigation.PushAsync(new ConnectionSettingsPage(api)); ((VerticalStackLayout)((Border)content.Children[2]).Content!).Add(advanced);
         }
         content.Add(UiKit.Card(new VerticalStackLayout { Spacing = 4, Children = { UiKit.Label("Uygulama", 16, true), UiKit.Label($"VALE {AppInfo.Current.VersionString} • Android", 12.5, false, true), UiKit.Label("Yetkileriniz sunucu tarafından kontrol edilir. Hesabınızla ilgili işlemler denetim kaydına alınır.", 11, false, true) } }));
+        var profile = UiKit.SecondaryButton("Profilim ve Resimli Temalar");
+        profile.Clicked += async (_, _) => await Navigation.PushAsync(new CompanyProfilePage(api, user));
+        content.Add(profile);
+        var developer = UiKit.TextButton("Geliştirici");
+        developer.Clicked += async (_, _) => await Navigation.PushAsync(new DeveloperSettingsPage(api));
+        content.Add(developer);
         Content = new ScrollView { Content = content };
     }
 }
@@ -569,7 +606,7 @@ public sealed class CompanyTicketsPage : ContentPage
     }
 
     protected override async void OnAppearing() { base.OnAppearing(); await _branchSelector.EnsureLoadedAsync(); await RefreshAsync(); }
-    private async Task RefreshAsync() { if (_busy) return; try { _busy = true; var page = await _api.GetTicketsAsync(_search.Text, _closed.IsToggled); _items.Clear(); foreach (var item in page.Items) _items.Add(item); } catch (Exception ex) { await DisplayAlertAsync("Araçlar", ex.Message, "Tamam"); } finally { _busy = false; } }
+    private async Task RefreshAsync() { if (_busy) return; try { _busy = true; var page = await _api.GetTicketsAsync(_search.Text, _closed.IsToggled); _items.Clear(); foreach (var item in page.Items) _items.Add(item); } catch (Exception ex) { await DisplayAlertAsync("Araçlar", UserMessages.For(ex), "Tamam"); } finally { _busy = false; } }
 }
 
 public sealed class CompanyTicketDetailPage : ContentPage
@@ -577,7 +614,7 @@ public sealed class CompanyTicketDetailPage : ContentPage
     private readonly ApiClient _api; private readonly UserDto _user; private readonly Guid _id; private readonly VerticalStackLayout _body = new() { Spacing = 12 }; private readonly VerticalStackLayout _actions = new() { Spacing = 9 }; private bool _busy;
     public CompanyTicketDetailPage(ApiClient api, UserDto user, Guid id) { _api = api; _user = user; _id = id; Title = "Araç Detayı"; UiKit.StylePage(this); Content = new ScrollView { Content = new VerticalStackLayout { Padding = 16, Spacing = 14, Children = { _body, _actions } } }; }
     protected override async void OnAppearing() { base.OnAppearing(); await LoadAsync(); }
-    private async Task LoadAsync() { if (_busy) return; try { _busy = true; Render(await _api.GetTicketDetailAsync(_id)); } catch (Exception ex) { await DisplayAlertAsync("Araç detayı", ex.Message, "Tamam"); } finally { _busy = false; } }
+    private async Task LoadAsync() { if (_busy) return; try { _busy = true; Render(await _api.GetTicketDetailAsync(_id)); } catch (Exception ex) { await DisplayAlertAsync("Araç detayı", UserMessages.For(ex), "Tamam"); } finally { _busy = false; } }
 
     private void Render(TicketDetailDto detail)
     {
@@ -604,9 +641,9 @@ public sealed class CompanyTicketDetailPage : ContentPage
     }
 
     private void AddAction(string text, Func<Task> action) { var button = UiKit.PrimaryButton(text); button.Clicked += async (_, _) => await action(); _actions.Add(button); }
-    private async Task ChangeStatus(TicketStatus status) { try { await _api.UpdateStatusAsync(_id, status); await LoadAsync(); } catch (Exception ex) { await DisplayAlertAsync("İşlem tamamlanamadı", ex.Message, "Tamam"); } }
-    private async Task Checkout(PaymentMethod method) { if (!await DisplayAlertAsync("Teslimi onayla", "Araç teslim edilip tahsilat kaydedilsin mi?", "Teslim Et", "Vazgeç")) return; try { var result = await _api.CheckoutAsync(_id, method); await DisplayAlertAsync("Teslim tamamlandı", $"Tahsilat: {result.PaidAmount:N2} TL", "Tamam"); await LoadAsync(); } catch (Exception ex) { await DisplayAlertAsync("Teslim tamamlanamadı", ex.Message, "Tamam"); } }
-    private async Task DeleteAsync() { var reason = await DisplayPromptAsync("Kaydı sil", "Silme nedenini yazın. Bu işlem denetim kaydına alınır.", "Sil", "Vazgeç", maxLength: 300); if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length < 3) return; if (!await DisplayAlertAsync("Son onay", "Bu açık kayıt listeden kaldırılacak. Devam edilsin mi?", "Evet, Sil", "Vazgeç")) return; try { await _api.DeleteTicketAsync(_id, reason); await DisplayAlertAsync("Kayıt silindi", "İşlem denetim kaydına eklendi.", "Tamam"); await Navigation.PopAsync(); } catch (Exception ex) { await DisplayAlertAsync("Kayıt silinemedi", ex.Message, "Tamam"); } }
+    private async Task ChangeStatus(TicketStatus status) { try { await _api.UpdateStatusAsync(_id, status); await LoadAsync(); } catch (Exception ex) { await DisplayAlertAsync("İşlem tamamlanamadı", UserMessages.For(ex), "Tamam"); } }
+    private async Task Checkout(PaymentMethod method) { if (!await DisplayAlertAsync("Teslimi onayla", "Araç teslim edilip tahsilat kaydedilsin mi?", "Teslim Et", "Vazgeç")) return; try { var result = await _api.CheckoutAsync(_id, method); await DisplayAlertAsync("Teslim tamamlandı", $"Tahsilat: {result.PaidAmount:N2} TL", "Tamam"); await LoadAsync(); } catch (Exception ex) { await DisplayAlertAsync("Teslim tamamlanamadı", UserMessages.For(ex), "Tamam"); } }
+    private async Task DeleteAsync() { var reason = await DisplayPromptAsync("Kaydı sil", "Silme nedenini yazın. Bu işlem denetim kaydına alınır.", "Sil", "Vazgeç", maxLength: 300); if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length < 3) return; if (!await DisplayAlertAsync("Son onay", "Bu açık kayıt listeden kaldırılacak. Devam edilsin mi?", "Evet, Sil", "Vazgeç")) return; try { await _api.DeleteTicketAsync(_id, reason); await DisplayAlertAsync("Kayıt silindi", "İşlem denetim kaydına eklendi.", "Tamam"); await Navigation.PopAsync(); } catch (Exception ex) { await DisplayAlertAsync("Kayıt silinemedi", UserMessages.For(ex), "Tamam"); } }
     private static void AddDetail(VerticalStackLayout layout, string name, string value) { layout.Add(UiKit.Label(name, 10.5, true, true)); layout.Add(UiKit.Label(value, 14)); }
     private static string StatusText(TicketStatus status) => status switch { TicketStatus.Received => "Teslim alındı", TicketStatus.Parked => "Parkta", TicketStatus.Requested => "Araç isteniyor", TicketStatus.Delivered => "Teslim edildi", TicketStatus.Cancelled => "İptal edildi", _ => status.ToString() };
 }
@@ -616,8 +653,8 @@ public sealed class EditTicketPage : ContentPage
     private readonly ApiClient _api; private readonly Guid _id;
     private readonly Entry _plate = UiKit.Entry("Plaka"); private readonly Entry _brand = UiKit.Entry("Marka"); private readonly Entry _model = UiKit.Entry("Model"); private readonly Entry _color = UiKit.Entry("Renk"); private readonly Entry _year = UiKit.Entry("Model yılı", Keyboard.Numeric); private readonly Entry _fuel = UiKit.Entry("Yakıt"); private readonly Entry _transmission = UiKit.Entry("Şanzıman"); private readonly Entry _customer = UiKit.Entry("Müşteri adı"); private readonly Entry _phone = UiKit.Entry("Telefon", Keyboard.Telephone); private readonly Entry _key = UiKit.Entry("Anahtar etiketi"); private readonly Entry _spot = UiKit.Entry("Park yeri"); private readonly Editor _notes = UiKit.Editor("Notlar"); private readonly Entry _rate = UiKit.Entry("Saatlik ücret", Keyboard.Numeric); private readonly Switch _removePhoto = new();
     public EditTicketPage(ApiClient api, Guid id) { _api = api; _id = id; Title = "Kaydı Düzenle"; UiKit.StylePage(this); var save = UiKit.PrimaryButton("Değişiklikleri Kaydet"); save.Clicked += async (_, _) => await SaveAsync(save); Content = new ScrollView { Content = new VerticalStackLayout { Padding = 16, Spacing = 12, Children = { UiKit.Label("Araç kaydını düzenle", 27, true), UiKit.Label("Yaptığınız değişiklikler kullanıcı ve zaman bilgisiyle denetim kaydına eklenir.", 11.5, false, true), UiKit.Card(new VerticalStackLayout { Spacing = 9, Children = { _plate, _brand, _model, _color, _year, _fuel, _transmission, _customer, _phone, _key, _spot, _notes, _rate, new HorizontalStackLayout { Spacing = 9, Children = { _removePhoto, UiKit.Label("Mevcut araç fotoğrafını kaldır", 12.5) } }, save } }) } } }; }
-    protected override async void OnAppearing() { base.OnAppearing(); try { var d = await _api.GetTicketDetailAsync(_id); var t = d.Ticket; _plate.Text = t.LicensePlate; var parts = t.VehicleDescription.Split(' ', StringSplitOptions.RemoveEmptyEntries); _brand.Text = parts.ElementAtOrDefault(0); _model.Text = parts.ElementAtOrDefault(1); _year.Text = t.Year?.ToString(); _fuel.Text = t.FuelType; _transmission.Text = t.Transmission; _customer.Text = t.CustomerName; _phone.Text = t.CustomerPhone; _key.Text = t.KeyTag; _spot.Text = t.ParkingSpot; _notes.Text = t.Notes; _rate.Text = t.HourlyRate.ToString(CultureInfo.CurrentCulture); } catch (Exception ex) { await DisplayAlertAsync("Kayıt", ex.Message, "Tamam"); } }
-    private async Task SaveAsync(Button save) { int? year = int.TryParse(_year.Text, out var y) ? y : null; decimal? rate = decimal.TryParse(_rate.Text, NumberStyles.Number, CultureInfo.CurrentCulture, out var r) ? r : null; try { save.IsEnabled = false; await _api.UpdateTicketDetailsAsync(_id, new UpdateTicketDetailsRequest(_plate.Text ?? "", N(_brand.Text), N(_model.Text), N(_color.Text), year, N(_fuel.Text), N(_transmission.Text), N(_customer.Text), N(_phone.Text), N(_key.Text), N(_spot.Text), N(_notes.Text), rate, null, _removePhoto.IsToggled)); await DisplayAlertAsync("Kaydedildi", "Araç kaydı güncellendi.", "Tamam"); await Navigation.PopAsync(); } catch (Exception ex) { await DisplayAlertAsync("Kayıt güncellenemedi", ex.Message, "Tamam"); } finally { save.IsEnabled = true; } }
+    protected override async void OnAppearing() { base.OnAppearing(); try { var d = await _api.GetTicketDetailAsync(_id); var t = d.Ticket; _plate.Text = t.LicensePlate; var parts = t.VehicleDescription.Split(' ', StringSplitOptions.RemoveEmptyEntries); _brand.Text = parts.ElementAtOrDefault(0); _model.Text = parts.ElementAtOrDefault(1); _year.Text = t.Year?.ToString(); _fuel.Text = t.FuelType; _transmission.Text = t.Transmission; _customer.Text = t.CustomerName; _phone.Text = t.CustomerPhone; _key.Text = t.KeyTag; _spot.Text = t.ParkingSpot; _notes.Text = t.Notes; _rate.Text = t.HourlyRate.ToString(CultureInfo.CurrentCulture); } catch (Exception ex) { await DisplayAlertAsync("Kayıt", UserMessages.For(ex), "Tamam"); } }
+    private async Task SaveAsync(Button save) { int? year = int.TryParse(_year.Text, out var y) ? y : null; decimal? rate = decimal.TryParse(_rate.Text, NumberStyles.Number, CultureInfo.CurrentCulture, out var r) ? r : null; try { save.IsEnabled = false; await _api.UpdateTicketDetailsAsync(_id, new UpdateTicketDetailsRequest(_plate.Text ?? "", N(_brand.Text), N(_model.Text), N(_color.Text), year, N(_fuel.Text), N(_transmission.Text), N(_customer.Text), N(_phone.Text), N(_key.Text), N(_spot.Text), N(_notes.Text), rate, null, _removePhoto.IsToggled)); await DisplayAlertAsync("Kaydedildi", "Araç kaydı güncellendi.", "Tamam"); await Navigation.PopAsync(); } catch (Exception ex) { await DisplayAlertAsync("Kayıt güncellenemedi", UserMessages.For(ex), "Tamam"); } finally { save.IsEnabled = true; } }
     private static string? N(string? v) => string.IsNullOrWhiteSpace(v) ? null : v.Trim();
 }
 
@@ -625,7 +662,7 @@ public sealed class TeamManagementPage : ContentPage
 {
     private readonly ApiClient _api; private readonly UserDto _actor; private readonly ObservableCollection<AdminUserDto> _users = new(); private readonly CollectionView _list;
     public TeamManagementPage(ApiClient api, UserDto actor) { _api = api; _actor = actor; UiKit.StylePage(this); _list = new CollectionView { ItemsSource = _users, SelectionMode = SelectionMode.Single, EmptyView = UiKit.Label("Personel kaydı yok.", 13, false, true), ItemTemplate = new DataTemplate(() => { var name = UiKit.Label("", 15, true); name.SetBinding(Label.TextProperty, nameof(AdminUserDto.FullName)); var email = UiKit.Label("", 11.5, false, true); email.SetBinding(Label.TextProperty, nameof(AdminUserDto.Email)); var status = UiKit.Label("", 11.5, true, true); status.SetBinding(Label.TextProperty, nameof(AdminUserDto.StatusText)); return UiKit.Card(new VerticalStackLayout { Spacing = 2, Children = { name, email, status } }, new Thickness(12), 14); }) }; _list.SelectionChanged += async (_, e) => { if (e.CurrentSelection.FirstOrDefault() is AdminUserDto u) { _list.SelectedItem = null; await Navigation.PushAsync(new UserEditPage(_api, _actor, u.Id)); } }; var actions = new HorizontalStackLayout { Spacing = 8 }; var add = UiKit.PrimaryButton("Personel Ekle"); add.Clicked += async (_, _) => await Navigation.PushAsync(new CreateTeamUserPage(_api, _actor)); actions.Add(add); if (CompanyAccess.CanManageBranches(actor)) { var branch = UiKit.SecondaryButton("Şube Ekle"); branch.Clicked += async (_, _) => await Navigation.PushAsync(new CreateBranchPage(_api)); actions.Add(branch); } Content = new Grid { Padding = 16, RowSpacing = 10, RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Star) } }; var root = (Grid)Content; root.Add(UiKit.Label("Ekip yönetimi", 27, true), 0, 0); root.Add(actions, 0, 1); root.Add(_list, 0, 2); }
-    protected override async void OnAppearing() { base.OnAppearing(); try { var users = await _api.GetAdminUsersAsync(); _users.Clear(); foreach (var u in users) _users.Add(u); } catch (Exception ex) { await DisplayAlertAsync("Ekip", ex.Message, "Tamam"); } }
+    protected override async void OnAppearing() { base.OnAppearing(); try { var users = await _api.GetAdminUsersAsync(); _users.Clear(); foreach (var u in users) _users.Add(u); } catch (Exception ex) { await DisplayAlertAsync("Ekip", UserMessages.For(ex), "Tamam"); } }
 }
 
 public sealed class UserEditPage : ContentPage
@@ -732,7 +769,7 @@ public sealed class UserEditPage : ContentPage
                 });
             }
         }
-        catch (Exception ex) { await DisplayAlertAsync("Personel", ex.Message, "Tamam"); }
+        catch (Exception ex) { await DisplayAlertAsync("Personel", UserMessages.For(ex), "Tamam"); }
     }
 
     private async Task SaveAsync(Button save)
@@ -757,7 +794,7 @@ public sealed class UserEditPage : ContentPage
             await DisplayAlertAsync("Kaydedildi", "Personel bilgileri ve yetkileri güncellendi.", "Tamam");
             await Navigation.PopAsync();
         }
-        catch (Exception ex) { await DisplayAlertAsync("Personel kaydedilemedi", ex.Message, "Tamam"); }
+        catch (Exception ex) { await DisplayAlertAsync("Personel kaydedilemedi", UserMessages.For(ex), "Tamam"); }
         finally { save.IsEnabled = true; }
     }
 
@@ -842,7 +879,7 @@ public sealed class UserBranchAccessPage : ContentPage
             }
             KeepPrimarySelected();
         }
-        catch (Exception ex) { await DisplayAlertAsync("Şube erişimleri", ex.Message, "Tamam"); }
+        catch (Exception ex) { await DisplayAlertAsync("Şube erişimleri", UserMessages.For(ex), "Tamam"); }
     }
 
     private void KeepPrimarySelected()
@@ -871,7 +908,7 @@ public sealed class UserBranchAccessPage : ContentPage
             await DisplayAlertAsync("Kaydedildi", "Personelin şube erişim grupları güncellendi. Eski oturumu güvenlik için kapatıldı.", "Tamam");
             await Navigation.PopAsync();
         }
-        catch (Exception ex) { await DisplayAlertAsync("Şube erişimleri kaydedilemedi", ex.Message, "Tamam"); }
+        catch (Exception ex) { await DisplayAlertAsync("Şube erişimleri kaydedilemedi", UserMessages.For(ex), "Tamam"); }
         finally { save.IsEnabled = true; }
     }
 }
@@ -879,17 +916,17 @@ public sealed class UserBranchAccessPage : ContentPage
 public sealed class CreateTeamUserPage : ContentPage
 {
     private readonly ApiClient _api; private readonly UserDto _actor; private List<BranchDto> _branches = [];
-    public CreateTeamUserPage(ApiClient api, UserDto actor) { _api = api; _actor = actor; Title = "Personel Ekle"; UiKit.StylePage(this); var name = UiKit.Entry("Ad soyad"); var email = UiKit.Entry("E-posta", Keyboard.Email); var password = UiKit.Entry("Geçici parola", password: true); var branch = UiKit.Picker("Şube"); var role = UiKit.Picker("Görev"); var assignable = CompanyAccess.AssignableRoles(actor).ToList(); role.ItemsSource = assignable.Select(CompanyAccess.RoleText).ToList(); var save = UiKit.PrimaryButton("Personel Hesabı Oluştur"); save.Clicked += async (_, _) => { if (branch.SelectedIndex < 0 || role.SelectedIndex < 0) { await DisplayAlertAsync("Eksik bilgi", "Şube ve görev seçin.", "Tamam"); return; } try { save.IsEnabled = false; await _api.CreateAdminUserAsync(new CreateUserRequest(email.Text ?? "", password.Text ?? "", name.Text ?? "", _branches[branch.SelectedIndex].Id, [assignable[role.SelectedIndex]])); await DisplayAlertAsync("Personel eklendi", "Hesap aktif olarak oluşturuldu.", "Tamam"); await Navigation.PopAsync(); } catch (Exception ex) { await DisplayAlertAsync("Personel eklenemedi", ex.Message, "Tamam"); } finally { save.IsEnabled = true; } }; Content = new ScrollView { Content = new VerticalStackLayout { Padding = 16, Spacing = 12, Children = { UiKit.Label("Yeni personel", 27, true), UiKit.Card(new VerticalStackLayout { Spacing = 9, Children = { name, email, password, branch, role, UiKit.Label("Geçici parolayı kullanıcıya güvenli bir kanaldan iletin; ilk girişten sonra değiştirmesini isteyin.", 11, false, true), save } }) } } }; Loaded += async (_, _) => { try { _branches = (await _api.GetBranchesAsync()).ToList(); branch.ItemsSource = _branches.Select(x => $"{x.Code} • {x.Name}").ToList(); if (_branches.Count == 1) branch.SelectedIndex = 0; } catch (Exception ex) { await DisplayAlertAsync("Şubeler", ex.Message, "Tamam"); } }; }
+    public CreateTeamUserPage(ApiClient api, UserDto actor) { _api = api; _actor = actor; Title = "Personel Ekle"; UiKit.StylePage(this); var name = UiKit.Entry("Ad soyad"); var email = UiKit.Entry("E-posta", Keyboard.Email); var password = UiKit.Entry("Geçici parola", password: true); var branch = UiKit.Picker("Şube"); var role = UiKit.Picker("Görev"); var assignable = CompanyAccess.AssignableRoles(actor).ToList(); role.ItemsSource = assignable.Select(CompanyAccess.RoleText).ToList(); var save = UiKit.PrimaryButton("Personel Hesabı Oluştur"); save.Clicked += async (_, _) => { if (branch.SelectedIndex < 0 || role.SelectedIndex < 0) { await DisplayAlertAsync("Eksik bilgi", "Şube ve görev seçin.", "Tamam"); return; } try { save.IsEnabled = false; await _api.CreateAdminUserAsync(new CreateUserRequest(email.Text ?? "", password.Text ?? "", name.Text ?? "", _branches[branch.SelectedIndex].Id, [assignable[role.SelectedIndex]])); await DisplayAlertAsync("Personel eklendi", "Hesap aktif olarak oluşturuldu.", "Tamam"); await Navigation.PopAsync(); } catch (Exception ex) { await DisplayAlertAsync("Personel eklenemedi", UserMessages.For(ex), "Tamam"); } finally { save.IsEnabled = true; } }; Content = new ScrollView { Content = new VerticalStackLayout { Padding = 16, Spacing = 12, Children = { UiKit.Label("Yeni personel", 27, true), UiKit.Card(new VerticalStackLayout { Spacing = 9, Children = { name, email, password, branch, role, UiKit.Label("Geçici parolayı kullanıcıya güvenli bir kanaldan iletin; ilk girişten sonra değiştirmesini isteyin.", 11, false, true), save } }) } } }; Loaded += async (_, _) => { try { _branches = (await _api.GetBranchesAsync()).ToList(); branch.ItemsSource = _branches.Select(x => $"{x.Code} • {x.Name}").ToList(); if (_branches.Count == 1) branch.SelectedIndex = 0; } catch (Exception ex) { await DisplayAlertAsync("Şubeler", UserMessages.For(ex), "Tamam"); } }; }
 }
 
 public sealed class CreateBranchPage : ContentPage
 {
-    public CreateBranchPage(ApiClient api) { Title = "Şube Ekle"; UiKit.StylePage(this); var code = UiKit.Entry("Şube kodu"); var name = UiKit.Entry("Şube adı"); var city = UiKit.Entry("Şehir"); var address = UiKit.Entry("Adres"); var save = UiKit.PrimaryButton("Şubeyi Oluştur"); save.Clicked += async (_, _) => { try { save.IsEnabled = false; await api.CreateBranchAsync(new CreateBranchRequest(code.Text ?? "", name.Text ?? "", city.Text ?? "", string.IsNullOrWhiteSpace(address.Text) ? null : address.Text.Trim())); await DisplayAlertAsync("Şube oluşturuldu", "Yeni şube kullanıma hazır.", "Tamam"); await Navigation.PopAsync(); } catch (Exception ex) { await DisplayAlertAsync("Şube oluşturulamadı", ex.Message, "Tamam"); } finally { save.IsEnabled = true; } }; Content = new VerticalStackLayout { Padding = 16, Spacing = 12, Children = { UiKit.Label("Yeni şube", 27, true), UiKit.Card(new VerticalStackLayout { Spacing = 9, Children = { code, name, city, address, save } }) } }; }
+    public CreateBranchPage(ApiClient api) { Title = "Şube Ekle"; UiKit.StylePage(this); var code = UiKit.Entry("Şube kodu"); var name = UiKit.Entry("Şube adı"); var city = UiKit.Entry("Şehir"); var address = UiKit.Entry("Adres"); var save = UiKit.PrimaryButton("Şubeyi Oluştur"); save.Clicked += async (_, _) => { try { save.IsEnabled = false; await api.CreateBranchAsync(new CreateBranchRequest(code.Text ?? "", name.Text ?? "", city.Text ?? "", string.IsNullOrWhiteSpace(address.Text) ? null : address.Text.Trim())); await DisplayAlertAsync("Şube oluşturuldu", "Yeni şube kullanıma hazır.", "Tamam"); await Navigation.PopAsync(); } catch (Exception ex) { await DisplayAlertAsync("Şube oluşturulamadı", UserMessages.For(ex), "Tamam"); } finally { save.IsEnabled = true; } }; Content = new VerticalStackLayout { Padding = 16, Spacing = 12, Children = { UiKit.Label("Yeni şube", 27, true), UiKit.Card(new VerticalStackLayout { Spacing = 9, Children = { code, name, city, address, save } }) } }; }
 }
 
 public sealed class AuditPage : ContentPage
 {
     private readonly ApiClient _api; private readonly ObservableCollection<AuditEntryDto> _rows = new(); private readonly CollectionView _list;
     public AuditPage(ApiClient api) { _api = api; UiKit.StylePage(this); _list = new CollectionView { ItemsSource = _rows, SelectionMode = SelectionMode.None, EmptyView = UiKit.Label("Denetim kaydı bulunamadı.", 13, false, true), ItemTemplate = new DataTemplate(() => { var action = UiKit.Label("", 14, true); action.SetBinding(Label.TextProperty, nameof(AuditEntryDto.Action)); var who = UiKit.Label("", 11.5, false, true); who.SetBinding(Label.TextProperty, nameof(AuditEntryDto.UserName)); var detail = UiKit.Label("", 12, false, true); detail.SetBinding(Label.TextProperty, nameof(AuditEntryDto.Detail)); var time = UiKit.Label("", 10.5, false, true); time.SetBinding(Label.TextProperty, new Binding(nameof(AuditEntryDto.OccurredAt), stringFormat: "{0:dd.MM.yyyy HH:mm}")); return UiKit.Card(new VerticalStackLayout { Spacing = 3, Children = { action, who, detail, time } }, new Thickness(12), 14); }) }; Content = new Grid { Padding = 16, RowSpacing = 10, RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Star) } }; var root = (Grid)Content; root.Add(UiKit.Label("Denetim kayıtları", 27, true), 0, 0); root.Add(UiKit.Label("Girişler, kullanıcı değişiklikleri, araç hareketleri, düzeltme ve silme işlemleri burada izlenir.", 11.5, false, true), 0, 1); root.Add(_list, 0, 2); }
-    protected override async void OnAppearing() { base.OnAppearing(); try { var rows = await _api.GetAuditAsync(); _rows.Clear(); foreach (var row in rows) _rows.Add(row); } catch (Exception ex) { await DisplayAlertAsync("Denetim", ex.Message, "Tamam"); } }
+    protected override async void OnAppearing() { base.OnAppearing(); try { var rows = await _api.GetAuditAsync(); _rows.Clear(); foreach (var row in rows) _rows.Add(row); } catch (Exception ex) { await DisplayAlertAsync("Denetim", UserMessages.For(ex), "Tamam"); } }
 }

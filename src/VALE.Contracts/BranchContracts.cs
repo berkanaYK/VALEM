@@ -9,7 +9,8 @@ public sealed record BranchDto(
     string City,
     string Address,
     bool IsActive,
-    string? InviteCode = null);
+    string? InviteCode = null,
+    string? CompanyCode = null);
 
 public sealed record CreateBranchRequest(
     [param: Required, MinLength(2), MaxLength(20)] string Code,

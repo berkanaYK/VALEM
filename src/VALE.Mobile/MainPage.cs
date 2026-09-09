@@ -57,6 +57,21 @@ public sealed class MainPage : ContentPage
         var register = UiKit.SecondaryButton("Yeni Hesap Oluştur");
         register.AutomationId = "register-open";
         register.Clicked += async (_, _) => await Navigation.PushAsync(new TenantRegisterPage(_api));
+        var demo = UiKit.SecondaryButton("Hesap Açmadan İncele");
+        demo.AutomationId = "demo-open";
+        demo.Clicked += async (_, _) =>
+        {
+            if (_busy) return;
+            try
+            {
+                _busy = true; demo.IsEnabled = false;
+                var user = await _api.StartDemoAsync();
+                await DisplayAlertAsync("Deneme hesabı", "Örnek firma üzerinden ekranları inceleyebilirsiniz. Kayıt eklemek ve değiştirmek için kendi hesabınızı oluşturun.", "İncele");
+                App.ShowAuthenticated(_api, user);
+            }
+            catch (Exception ex) { await DisplayAlertAsync("Deneme açılamadı", UserMessages.For(ex), "Tamam"); }
+            finally { _busy = false; demo.IsEnabled = true; }
+        };
         var forgot = UiKit.TextButton("Parolamı unuttum");
         forgot.Clicked += async (_, _) => await Navigation.PushAsync(new ForgotPasswordPage(_api));
         var connection = UiKit.TextButton("Bağlantı ayarları");
@@ -85,7 +100,7 @@ public sealed class MainPage : ContentPage
         {
             Spacing = 9,
             IsVisible = false,
-            Children = { authenticator, emailCode, resendConfirmation }
+            Children = { authenticator, resendConfirmation }
         };
         var alternativesToggle = UiKit.SecondaryButton("Diğer giriş seçenekleri");
         alternativesToggle.AutomationId = "login-options-toggle";
@@ -101,12 +116,14 @@ public sealed class MainPage : ContentPage
             Children =
             {
                 UiKit.Label("Hesabınıza giriş yapın", 24, true),
-                UiKit.Label("E-posta ve parolanızla hızlıca devam edin. Parolasız giriş ve Authenticator isteğe bağlıdır.", 13, false, true),
+                UiKit.Label("E-posta koduyla parolasız giriş yapabilir veya mevcut parolanızı kullanabilirsiniz.", 13, false, true),
+                emailCode,
+                UiKit.Divider(),
                 UiKit.Label("E-posta", 11, true, true), _email,
                 UiKit.Label("Parola", 11, true, true), _password,
                 forgot, rememberRow, _login, alternativesToggle, alternatives, statusRow,
                 UiKit.Divider(),
-                register, connection
+                register, demo, connection
             }
         }, new Thickness(18), 24);
         loginCard.MaximumWidthRequest = 520;
@@ -223,8 +240,8 @@ public sealed class MainPage : ContentPage
         catch (OperationCanceledException) { _status.Text = "İşlem iptal edildi."; }
         catch (Exception ex)
         {
-            _status.Text = ex.Message;
-            await DisplayAlertAsync("Giriş yapılamadı", ex.Message, "Tamam");
+            _status.Text = UserMessages.For(ex);
+            await DisplayAlertAsync("Giriş yapılamadı", UserMessages.For(ex), "Tamam");
         }
         finally
         {
@@ -260,7 +277,7 @@ public sealed class MainPage : ContentPage
         catch (Exception ex)
         {
             _status.Text = "Doğrulama bağlantısı gönderilemedi.";
-            await DisplayAlertAsync("E-posta doğrulama", ex.Message, "Tamam");
+            await DisplayAlertAsync("E-posta doğrulama", UserMessages.For(ex), "Tamam");
         }
         finally { button.IsEnabled = true; }
     }

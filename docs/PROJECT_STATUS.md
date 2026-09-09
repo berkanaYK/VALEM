@@ -1,3 +1,5 @@
+> 9 Eylül 2026 güncellemesi: 3.4.0 / build 18 için profil, demo, kodla katılım ve korumalı destek araçları hazırlandı. [Sürüm notları](RELEASE-3.4.0.md) ve [kurulum/sınırlar](SUPPORT_TOOLS.md). Canlı Render dağıtımı GitHub kaynak erişimi nedeniyle bekliyor; aşağıdaki 8 Eylül notları geçmiş incelemedir.
+
 # VALEM inceleme ve düzeltme notu — 8 Eylül 2026
 
 ## Nerede kalındı?

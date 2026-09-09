@@ -26,7 +26,7 @@ public sealed class NotificationsPage : ContentPage
         readAll.Clicked += async (_, _) =>
         {
             try { await _api.ReadAllNotificationsAsync(); await LoadAsync(); }
-            catch (Exception ex) { await DisplayAlertAsync("Bildirimler", ex.Message, "Tamam"); }
+            catch (Exception ex) { await DisplayAlertAsync("Bildirimler", UserMessages.For(ex), "Tamam"); }
         };
         var pushTest = UiKit.SecondaryButton("Gerçek Push Testi Gönder");
         pushTest.Clicked += async (_, _) => await TestPushAsync();
@@ -115,7 +115,7 @@ public sealed class NotificationsPage : ContentPage
         catch (Exception ex)
         {
             _status.Text = "Bildirimler yüklenemedi.";
-            await DisplayAlertAsync("Bildirimler", ex.Message, "Tamam");
+            await DisplayAlertAsync("Bildirimler", UserMessages.For(ex), "Tamam");
         }
         finally { _loading = false; }
     }
@@ -148,7 +148,7 @@ public sealed class NotificationsPage : ContentPage
         }
         catch (Exception ex)
         {
-            await DisplayAlertAsync("Push testi", ex.Message, "Tamam");
+            await DisplayAlertAsync("Push testi", UserMessages.For(ex), "Tamam");
         }
     }
 
@@ -164,7 +164,7 @@ public sealed class NotificationsPage : ContentPage
             read.Clicked += async (_, _) =>
             {
                 try { await _api.SetNotificationReadAsync(item.Id); await LoadAsync(); }
-                catch (Exception ex) { await DisplayAlertAsync("Bildirim", ex.Message, "Tamam"); }
+                catch (Exception ex) { await DisplayAlertAsync("Bildirim", UserMessages.For(ex), "Tamam"); }
             };
             stack.Add(read);
         }
@@ -216,6 +216,6 @@ public sealed class NotificationsPage : ContentPage
             await _api.DecideRegistrationAsync(request.Id, approve, note);
             await LoadAsync();
         }
-        catch (Exception ex) { await DisplayAlertAsync("Başvuru", ex.Message, "Tamam"); }
+        catch (Exception ex) { await DisplayAlertAsync("Başvuru", UserMessages.For(ex), "Tamam"); }
     }
 }

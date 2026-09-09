@@ -5,6 +5,7 @@ namespace VALE.Api.Domain;
 
 public sealed class Company
 {
+    public bool IsDemo { get; set; }
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Name { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
@@ -44,6 +45,9 @@ public sealed class AppUser : IdentityUser<Guid>
     public string BackgroundTheme { get; set; } = "None";
     public byte[]? ProfilePhoto { get; set; }
     public string? ProfilePhotoContentType { get; set; }
+    public DateOnly? BirthDate { get; set; }
+    public string? City { get; set; }
+    public string? About { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? LastLoginAt { get; set; }
     public List<UserBranchMembership> BranchMemberships { get; set; } = [];

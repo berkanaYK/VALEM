@@ -39,7 +39,7 @@ public sealed class RegisterPage : ContentPage
             }
             catch (Exception ex)
             {
-                await DisplayAlertAsync("Hesap oluşturulamadı", ex.Message, "Tamam");
+                await DisplayAlertAsync("Hesap oluşturulamadı", UserMessages.For(ex), "Tamam");
             }
             finally
             {
@@ -103,7 +103,7 @@ public sealed class ForgotPasswordPage : ContentPage
             }
             catch (Exception ex)
             {
-                await DisplayAlertAsync("Kod gönderilemedi", ex.Message, "Tamam");
+                await DisplayAlertAsync("Kod gönderilemedi", UserMessages.For(ex), "Tamam");
             }
             finally
             {
@@ -122,7 +122,7 @@ public sealed class ForgotPasswordPage : ContentPage
             }
             catch (Exception ex)
             {
-                await DisplayAlertAsync("Parola değiştirilemedi", ex.Message, "Tamam");
+                await DisplayAlertAsync("Parola değiştirilemedi", UserMessages.For(ex), "Tamam");
             }
             finally
             {
@@ -179,8 +179,8 @@ public sealed class ConnectionSettingsPage : ContentPage
             }
             catch (Exception ex)
             {
-                status.Text = ex.Message;
-                await DisplayAlertAsync("Bağlantı başarısız", ex.Message, "Tamam");
+                status.Text = UserMessages.For(ex);
+                await DisplayAlertAsync("Bağlantı başarısız", UserMessages.For(ex), "Tamam");
             }
             finally
             {
@@ -198,7 +198,7 @@ public sealed class ConnectionSettingsPage : ContentPage
             }
             catch (Exception ex)
             {
-                await DisplayAlertAsync("Adres geçersiz", ex.Message, "Tamam");
+                await DisplayAlertAsync("Adres geçersiz", UserMessages.For(ex), "Tamam");
             }
         };
 
@@ -366,7 +366,7 @@ public sealed class DashboardPage : ContentPage
         }
         catch (Exception ex)
         {
-            await DisplayAlertAsync("Veriler alınamadı", ex.Message, "Tamam");
+            await DisplayAlertAsync("Veriler alınamadı", UserMessages.For(ex), "Tamam");
         }
         finally
         {
@@ -450,7 +450,7 @@ public sealed class TicketsPage : ContentPage
         }
         catch (Exception ex)
         {
-            await DisplayAlertAsync("Araçlar alınamadı", ex.Message, "Tamam");
+            await DisplayAlertAsync("Araçlar alınamadı", UserMessages.For(ex), "Tamam");
         }
         finally
         {
@@ -525,7 +525,7 @@ public sealed class TicketsPage : ContentPage
         }
         catch (Exception ex)
         {
-            await DisplayAlertAsync("İşlem başarısız", ex.Message, "Tamam");
+            await DisplayAlertAsync("İşlem başarısız", UserMessages.For(ex), "Tamam");
         }
         finally
         {
@@ -585,7 +585,7 @@ public sealed class NewTicketPage : ContentPage
             }
             catch (Exception ex)
             {
-                await DisplayAlertAsync("Kayıt başarısız", ex.Message, "Tamam");
+                await DisplayAlertAsync("Kayıt başarısız", UserMessages.For(ex), "Tamam");
             }
             finally
             {
@@ -731,7 +731,7 @@ public sealed class ReportsPage : ContentPage
         }
         catch (Exception ex)
         {
-            await DisplayAlertAsync("Rapor alınamadı", ex.Message, "Tamam");
+            await DisplayAlertAsync("Rapor alınamadı", UserMessages.For(ex), "Tamam");
         }
     }
 
@@ -779,7 +779,7 @@ public sealed class ProfilePage : ContentPage
             }
             catch (Exception ex)
             {
-                await DisplayAlertAsync("Profil", ex.Message, "Tamam");
+                await DisplayAlertAsync("Profil", UserMessages.For(ex), "Tamam");
             }
         };
 
@@ -870,7 +870,7 @@ public sealed class ChangePasswordPage : ContentPage
             }
             catch (Exception ex)
             {
-                await DisplayAlertAsync("Parola", ex.Message, "Tamam");
+                await DisplayAlertAsync("Parola", UserMessages.For(ex), "Tamam");
             }
         };
 
@@ -926,7 +926,7 @@ public sealed class SettingsPage : ContentPage
             }
             catch (Exception ex)
             {
-                await DisplayAlertAsync("Bağlantı", ex.Message, "Tamam");
+                await DisplayAlertAsync("Bağlantı", UserMessages.For(ex), "Tamam");
             }
             finally
             {
@@ -1044,7 +1044,7 @@ public sealed class AdminPage : ContentPage
         }
         catch (Exception ex)
         {
-            await DisplayAlertAsync("Kullanıcılar", ex.Message, "Tamam");
+            await DisplayAlertAsync("Kullanıcılar", UserMessages.For(ex), "Tamam");
         }
     }
 
@@ -1063,7 +1063,7 @@ public sealed class AdminPage : ContentPage
         }
         catch (Exception ex)
         {
-            await DisplayAlertAsync("Kullanıcı", ex.Message, "Tamam");
+            await DisplayAlertAsync("Kullanıcı", UserMessages.For(ex), "Tamam");
         }
     }
 }
