@@ -1,5 +1,7 @@
 # VALEM 3.4.0 — Android build 18
 
+> Canlı sunucu şu anda API 3.3.0 kullanıyor. GitHub hesabındaki üçüncü taraf yetkilendirme engeli nedeniyle Render dağıtımı bekliyor. Yeni demo, genişletilmiş profil alanları ve geliştirici veritabanı araçları API 3.4.0 dağıtılınca kullanılabilir. APK/AAB kullanıcının isteğiyle bu durum belirtilerek yayımlanmıştır.
+
 - Ayarlar artık fotoğraf ekleme/kaldırma, telefon, doğum tarihi, şehir ve hakkımda alanlarını içeren profil ekranına açılır. İsteğe bağlı bilgiler silinebilir.
 - Firma oluşturma, bağımsız kişisel hesap ve mevcut firmaya kodla katılma ayrı seçeneklerdir. Firma katılımında yönetici onayı ve veri ayrımı korunur.
 - Hesap açmadan inceleme, örnek verili ve sunucuda yazmaya kapalı demo oturumu başlatır.
@@ -10,7 +12,7 @@
 
 ## Dağıtım gereksinimi
 
-Bu paket API 3.4.0 ve yeni migration'larla birlikte kullanılır. Render GitHub kaynağını kopyalayamadığı sürece yeni demo/profil/destek işlevleri canlı ortamda hazır değildir. Platform hesabı ve SQL bağlantısı sunucuda ayrıca yapılandırılmalıdır. Bu koşullar doğrulanana kadar yayın taslakta tutulur.
+Bu paket API 3.4.0 ve yeni migration'larla birlikte kullanılır. Render GitHub kaynağını kopyalayamadığı sürece yeni demo/profil/destek işlevleri canlı ortamda hazır değildir. Platform hesabı ve SQL bağlantısı sunucuda ayrıca yapılandırılmalıdır. Paket yayını, canlı API dağıtımının tamamlandığı anlamına gelmez.
 
 ## Paketler
 
