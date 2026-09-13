@@ -2,7 +2,7 @@
 
 VALEM, vale işletmelerinin araç kabulünden teslim ve tahsilata kadar günlük operasyonunu telefondan yönetmesini sağlayan çok firmalı bir platformdur. Güncel ürün; .NET MAUI Android uygulaması, ASP.NET Core API, PostgreSQL veritabanı ve yalnızca geliştiriciye açık web yönetim panelinden oluşur.
 
-Güncel mobil sürüm: **3.3.2** (`Android build 17`); API sözleşmesi **3.3.1**.
+Güncel mobil sürüm: **3.4.0** (`Android build 18`); API sözleşmesi **3.4.0**.
 
 Kalıcı imzalı APK/AAB dağıtımı ve Play Console adımları: [PLAY_SIGNING.md](docs/PLAY_SIGNING.md).
 
@@ -157,7 +157,7 @@ dotnet publish .\src\VALE.Mobile\VALE.Mobile.csproj -f net10.0-android -c Releas
 
 Firebase bildirimi kullanılacaksa `src/VALE.Mobile/Platforms/Android/google-services.json` dosyasını yerel olarak ekleyin. Dosya `.gitignore` kapsamındadır ve kesinlikle commit edilmez. Dosya yokken uygulamanın geri kalanı çalışır, FCM devre dışı kalır.
 
-Uygulama varsayılan olarak canlı Render API’sine bağlanır. Yerel/özel HTTPS API için giriş ekranındaki `Bağlantı ayarları` kullanılabilir.
+Uygulama varsayılan olarak canlı Render API’sine bağlanır. Yerel/özel HTTPS API için giriş ekranındaki `Bağlantı ayarları` kullanılabilir. Render/Neon'dan bağımsız Linux VPS kurulumu, yedekleme ve taşıma adımları [deploy/production/README.md](deploy/production/README.md) dosyasındadır.
 
 ## Geliştirici web yönetim paneli
 

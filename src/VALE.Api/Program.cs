@@ -1,11 +1,14 @@
 using System.Text;
 using System.Security.Claims;
+using System.Security.Cryptography.X509Certificates;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -21,6 +24,26 @@ var configuredConnectionString = builder.Configuration.GetConnectionString("Vale
 if (string.IsNullOrWhiteSpace(configuredConnectionString))
     throw new InvalidOperationException("ConnectionStrings:ValeDatabase tanımlı değil. Render Environment bölümünde Neon bağlantısını tanımlayın.");
 var connectionString = NormalizePostgresConnectionString(configuredConnectionString);
+
+var dataProtection = builder.Services.AddDataProtection().SetApplicationName("VALEM");
+var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"];
+if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
+{
+    Directory.CreateDirectory(dataProtectionKeysPath);
+    dataProtection.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
+}
+var dataProtectionCertificatePath = builder.Configuration["DataProtection:CertificatePath"];
+if (!string.IsNullOrWhiteSpace(dataProtectionCertificatePath))
+{
+    var certificatePassword = builder.Configuration["DataProtection:CertificatePassword"];
+    if (string.IsNullOrWhiteSpace(certificatePassword))
+        throw new InvalidOperationException("DataProtection:CertificatePassword tanımlı değil.");
+    var certificate = X509CertificateLoader.LoadPkcs12FromFile(
+        dataProtectionCertificatePath,
+        certificatePassword,
+        X509KeyStorageFlags.EphemeralKeySet);
+    dataProtection.ProtectKeysWithCertificate(certificate);
+}
 
 builder.Services.AddOptions<JwtOptions>()
     .Bind(builder.Configuration.GetSection(JwtOptions.SectionName))
@@ -195,6 +218,19 @@ builder.Services.AddScoped<FirebasePushSender>();
 builder.Services.AddSingleton<IFeeCalculator, FeeCalculator>();
 
 var app = builder.Build();
+if (builder.Configuration.GetValue<bool>("ReverseProxy:TrustForwardedHeaders"))
+{
+    var forwardedHeaders = new ForwardedHeadersOptions
+    {
+        ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+        ForwardLimit = 2,
+        RequireHeaderSymmetry = true
+    };
+    // The API port is private in the production topology; only Caddy/Render can reach it.
+    forwardedHeaders.KnownIPNetworks.Clear();
+    forwardedHeaders.KnownProxies.Clear();
+    app.UseForwardedHeaders(forwardedHeaders);
+}
 app.UseExceptionHandler();
 if (!app.Environment.IsDevelopment()) app.UseHsts();
 
@@ -209,7 +245,9 @@ app.Use(async (context, next) =>
     await next();
 });
 
-app.UseHttpsRedirection();
+app.UseWhen(
+    context => !context.Request.Path.StartsWithSegments("/health"),
+    branch => branch.UseHttpsRedirection());
 app.UseStaticFiles();
 app.Use(async (context, next) =>
 {
@@ -306,4 +344,3 @@ static string NormalizePostgresConnectionString(string value)
 }
 
 public partial class Program { }
-

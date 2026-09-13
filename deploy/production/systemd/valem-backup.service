@@ -1,0 +1,12 @@
+[Unit]
+Description=VALEM PostgreSQL backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/valem/deploy/production
+ExecStart=/opt/valem/deploy/production/backup.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

@@ -57,14 +57,21 @@ public static class DatabaseMigrator
         ILogger logger,
         CancellationToken cancellationToken)
     {
-        var applied = (await db.Database.GetAppliedMigrationsAsync(cancellationToken)).ToHashSet(StringComparer.Ordinal);
+        var hasMigrationHistory = await TableExistsAsync(db, "__EFMigrationsHistory", cancellationToken);
+        var applied = hasMigrationHistory
+            ? (await db.Database.GetAppliedMigrationsAsync(cancellationToken)).ToHashSet(StringComparer.Ordinal)
+            : [];
         if (applied.Contains(BaselineMigrationId)) return;
 
         var hasUsers = await TableExistsAsync(db, "AspNetUsers", cancellationToken);
         var hasAnyValeTable = hasUsers || await TableExistsAsync(db, "Companies", cancellationToken) ||
             await TableExistsAsync(db, "Branches", cancellationToken) ||
             await TableExistsAsync(db, "ParkingTickets", cancellationToken);
-        if (!hasAnyValeTable) return;
+        if (!hasAnyValeTable)
+        {
+            await EnsureMigrationHistoryTableAsync(db, cancellationToken);
+            return;
+        }
         if (!hasUsers)
             throw new InvalidOperationException("Veritabanı kısmen oluşturulmuş görünüyor; AspNetUsers tablosu yok. Otomatik migration güvenlik amacıyla durduruldu.");
 
@@ -90,13 +97,9 @@ public static class DatabaseMigrator
             throw new InvalidOperationException($"Eski VALEM şeması başlangıç migration'ı olarak güvenle doğrulanamadı ({details}). Veri kaybını önlemek için işlem durduruldu.");
         }
 
+        await EnsureMigrationHistoryTableAsync(db, cancellationToken);
         await db.Database.ExecuteSqlRawAsync(
             """
-            CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
-                "MigrationId" character varying(150) NOT NULL,
-                "ProductVersion" character varying(32) NOT NULL,
-                CONSTRAINT "PK___EFMigrationsHistory" PRIMARY KEY ("MigrationId")
-            );
             INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
             VALUES ('20260831115011_InitialVersionedSchema', '10.0.4')
             ON CONFLICT ("MigrationId") DO NOTHING;
@@ -104,6 +107,17 @@ public static class DatabaseMigrator
             cancellationToken);
         logger.LogInformation("Doğrulanmış VALEM 3.1.2 şeması EF Core başlangıç migration'ına güvenle bağlandı.");
     }
+
+    private static Task EnsureMigrationHistoryTableAsync(ValeDbContext db, CancellationToken cancellationToken) =>
+        db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
+                "MigrationId" character varying(150) NOT NULL,
+                "ProductVersion" character varying(32) NOT NULL,
+                CONSTRAINT "PK___EFMigrationsHistory" PRIMARY KEY ("MigrationId")
+            );
+            """,
+            cancellationToken);
 
     private static async Task<bool> TableExistsAsync(ValeDbContext db, string table, CancellationToken cancellationToken)
     {

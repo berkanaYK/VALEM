@@ -68,3 +68,5 @@ services:
         sync: false
       - key: ASPNETCORE_FORWARDEDHEADERS_ENABLED
         value: "true"
+      - key: ReverseProxy__TrustForwardedHeaders
+        value: "true"
