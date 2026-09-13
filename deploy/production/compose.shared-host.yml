@@ -1,0 +1,8 @@
+services:
+  api:
+    ports:
+      - "127.0.0.1:${API_HOST_PORT:-10000}:10000"
+
+  caddy:
+    profiles:
+      - standalone-edge

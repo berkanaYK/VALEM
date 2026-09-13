@@ -5,7 +5,7 @@ Bu paket, VALEM API ve PostgreSQL'i kişisel bilgisayardan bağımsız bir Linux
 ## Önerilen başlangıç kapasitesi
 
 - Ubuntu 24.04 LTS veya güncel desteklenen Debian
-- En az 2 vCPU, 4 GB RAM, 60 GB SSD
+- VALEM için ayrılmış 4 vCPU, 8 GB RAM ve en az 50 GB SSD
 - Sabit genel IPv4/IPv6 ve alan adı
 - Ayrı bir sağlayıcıya günlük şifreli yedek
 
@@ -20,14 +20,15 @@ Bu kapasite sınırsız değildir. CPU, bellek, disk, veritabanı bağlantısı 
 
    ```bash
    cd /opt/valem/deploy/production
-   chmod +x init-env.sh backup.sh restore.sh
+   chmod +x init-env.sh preflight.sh backup.sh restore.sh
    sudo ./init-env.sh
    ```
 
 5. E-posta ve Firebase kullanılacaksa `.env` dosyasındaki ilgili değerleri doldurun. Dosya izinlerini `0600` olarak koruyun.
-6. İmajı oluşturup servisleri başlatın:
+6. Ayrı IP'li VM/VPS ön kontrolünü çalıştırın, ardından imajı oluşturup servisleri başlatın:
 
    ```bash
+   ./preflight.sh standalone
    docker compose --env-file .env -f compose.yml build --pull api
    docker compose --env-file .env -f compose.yml up -d
    docker compose --env-file .env -f compose.yml ps
@@ -35,6 +36,20 @@ Bu kapasite sınırsız değildir. CPU, bellek, disk, veritabanı bağlantısı 
    ```
 
 API her başlangıçta advisory lock altında EF Core migration'larını uygular. Aynı veritabanında farklı uygulama sürümlerini eş zamanlı başlatmayın.
+
+Varsayılan kaynak dağılımı PostgreSQL için 2 CPU/4 GB, API için 1,5 CPU/2 GB ve Caddy için 0,5 CPU/512 MB'dır. Böylece 4 CPU/8 GB kotasında işletim sistemi ve kısa süreli işler için bellek bırakılır. Bu değerler `.env` üzerinden değiştirilebilir.
+
+## Arkadaşla paylaşılan fiziksel sunucu
+
+Size ayrı VM/VPS ve ayrı genel IP veriliyorsa yukarıdaki `standalone` kurulumu kullanın. Yalnızca aynı Linux işletim sisteminde kullanıcı/klasör ayrıldıysa arkadaşınızın merkezi ters proxy'si 80/443 portlarını yönetmelidir:
+
+```bash
+./preflight.sh shared-host
+docker compose --env-file .env -f compose.yml -f compose.shared-host.yml build api
+docker compose --env-file .env -f compose.yml -f compose.shared-host.yml up -d postgres api
+```
+
+Bu kip API'yi yalnızca hostun `127.0.0.1:10000` adresine açar ve paketteki Caddy'yi başlatmaz. Arkadaşınız [Caddy.shared-host.example](Caddy.shared-host.example) örneğini kendi Caddy yapılandırmasına ekler. Ayrı VM, güvenlik ve kaynak izolasyonu açısından tercih edilen düzendir.
 
 ## Neon verisini taşıma
 

@@ -1,0 +1,6 @@
+# Arkadaşınızın sunucudaki merkezi Caddyfile dosyasına ekleyeceği örnek blok.
+# 10000 portunu compose.shared-host.yml içindeki API_HOST_PORT ile aynı tutun.
+api.example.com {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:10000
+}

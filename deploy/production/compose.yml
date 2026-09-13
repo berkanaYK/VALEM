@@ -8,6 +8,24 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-valem}
       POSTGRES_USER: ${POSTGRES_USER:-valem}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=${POSTGRES_SHARED_BUFFERS:-1GB}
+      - -c
+      - effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE:-3GB}
+      - -c
+      - maintenance_work_mem=${POSTGRES_MAINTENANCE_WORK_MEM:-256MB}
+      - -c
+      - work_mem=${POSTGRES_WORK_MEM:-8MB}
+      - -c
+      - max_connections=${POSTGRES_MAX_CONNECTIONS:-100}
+      - -c
+      - wal_compression=on
+      - -c
+      - checkpoint_completion_target=0.9
+      - -c
+      - log_min_duration_statement=${POSTGRES_SLOW_QUERY_MS:-1000}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
@@ -20,6 +38,12 @@ services:
       start_period: 20s
     security_opt:
       - no-new-privileges:true
+    cpus: ${POSTGRES_CPU_LIMIT:-2.0}
+    mem_limit: ${POSTGRES_MEMORY_LIMIT:-4g}
+    mem_reservation: ${POSTGRES_MEMORY_RESERVATION:-2g}
+    pids_limit: 512
+    shm_size: ${POSTGRES_SHM_SIZE:-512m}
+    stop_grace_period: 60s
     logging:
       driver: json-file
       options:
@@ -75,6 +99,11 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
+    cpus: ${API_CPU_LIMIT:-1.5}
+    mem_limit: ${API_MEMORY_LIMIT:-2g}
+    mem_reservation: ${API_MEMORY_RESERVATION:-512m}
+    pids_limit: 256
+    stop_grace_period: 30s
     logging:
       driver: json-file
       options:
@@ -101,6 +130,11 @@ services:
       - edge
     security_opt:
       - no-new-privileges:true
+    cpus: ${CADDY_CPU_LIMIT:-0.5}
+    mem_limit: ${CADDY_MEMORY_LIMIT:-512m}
+    mem_reservation: ${CADDY_MEMORY_RESERVATION:-128m}
+    pids_limit: 128
+    stop_grace_period: 30s
     logging:
       driver: json-file
       options:
