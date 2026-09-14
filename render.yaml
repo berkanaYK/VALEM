@@ -66,6 +66,20 @@ services:
         sync: false
       - key: Firebase__ServiceAccountJson
         sync: false
+      - key: Billing__GooglePlayEnabled
+        value: "false"
+      - key: Billing__PackageName
+        value: com.berkanayk.vale
+      - key: Billing__ProductId
+        value: valem_premium_lifetime
+      - key: Billing__FallbackDisplayPrice
+        value: "$5.99"
+      - key: Billing__DemoVehicleLimit
+        value: "50"
+      - key: Billing__ServiceAccountJson
+        sync: false
+      - key: Billing__TestPremiumEmails__0
+        value: memeloialimon@gmail.com
       - key: ASPNETCORE_FORWARDEDHEADERS_ENABLED
         value: "true"
       - key: ReverseProxy__TrustForwardedHeaders

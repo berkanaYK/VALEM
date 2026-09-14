@@ -20,6 +20,7 @@ public sealed class UsersController(
         var query = userManager.Users.AsNoTracking()
             .Include(x => x.Company)
             .Include(x => x.Branch)
+            .Include(x => x.Entitlements)
             .Where(x => x.CompanyId != null && x.Company != null);
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -50,6 +51,7 @@ public sealed class UsersController(
                 user.EmailConfirmed,
                 user.IsActive,
                 user.LockoutEnd > DateTimeOffset.UtcNow,
+                user.Entitlements.Any(x => x.IsActive && x.Plan == "PremiumLifetime"),
                 user.LastLoginAt,
                 (await userManager.GetRolesAsync(user)).Where(x => x != Roles.PlatformAdmin).ToList()));
         }

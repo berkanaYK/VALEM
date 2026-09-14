@@ -15,6 +15,7 @@ public sealed class ValeDbContext(DbContextOptions<ValeDbContext> options)
     public DbSet<ValeNotification> Notifications => Set<ValeNotification>();
     public DbSet<PushRegistration> PushRegistrations => Set<PushRegistration>();
     public DbSet<DeviceSession> DeviceSessions => Set<DeviceSession>();
+    public DbSet<UserEntitlement> UserEntitlements => Set<UserEntitlement>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Vehicle> Vehicles => Set<Vehicle>();
     public DbSet<ParkingTicket> ParkingTickets => Set<ParkingTicket>();
@@ -195,6 +196,16 @@ public sealed class ValeDbContext(DbContextOptions<ValeDbContext> options)
                 throw new InvalidOperationException("Cihaz oturumu yalnızca aynı firmadaki kullanıcıya bağlanabilir.");
         }
 
+        foreach (var entitlementEntry in ChangeTracker.Entries<UserEntitlement>().Where(x => x.State is EntityState.Added or EntityState.Modified))
+        {
+            var entitlement = entitlementEntry.Entity;
+            var userCompanyId = entitlement.User is { CompanyId: var trackedCompanyId } && trackedCompanyId.HasValue
+                ? trackedCompanyId
+                : await Users.AsNoTracking().Where(x => x.Id == entitlement.UserId).Select(x => x.CompanyId).SingleOrDefaultAsync(cancellationToken);
+            if (!userCompanyId.HasValue || entitlement.CompanyId != userCompanyId.Value)
+                throw new InvalidOperationException("Satın alma hakkı yalnızca aynı firmadaki kullanıcıya bağlanabilir.");
+        }
+
         foreach (var auditEntry in ChangeTracker.Entries<AuditEntry>().Where(x => x.State is EntityState.Added or EntityState.Modified))
         {
             var audit = auditEntry.Entity;
@@ -246,6 +257,7 @@ public sealed class ValeDbContext(DbContextOptions<ValeDbContext> options)
             entity.Property(x => x.PreferredTheme).HasMaxLength(20);
             entity.Property(x => x.AccentTheme).HasMaxLength(20);
             entity.Property(x => x.ProfileColor).HasMaxLength(20);
+            entity.Property(x => x.ProfileFrame).HasMaxLength(20);
             entity.Property(x => x.BackgroundTheme).HasMaxLength(30);
             entity.Property(x => x.ProfilePhotoContentType).HasMaxLength(30);
             entity.Property(x => x.City).HasMaxLength(80);
@@ -314,6 +326,21 @@ public sealed class ValeDbContext(DbContextOptions<ValeDbContext> options)
             entity.Property(x => x.DeviceName).HasMaxLength(120);
             entity.HasOne(x => x.Company).WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<UserEntitlement>(entity =>
+        {
+            entity.HasIndex(x => new { x.UserId, x.Plan }).IsUnique();
+            entity.HasIndex(x => x.PurchaseTokenHash).IsUnique();
+            entity.HasIndex(x => new { x.CompanyId, x.IsActive });
+            entity.Property(x => x.Plan).HasMaxLength(40);
+            entity.Property(x => x.Source).HasMaxLength(40);
+            entity.Property(x => x.ProductId).HasMaxLength(120);
+            entity.Property(x => x.PurchaseTokenHash).HasMaxLength(64);
+            entity.Property(x => x.ProtectedPurchaseToken).HasMaxLength(8192);
+            entity.Property(x => x.OrderId).HasMaxLength(160);
+            entity.HasOne(x => x.User).WithMany(x => x.Entitlements).HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Company>().WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<Customer>(entity =>

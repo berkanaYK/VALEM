@@ -153,6 +153,12 @@ public sealed class TenantRegisterPage : ContentPage
         UpdateLoginMethod();
     }
 
+    protected override async void OnAppearing()
+    {
+        base.OnAppearing();
+        await GuidedTour.ShowRegistrationAsync(this);
+    }
+
     private void UpdateMode()
     {
         var owner = _accountType.SelectedIndex == 0;

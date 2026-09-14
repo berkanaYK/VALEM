@@ -42,7 +42,7 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger, Req
         await Results.Problem(
                 statusCode: StatusCodes.Status500InternalServerError,
                 title: "Sunucu hatası",
-                detail: $"İşlem tamamlanamadı. Lütfen tekrar deneyin. Destek kayıt numarası: {httpContext.TraceIdentifier}",
+                detail: "İşlem şu anda tamamlanamadı. Biraz bekleyip tekrar deneyin; sorun sürerse destek ekibine hangi ekranda olduğunu bildirin.",
                 extensions: new Dictionary<string, object?> { ["traceId"] = httpContext.TraceIdentifier })
             .ExecuteAsync(httpContext);
         return true;

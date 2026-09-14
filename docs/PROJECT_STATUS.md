@@ -1,4 +1,4 @@
-> 9 Eylül 2026 güncellemesi: 3.4.0 / build 18 için profil, demo, kodla katılım ve korumalı destek araçları hazırlandı. [Sürüm notları](RELEASE-3.4.0.md) ve [kurulum/sınırlar](SUPPORT_TOOLS.md). Canlı Render dağıtımı GitHub kaynak erişimi nedeniyle bekliyor; aşağıdaki 8 Eylül notları geçmiş incelemedir.
+> 14 Eylül 2026 güncellemesi: 3.5.0 / build 19 için ilk kullanım rehberi, 50 kayıtlık deneme kotası, Google Play ile sunucuda doğrulanan Sınırsız paket, premium temalar/çerçeveler ve alfabetik araç kataloğu hazırlandı. [Sürüm notları](RELEASE-3.5.0.md), [satın alma kurulumu](GOOGLE_PLAY_BILLING.md) ve [kurulum/sınırlar](SUPPORT_TOOLS.md). Canlı API dağıtımı Render kaynak erişimi veya yeni VDS kurulumu tamamlandığında yapılacaktır.
 
 # VALEM inceleme ve düzeltme notu — 8 Eylül 2026
 

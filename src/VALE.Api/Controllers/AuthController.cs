@@ -188,7 +188,13 @@ public sealed class AuthController(
         var theme = NormalizeChoice(request.PreferredTheme, ["System", "Light", "Dark"], "System");
         var accent = NormalizeChoice(request.AccentTheme, ["Blue", "Indigo", "Emerald", "Orange"], "Blue");
         var background = NormalizeChoice(request.BackgroundTheme, ["None", "AnimeNeon", "AnimeSunset", "CarNeon", "CarTrack", "Custom"], "None");
+        var frame = NormalizeChoice(request.ProfileFrame, ["None", "Gold", "Neon", "Carbon"], "None");
         var user = await GetCurrentUserAsync(cancellationToken);
+        var premium = IsPremiumUser(user);
+        if (!premium && background is not ("None" or "AnimeSunset"))
+            throw new ApiException(StatusCodes.Status402PaymentRequired, "Bu tema VALEM Sınırsız'a özel", "Anime Gün Batımı ve sade görünümü ücretsiz kullanabilirsiniz. Diğer resimli temalar için VALEM Sınırsız paketini açın.");
+        if (!premium && frame != "None")
+            throw new ApiException(StatusCodes.Status402PaymentRequired, "Bu çerçeve VALEM Sınırsız'a özel", "Premium profil çerçevelerini kullanmak için VALEM Sınırsız paketini açın.");
         user.FullName = request.FullName.Trim();
         user.PhoneNumber = Clean(request.PhoneNumber);
         if (request.BirthDate is { } birthDate &&
@@ -200,6 +206,7 @@ public sealed class AuthController(
         user.PreferredTheme = theme;
         user.AccentTheme = accent;
         user.ProfileColor = request.ProfileColor.ToUpperInvariant();
+        user.ProfileFrame = frame;
         user.BackgroundTheme = background;
         var result = await userManager.UpdateAsync(user);
         if (!result.Succeeded) throw new ApiException(StatusCodes.Status400BadRequest, "Profil kaydedilemedi", string.Join(" ", result.Errors.Select(x => x.Description)));
@@ -380,7 +387,7 @@ public sealed class AuthController(
         var companyClaim = User.FindFirst("company_id")?.Value;
         if (!Guid.TryParse(userId, out var parsedUserId) || !Guid.TryParse(companyClaim, out var companyId))
             throw new ApiException(StatusCodes.Status401Unauthorized, "Oturum geçersiz", "Kullanıcı veya firma kapsamı okunamadı.");
-        return await userManager.Users.Include(x => x.Branch).Include(x => x.Company)
+        return await userManager.Users.Include(x => x.Branch).Include(x => x.Company).Include(x => x.Entitlements)
             .SingleOrDefaultAsync(x => x.Id == parsedUserId && x.CompanyId == companyId && x.IsActive && x.Company != null && x.Company.IsActive, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status401Unauthorized, "Oturum geçersiz", "Kullanıcı hesabı bulunamadı veya devre dışı.");
     }
@@ -391,7 +398,7 @@ public sealed class AuthController(
         user.PreferredTheme, user.AccentTheme, user.ProfileColor, user.TwoFactorEnabled, user.BackgroundTheme,
         user.ProfilePhoto is { Length: > 0 } && !string.IsNullOrWhiteSpace(user.ProfilePhotoContentType)
             ? $"data:{user.ProfilePhotoContentType};base64,{Convert.ToBase64String(user.ProfilePhoto)}"
-            : null, user.BirthDate, user.City, user.About);
+            : null, user.BirthDate, user.City, user.About, user.ProfileFrame);
 
     private static bool HasValidImageSignature(string contentType, byte[] bytes) => contentType switch
     {
@@ -405,4 +412,11 @@ public sealed class AuthController(
     private static string NormalizeCode(string code) => code.Replace(" ", string.Empty).Replace("-", string.Empty);
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private static string NormalizeChoice(string value, IReadOnlyCollection<string> allowed, string fallback) => allowed.FirstOrDefault(x => x.Equals(value.Trim(), StringComparison.OrdinalIgnoreCase)) ?? fallback;
+    private bool IsPremiumUser(AppUser user)
+    {
+        if (user.Entitlements.Any(x => x.IsActive && x.Plan == "PremiumLifetime")) return true;
+        var services = ControllerContext.HttpContext?.RequestServices;
+        var configured = services is null ? null : services.GetService<Microsoft.Extensions.Options.IOptions<VALE.Api.Configuration.BillingOptions>>()?.Value.TestPremiumEmails;
+        return user.EmailConfirmed && configured?.Any(x => string.Equals(x?.Trim(), user.Email?.Trim(), StringComparison.OrdinalIgnoreCase)) == true;
+    }
 }

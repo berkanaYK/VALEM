@@ -21,6 +21,7 @@ public sealed record PlatformDashboardModel(
     int ActiveCompanies,
     int Users,
     int ActiveUsers,
+    int PremiumUsers,
     int Branches,
     int ActiveTickets,
     int PendingRegistrations,
@@ -81,6 +82,7 @@ public sealed record PlatformUserRow(
     bool EmailConfirmed,
     bool IsActive,
     bool IsLocked,
+    bool IsPremium,
     DateTimeOffset? LastLoginAt,
     IReadOnlyList<string> Roles);
 

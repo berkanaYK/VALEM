@@ -46,7 +46,7 @@ public static class UiKit
             HorizontalOptions = LayoutOptions.Fill,
             ClearButtonVisibility = password ? ClearButtonVisibility.Never : ClearButtonVisibility.WhileEditing
         };
-        entry.BackgroundColor = Colors.Transparent;
+        entry.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeSoftCard");
         entry.SetDynamicResource(Microsoft.Maui.Controls.Entry.TextColorProperty, "ValeText");
         entry.SetDynamicResource(Microsoft.Maui.Controls.Entry.PlaceholderColorProperty, "ValeSecondary");
         return entry;
@@ -63,7 +63,7 @@ public static class UiKit
             FontAutoScalingEnabled = true,
             HorizontalOptions = LayoutOptions.Fill
         };
-        editor.BackgroundColor = Colors.Transparent;
+        editor.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeSoftCard");
         editor.SetDynamicResource(Microsoft.Maui.Controls.Editor.TextColorProperty, "ValeText");
         editor.SetDynamicResource(Microsoft.Maui.Controls.Editor.PlaceholderColorProperty, "ValeSecondary");
         return editor;
@@ -79,7 +79,7 @@ public static class UiKit
             FontAutoScalingEnabled = true,
             HorizontalOptions = LayoutOptions.Fill
         };
-        picker.BackgroundColor = Colors.Transparent;
+        picker.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeSoftCard");
         picker.SetDynamicResource(Microsoft.Maui.Controls.Picker.TextColorProperty, "ValeText");
         picker.SetDynamicResource(Microsoft.Maui.Controls.Picker.TitleColorProperty, "ValeSecondary");
         return picker;

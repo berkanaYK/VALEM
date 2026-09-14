@@ -23,8 +23,10 @@ public sealed class App : Application
     {
         if (Current?.Windows.FirstOrDefault() is { } window)
         {
-            window.Page = new ValeAppShellV31(api, user);
-            _ = SyncAccountThemeAsync(api);
+            var shell = new ValeAppShellV31(api, user);
+            window.Page = shell;
+            _ = SyncAccountAsync(api, user);
+            _ = GuidedTour.ShowMainAsync(shell, user);
             _ = PushTokenManager.AttachAsync(api);
         }
     }
@@ -35,7 +37,7 @@ public sealed class App : Application
             window.Page = new NavigationPage(new MainPage());
     }
 
-    private static async Task SyncAccountThemeAsync(ApiClient api)
+    private static async Task SyncAccountAsync(ApiClient api, UserDto user)
     {
         try
         {
@@ -46,5 +48,13 @@ public sealed class App : Application
         {
             // Local preferences remain usable if the profile cannot be refreshed.
         }
+
+        try
+        {
+            var entitlement = await api.GetEntitlementAsync();
+            PremiumState.Set(user.Id, entitlement.IsPremium);
+        }
+        catch { PremiumState.Set(user.Id, false); }
+
     }
 }

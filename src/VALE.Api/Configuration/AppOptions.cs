@@ -1,3 +1,5 @@
+using VALE.Contracts;
+
 namespace VALE.Api.Configuration;
 
 public sealed class JwtOptions
@@ -44,4 +46,17 @@ public sealed class BusinessRulesOptions
 
     public decimal DefaultHourlyRate { get; init; } = 100m;
     public string TimeZoneId { get; init; } = "Europe/Istanbul";
+}
+
+public sealed class BillingOptions
+{
+    public const string SectionName = "Billing";
+
+    public bool GooglePlayEnabled { get; init; }
+    public string PackageName { get; init; } = "com.berkanayk.vale";
+    public string ProductId { get; init; } = PremiumProduct.Id;
+    public string FallbackDisplayPrice { get; init; } = PremiumProduct.FallbackPrice;
+    public int DemoVehicleLimit { get; init; } = PremiumProduct.DemoVehicleLimit;
+    public string ServiceAccountJson { get; init; } = string.Empty;
+    public string[] TestPremiumEmails { get; init; } = [];
 }

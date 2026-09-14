@@ -175,6 +175,18 @@ public sealed class ApiClient : IDisposable
 
     public Task<AccountProfileDto> GetAccountProfileAsync(CancellationToken ct = default) => GetAsync<AccountProfileDto>("api/auth/profile", true, ct);
 
+    public Task<EntitlementDto> GetEntitlementAsync(CancellationToken ct = default) =>
+        GetAsync<EntitlementDto>("api/billing/entitlement", true, ct);
+
+    public async Task<PurchaseVerificationDto> VerifyGooglePlayPurchaseAsync(string productId, string purchaseToken, CancellationToken ct = default)
+    {
+        using var response = await SendJsonAsync(HttpMethod.Post, "api/billing/google-play/verify",
+            new VerifyGooglePlayPurchaseRequest(productId, purchaseToken), true, ct, TimeSpan.FromSeconds(45));
+        await EnsureSuccessAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<PurchaseVerificationDto>(JsonOptions, ct)
+            ?? throw new UserFacingException("Satın alma doğrulanamadı. Lütfen yeniden deneyin.");
+    }
+
     public async Task<AccountProfileDto> UpdateAccountProfileAsync(UpdateAccountProfileRequest request, CancellationToken ct = default)
     {
         using var response = await SendJsonAsync(HttpMethod.Put, "api/auth/profile", request, true, ct);
@@ -573,7 +585,7 @@ public sealed class ApiClient : IDisposable
             HttpStatusCode.TooManyRequests => "Çok fazla deneme yapıldı. Bir süre sonra tekrar deneyin.",
             HttpStatusCode.RequestEntityTooLarge => detail ?? "Gönderilen veri çok büyük.",
             HttpStatusCode.ServiceUnavailable => detail ?? "Sunucu veya bağlı servis şu anda hazır değil.",
-            _ => detail ?? $"İşlem tamamlanamadı ({(int)response.StatusCode})."
+            _ => detail ?? "İşlem tamamlanamadı. Bilgilerinizi kontrol edip yeniden deneyin."
         };
         throw new UserFacingException(message);
     }
@@ -590,7 +602,7 @@ public sealed class ApiClient : IDisposable
                 var messages = errors.EnumerateObject().Where(x => x.Value.ValueKind == JsonValueKind.Array)
                     .SelectMany(x => x.Value.EnumerateArray()).Where(x => x.ValueKind == JsonValueKind.String)
                     .Select(x => x.GetString()).Distinct().Take(4).ToArray();
-                if (messages.Length > 0) return string.Join(Environment.NewLine, messages);
+                if (messages.Length > 0) return FriendlyValidationMessage(messages);
             }
             if (document.RootElement.TryGetProperty("detail", out var detail) && detail.ValueKind == JsonValueKind.String) return detail.GetString();
             if (document.RootElement.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String) return message.GetString();
@@ -598,6 +610,18 @@ public sealed class ApiClient : IDisposable
         }
         catch (JsonException) { }
         return null;
+    }
+
+    private static string FriendlyValidationMessage(IReadOnlyList<string?> messages)
+    {
+        var combined = string.Join(" ", messages.Where(x => !string.IsNullOrWhiteSpace(x)));
+        if (combined.Contains("required", StringComparison.OrdinalIgnoreCase))
+            return "Zorunlu alanları doldurup tekrar deneyin.";
+        if (combined.Contains("valid", StringComparison.OrdinalIgnoreCase) || combined.Contains("format", StringComparison.OrdinalIgnoreCase))
+            return "Bilgilerden biri beklenen biçimde değil. Alanları kontrol edip tekrar deneyin.";
+        if (combined.Contains("maximum length", StringComparison.OrdinalIgnoreCase) || combined.Contains("must be a string", StringComparison.OrdinalIgnoreCase))
+            return "Yazdığınız bilgilerden biri izin verilen uzunluğu aşıyor.";
+        return "Girilen bilgiler doğrulanamadı. Alanları kontrol edip tekrar deneyin.";
     }
 
     private void RebuildClient(string baseUrl)

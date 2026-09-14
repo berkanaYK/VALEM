@@ -573,6 +573,7 @@ internal sealed class MultiTenantHarness : IAsyncDisposable
         var accessor = new HttpContextAccessor();
 
         services.AddLogging(builder => builder.SetMinimumLevel(LogLevel.None));
+        services.AddDataProtection();
         services.AddOptions();
         services.AddSingleton<IHttpContextAccessor>(accessor);
         services.AddDbContext<ValeDbContext>(options =>
@@ -592,6 +593,7 @@ internal sealed class MultiTenantHarness : IAsyncDisposable
         services.AddSingleton<IOptions<FirebaseOptions>>(Options.Create(new FirebaseOptions()));
         services.AddSingleton<IOptions<EmailOptions>>(Options.Create(new EmailOptions()));
         services.AddSingleton<IOptions<SeedOptions>>(Options.Create(new SeedOptions()));
+        services.AddSingleton<IOptions<BillingOptions>>(Options.Create(new BillingOptions()));
         services.AddSingleton<IOptions<JwtOptions>>(Options.Create(new JwtOptions
         {
             Issuer = "VALE.Api.Tests",
@@ -603,6 +605,8 @@ internal sealed class MultiTenantHarness : IAsyncDisposable
         services.AddScoped<TenantAccessService>();
         services.AddScoped<AuditService>();
         services.AddScoped<TicketService>();
+        services.AddScoped<PremiumEntitlementService>();
+        services.AddScoped<IGooglePlayPurchaseVerifier, GooglePlayPurchaseVerifier>();
         services.AddScoped<TokenService>();
         services.AddScoped<DeviceSessionService>();
         services.AddScoped<PasswordResetCodeService>();

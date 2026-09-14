@@ -228,6 +228,7 @@ public sealed class ModernNewTicketPage : ContentPage
     private readonly Entry _vehicleSearch = UiKit.Entry("Marka veya model ara");
     private readonly Picker _brand = UiKit.Picker("Marka seçin");
     private readonly Picker _model = UiKit.Picker("Model seçin");
+    private readonly Label _modelHint = UiKit.Label("Model seçmek için önce araç markasını seçin.", 11, true);
     private readonly Entry _manualBrand = UiKit.Entry("Marka (elle)");
     private readonly Entry _manualModel = UiKit.Entry("Model (elle)");
     private readonly Entry _year = UiKit.Entry("Model yılı", Keyboard.Numeric);
@@ -255,6 +256,8 @@ public sealed class ModernNewTicketPage : ContentPage
         _transmission.ItemsSource = VehicleCatalog.Transmissions.ToList();
         _manualBrand.IsVisible = false;
         _manualModel.IsVisible = false;
+        _model.IsEnabled = false;
+        _modelHint.TextColor = ThemeService.Palette.Danger;
         _brand.SelectedIndexChanged += (_, _) => UpdateModels();
         _vehicleSearch.TextChanged += (_, _) => FilterVehicleCatalog();
 
@@ -278,7 +281,7 @@ public sealed class ModernNewTicketPage : ContentPage
             {
                 UiKit.Label("Araç ayrıntıları", 16, true),
                 UiKit.Label("Marka veya modeli yazarak listeyi arayın. Markayı seçince model seçenekleri otomatik daralır.", 11.5, false, true),
-                _vehicleSearch, _brand, _model, _manualBrand, _manualModel, _year, _color, _fuel, _transmission
+                _vehicleSearch, _brand, _model, _modelHint, _manualBrand, _manualModel, _year, _color, _fuel, _transmission
             }
         };
         var vehicleCard = UiKit.Card(vehicleFields);
@@ -385,6 +388,8 @@ public sealed class ModernNewTicketPage : ContentPage
         _manualBrand.IsVisible = manual;
         _manualModel.IsVisible = manual;
         _model.IsVisible = !manual;
+        _model.IsEnabled = !manual && !string.IsNullOrWhiteSpace(brand);
+        _modelHint.IsVisible = !manual && string.IsNullOrWhiteSpace(brand);
         var models = VehicleCatalog.ModelsFor(brand);
         if (!manual && !string.IsNullOrWhiteSpace(_vehicleSearch.Text))
         {

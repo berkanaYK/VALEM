@@ -51,7 +51,7 @@ services:
         max-file: "5"
 
   api:
-    image: valem-api:${VALEM_IMAGE_TAG:-3.4.0}
+    image: valem-api:${VALEM_IMAGE_TAG:-3.5.0}
     build:
       context: ../..
       dockerfile: Dockerfile
@@ -84,6 +84,13 @@ services:
       Firebase__Enabled: ${FIREBASE_ENABLED:-false}
       Firebase__ProjectId: ${FIREBASE_PROJECT_ID:-}
       Firebase__ServiceAccountJson: ${FIREBASE_SERVICE_ACCOUNT_JSON:-}
+      Billing__GooglePlayEnabled: ${BILLING_GOOGLE_PLAY_ENABLED:-false}
+      Billing__PackageName: ${BILLING_PACKAGE_NAME:-com.berkanayk.vale}
+      Billing__ProductId: ${BILLING_PRODUCT_ID:-valem_premium_lifetime}
+      Billing__FallbackDisplayPrice: ${BILLING_FALLBACK_PRICE:-USD 5.99}
+      Billing__DemoVehicleLimit: ${BILLING_DEMO_VEHICLE_LIMIT:-50}
+      Billing__ServiceAccountJson: ${BILLING_SERVICE_ACCOUNT_JSON:-}
+      Billing__TestPremiumEmails__0: ${BILLING_TEST_PREMIUM_EMAIL_0:-}
     expose:
       - "10000"
     volumes:

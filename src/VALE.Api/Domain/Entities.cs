@@ -42,6 +42,7 @@ public sealed class AppUser : IdentityUser<Guid>
     public string PreferredTheme { get; set; } = "System";
     public string AccentTheme { get; set; } = "Blue";
     public string ProfileColor { get; set; } = "#2563EB";
+    public string ProfileFrame { get; set; } = "None";
     public string BackgroundTheme { get; set; } = "None";
     public byte[]? ProfilePhoto { get; set; }
     public string? ProfilePhotoContentType { get; set; }
@@ -51,6 +52,25 @@ public sealed class AppUser : IdentityUser<Guid>
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? LastLoginAt { get; set; }
     public List<UserBranchMembership> BranchMemberships { get; set; } = [];
+    public List<UserEntitlement> Entitlements { get; set; } = [];
+}
+
+public sealed class UserEntitlement
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CompanyId { get; set; }
+    public Guid UserId { get; set; }
+    public AppUser User { get; set; } = null!;
+    public string Plan { get; set; } = "PremiumLifetime";
+    public string Source { get; set; } = "GooglePlay";
+    public string ProductId { get; set; } = PremiumProduct.Id;
+    public string PurchaseTokenHash { get; set; } = string.Empty;
+    public string? ProtectedPurchaseToken { get; set; }
+    public string? OrderId { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset PurchasedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset VerifiedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? RevokedAt { get; set; }
 }
 
 public sealed class UserBranchMembership

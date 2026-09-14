@@ -95,6 +95,7 @@ public sealed class CompanyDashboardPage : ContentPage
     private readonly Label _delivered;
     private readonly Label? _revenue;
     private readonly Label _branchInfo;
+    private readonly Label _planStatus = UiKit.Label("Kullanım hakkı kontrol ediliyor…", 12.5, true);
     private readonly BranchContextSelector _branchSelector;
     private readonly ObservableCollection<TicketSummaryDto> _recent = new();
     private bool _busy;
@@ -137,6 +138,9 @@ public sealed class CompanyDashboardPage : ContentPage
             team.Clicked += async (_, _) => await Navigation.PushAsync(new TeamManagementPage(_api, _user));
             actions.Add(team);
         }
+        var plan = UiKit.SecondaryButton("Sürüm Ayrıntıları");
+        plan.Clicked += async (_, _) => await Navigation.PushAsync(new PremiumPage(_api, _user));
+        actions.Add(UiKit.Card(new VerticalStackLayout { Spacing = 6, Children = { _planStatus, plan } }, new Thickness(12), 14));
 
         var list = new CollectionView { ItemsSource = _recent, SelectionMode = SelectionMode.Single, ItemTemplate = ModernTicketTemplates.Card(), HeightRequest = 330, EmptyView = UiKit.Label("Şu anda açık araç kaydı yok.", 13, false, true) };
         list.SelectionChanged += async (_, e) =>
@@ -179,6 +183,13 @@ public sealed class CompanyDashboardPage : ContentPage
         {
             _busy = true;
             var data = await _api.GetDashboardAsync();
+            try
+            {
+                var entitlement = await _api.GetEntitlementAsync();
+                PremiumState.Set(_user.Id, entitlement.IsPremium);
+                _planStatus.Text = entitlement.IsPremium ? "VALEM Sınırsız • Tüm özellikler açık" : $"Ücretsiz Deneme • {entitlement.RemainingVehicleRecords} araç hakkı kaldı";
+            }
+            catch { _planStatus.Text = "Sürüm bilgisi sunucu güncellemesinden sonra açılacak"; }
             _active.Text = data.ActiveVehicles.ToString(CultureInfo.CurrentCulture);
             _waiting.Text = data.WaitingForDelivery.ToString(CultureInfo.CurrentCulture);
             _delivered.Text = data.DeliveredToday.ToString(CultureInfo.CurrentCulture);
@@ -296,7 +307,7 @@ public sealed class CompanyProfilePage : ContentPage
     private readonly Entry _phone = UiKit.Entry("Telefon", Keyboard.Telephone);
     private readonly Entry _birthDate = UiKit.Entry("Doğum tarihi (gg.aa.yyyy, isteğe bağlı)");
     private readonly Entry _city = UiKit.Entry("Yaşadığınız şehir (isteğe bağlı)");
-    private readonly Editor _about = new() { Placeholder = "Hakkımda (isteğe bağlı)", MaxLength = 300, AutoSize = EditorAutoSizeOption.TextChanges, BackgroundColor = Colors.Transparent };
+    private readonly Editor _about = UiKit.Editor("Hakkımda (isteğe bağlı)");
     private readonly Label _email = UiKit.Label("—", 13.5);
     private readonly Label _employee = UiKit.Label("—", 13.5);
     private readonly Label _job = UiKit.Label("—", 13.5);
@@ -308,8 +319,10 @@ public sealed class CompanyProfilePage : ContentPage
     private readonly Picker _theme = UiKit.Picker("Tema");
     private readonly Picker _accent = UiKit.Picker("Vurgu rengi");
     private readonly Picker _profileColor = UiKit.Picker("Profil rengi");
+    private readonly Picker _profileFrame = UiKit.Picker("Profil çerçevesi");
     private readonly Picker _background = UiKit.Picker("Arka plan teması");
     private AccountProfileDto? _profile;
+    private EntitlementDto? _entitlement;
 
     public CompanyProfilePage(ApiClient api, UserDto user)
     {
@@ -319,7 +332,8 @@ public sealed class CompanyProfilePage : ContentPage
         _theme.ItemsSource = new[] { "Sistem", "Açık", "Koyu" };
         _accent.ItemsSource = new[] { "Mavi", "İndigo", "Zümrüt", "Turuncu" };
         _profileColor.ItemsSource = new[] { "Mavi", "İndigo", "Zümrüt", "Turuncu", "Kırmızı", "Mor" };
-        _background.ItemsSource = new[] { "Sade", "Anime • Neon Şehir", "Anime • Gün Batımı", "Araba • Neon Garaj", "Araba • Gece Rotası", "Galerimden Özel" };
+        _profileFrame.ItemsSource = new[] { "Çerçevesiz", "Altın • Sınırsız", "Neon • Sınırsız", "Karbon • Sınırsız" };
+        _background.ItemsSource = new[] { "Sade", "Anime • Neon Şehir • Sınırsız", "Anime • Gün Batımı • Ücretsiz", "Araba • Neon Garaj • Sınırsız", "Araba • Gece Rotası • Sınırsız", "Galerimden Özel • Sınırsız" };
 
         var avatarLayer = new Grid(); avatarLayer.Add(_avatar); avatarLayer.Add(_avatarImage);
         _avatarBox = new Border { StrokeThickness = 2, Stroke = new SolidColorBrush(Colors.White), BackgroundColor = ThemeService.Palette.Accent, StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 48 }, WidthRequest = 96, HeightRequest = 96, HorizontalOptions = LayoutOptions.Center, Content = avatarLayer };
@@ -341,7 +355,7 @@ public sealed class CompanyProfilePage : ContentPage
         Content = new ScrollView { Content = new VerticalStackLayout { Padding = 16, Spacing = 14, Children = {
             _avatarBox, photo, UiKit.Label("Profilim", 27, true),
             UiKit.Card(new VerticalStackLayout { Spacing = 9, Children = { UiKit.Label("Kişisel bilgiler", 16, true), _name, _phone, _birthDate, _city, _about, UiKit.Label("Telefon, doğum tarihi, şehir ve hakkımda alanları isteğe bağlıdır. Boş bırakabilir veya daha sonra silebilirsiniz.", 11, false, true), Detail("E-posta", _email), Detail("Personel kodu", _employee), Detail("Görev", _job), Detail("Şube", _branch), Detail("Yetkiler", _roles) } }),
-            UiKit.Card(new VerticalStackLayout { Spacing = 9, Children = { UiKit.Label("Görünüm", 16, true), _theme, _accent, _profileColor, _background, customBackground, UiKit.Label("Tema tüm sayfalara uygulanır. Görsel arka planda kartlar koyulaşır ve yazılar otomatik olarak yüksek kontrasta geçer.", 11, false, true) } }),
+            UiKit.Card(new VerticalStackLayout { Spacing = 9, Children = { UiKit.Label("Görünüm", 16, true), _theme, _accent, _profileColor, _profileFrame, _background, customBackground, UiKit.Label("Tema tüm sayfalara uygulanır. Görsel arka planda kartlar koyulaşır; yazı rengi ve ağırlığı okunabilirlik için otomatik uyarlanır. Sınırsız etiketli seçenekler premium pakete dahildir.", 11, false, true) } }),
             save, security, password, logout
         } } };
     }
@@ -353,11 +367,15 @@ public sealed class CompanyProfilePage : ContentPage
         try
         {
             _profile = await _api.GetAccountProfileAsync();
+            try { _entitlement = await _api.GetEntitlementAsync(); }
+            catch { _entitlement = null; }
+            PremiumState.Set(_user.Id, _entitlement?.IsPremium == true);
             _name.Text = _profile.FullName; _phone.Text = _profile.PhoneNumber;
             _birthDate.Text = _profile.BirthDate?.ToString("dd.MM.yyyy"); _city.Text = _profile.City; _about.Text = _profile.About;
             _email.Text = _profile.Email; _employee.Text = _profile.EmployeeCode ?? "—"; _job.Text = _profile.JobTitle ?? "—"; _branch.Text = _profile.BranchName ?? "—";
             _roles.Text = CompanyAccess.RolesText(_profile.Roles); SetAvatar(_profile);
-            _theme.SelectedIndex = ThemeIndex(_profile.PreferredTheme); _accent.SelectedIndex = AccentIndex(_profile.AccentTheme); _profileColor.SelectedIndex = ProfileColorIndex(_profile.ProfileColor); _background.SelectedIndex = BackgroundIndex(_profile.BackgroundTheme);
+            _theme.SelectedIndex = ThemeIndex(_profile.PreferredTheme); _accent.SelectedIndex = AccentIndex(_profile.AccentTheme); _profileColor.SelectedIndex = ProfileColorIndex(_profile.ProfileColor); _profileFrame.SelectedIndex = FrameIndex(_profile.ProfileFrame); _background.SelectedIndex = BackgroundIndex(_profile.BackgroundTheme);
+            ApplyFrame(_profile.ProfileFrame);
         }
         catch (Exception ex) { await DisplayAlertAsync("Profil", UserMessages.For(ex), "Tamam"); }
     }
@@ -377,10 +395,16 @@ public sealed class CompanyProfilePage : ContentPage
                 }
                 birthDate = parsed;
             }
-            var request = new UpdateAccountProfileRequest(_name.Text ?? "", N(_phone.Text), ThemeValue(_theme.SelectedIndex), AccentValue(_accent.SelectedIndex), ProfileColorValue(_profileColor.SelectedIndex), BackgroundValue(_background.SelectedIndex), birthDate, N(_city.Text), N(_about.Text));
+            if (!IsPremiumChoiceAllowed())
+            {
+                await DisplayAlertAsync("VALEM Sınırsız özelliği", "Seçtiğiniz tema veya profil çerçevesi Sınırsız pakete dahildir.", "Paketi Gör");
+                await Navigation.PushAsync(new PremiumPage(_api, _user));
+                return;
+            }
+            var request = new UpdateAccountProfileRequest(_name.Text ?? "", N(_phone.Text), ThemeValue(_theme.SelectedIndex), AccentValue(_accent.SelectedIndex), ProfileColorValue(_profileColor.SelectedIndex), BackgroundValue(_background.SelectedIndex), birthDate, N(_city.Text), N(_about.Text), FrameValue(_profileFrame.SelectedIndex));
             _profile = await _api.UpdateAccountProfileAsync(request);
             ThemeService.ApplyServerPreferences(_profile.PreferredTheme, _profile.AccentTheme, _profile.BackgroundTheme);
-            avatarBox.BackgroundColor = Color.FromArgb(_profile.ProfileColor); SetAvatar(_profile);
+            avatarBox.BackgroundColor = Color.FromArgb(_profile.ProfileColor); SetAvatar(_profile); ApplyFrame(_profile.ProfileFrame);
             await DisplayAlertAsync("Kaydedildi", "Profil ve görünüm tercihleriniz güncellendi.", "Tamam");
         }
         catch (Exception ex) { await DisplayAlertAsync("Profil kaydedilemedi", UserMessages.For(ex), "Tamam"); }
@@ -412,6 +436,12 @@ public sealed class CompanyProfilePage : ContentPage
     {
         try
         {
+            if (_entitlement?.IsPremium != true)
+            {
+                await DisplayAlertAsync("Kişisel arka plan", "Galerinizden arka plan seçmek VALEM Sınırsız paketine dahildir.", "Paketi Gör");
+                await Navigation.PushAsync(new PremiumPage(_api, _user));
+                return;
+            }
             button.IsEnabled = false;
             var file = await PickSinglePhotoAsync();
             if (file is null) return;
@@ -461,6 +491,20 @@ public sealed class CompanyProfilePage : ContentPage
     private static string ProfileColorValue(int index) => ProfileColors[Math.Clamp(index, 0, ProfileColors.Length - 1)];
     private static int BackgroundIndex(string value) => value switch { "AnimeNeon" => 1, "AnimeSunset" => 2, "CarNeon" => 3, "CarTrack" => 4, "Custom" => 5, _ => 0 };
     private static string BackgroundValue(int index) => index switch { 1 => "AnimeNeon", 2 => "AnimeSunset", 3 => "CarNeon", 4 => "CarTrack", 5 => "Custom", _ => "None" };
+    private bool IsPremiumChoiceAllowed() => _entitlement?.IsPremium == true || (_background.SelectedIndex is 0 or 2 && _profileFrame.SelectedIndex <= 0);
+    private static int FrameIndex(string value) => value switch { "Gold" => 1, "Neon" => 2, "Carbon" => 3, _ => 0 };
+    private static string FrameValue(int index) => index switch { 1 => "Gold", 2 => "Neon", 3 => "Carbon", _ => "None" };
+    private void ApplyFrame(string frame)
+    {
+        _avatarBox.StrokeThickness = frame == "None" ? 2 : 4;
+        _avatarBox.Stroke = new SolidColorBrush(frame switch
+        {
+            "Gold" => Color.FromArgb("#F6C344"),
+            "Neon" => Color.FromArgb("#22D3EE"),
+            "Carbon" => Color.FromArgb("#64748B"),
+            _ => Colors.White
+        });
+    }
 }
 
 public sealed class TwoFactorPage : ContentPage
@@ -560,7 +604,7 @@ public sealed class CompanySettingsPage : ContentPage
                 var saved = await api.UpdateAccountProfileAsync(new UpdateAccountProfileRequest(current.FullName, current.PhoneNumber,
                     theme.SelectedIndex == 2 ? "Dark" : theme.SelectedIndex == 1 ? "Light" : "System",
                     new[] { "Blue", "Indigo", "Emerald", "Orange" }[Math.Clamp(accent.SelectedIndex, 0, 3)], current.ProfileColor,
-                    current.BackgroundTheme, current.BirthDate, current.City, current.About));
+                    current.BackgroundTheme, current.BirthDate, current.City, current.About, current.ProfileFrame));
                 ThemeService.ApplyServerPreferences(saved.PreferredTheme, saved.AccentTheme, saved.BackgroundTheme);
                 await DisplayAlertAsync("Kaydedildi", "Görünüm tercihleriniz hesabınıza kaydedildi.", "Tamam");
             }

@@ -14,6 +14,7 @@ public sealed class TicketService(
     TenantAccessService tenantAccess,
     IFeeCalculator feeCalculator,
     IOptions<BusinessRulesOptions> businessRules,
+    PremiumEntitlementService entitlements,
     AuditService audit,
     FirebasePushSender pushSender)
 {
@@ -48,6 +49,7 @@ public sealed class TicketService(
 
     public async Task<TicketSummaryDto> CreateAsync(CreateTicketRequest request, CancellationToken cancellationToken)
     {
+        await entitlements.EnsureCanCreateVehicleRecordAsync(cancellationToken);
         var branchId = await tenantAccess.ResolveBranchIdAsync(request.BranchId, cancellationToken);
         var branch = await db.Branches.SingleOrDefaultAsync(x => x.Id == branchId && x.CompanyId == currentUser.CompanyId && x.IsActive, cancellationToken)
             ?? throw new ApiException(StatusCodes.Status404NotFound, "Şube bulunamadı", "Seçilen şube firmanıza ait değil, aktif değil veya bulunamadı.");

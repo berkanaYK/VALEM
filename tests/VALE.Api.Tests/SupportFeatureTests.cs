@@ -109,7 +109,7 @@ public sealed class SupportFeatureTests
     {
         await using var h = await Harness.CreateAsync();
         var controller = h.Auth();
-        var request = new UpdateAccountProfileRequest("Profil Deneme", "+90 555 000 0000", "Light", "Emerald", "#059669", "CarTrack", new DateOnly(1995, 6, 15), "İzmir", "Vale ekibi");
+        var request = new UpdateAccountProfileRequest("Profil Deneme", "+90 555 000 0000", "Light", "Emerald", "#059669", "AnimeSunset", new DateOnly(1995, 6, 15), "İzmir", "Vale ekibi");
         var response = await controller.UpdateAccountProfile(request, default);
         var profile = Assert.IsType<AccountProfileDto>(Assert.IsType<OkObjectResult>(response.Result).Value);
         Assert.Equal(request.BirthDate, profile.BirthDate); Assert.Equal(request.About, profile.About); Assert.Equal(request.City, profile.City);
@@ -125,6 +125,48 @@ public sealed class SupportFeatureTests
         var request = new UpdateAccountProfileRequest("Profil Deneme", null, "Light", "Blue", "#2563EB", "None", DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1));
         Assert.Equal(400, (await Assert.ThrowsAsync<ApiException>(() => h.Auth().UpdateAccountProfile(request, default))).StatusCode);
         Assert.Equal(400, (await Assert.ThrowsAsync<ApiException>(() => h.Auth().UpdateProfilePhoto(new("image/jpeg", Convert.ToBase64String(new byte[40])), default))).StatusCode);
+    }
+
+    [Fact]
+    public async Task Demo_vehicle_limit_is_per_user_and_deleting_a_record_frees_capacity()
+    {
+        await using var h = await Harness.CreateAsync();
+        _ = h.Auth();
+        for (var i = 0; i < PremiumProduct.DemoVehicleLimit; i++)
+        {
+            var vehicle = new Vehicle { CompanyId = h.Company.Id, LicensePlate = $"34 DEMO {i:00}", NormalizedPlate = $"34DEMO{i:00}" };
+            h.Db.Vehicles.Add(vehicle);
+            h.Db.ParkingTickets.Add(new ParkingTicket
+            {
+                CompanyId = h.Company.Id, BranchId = h.Branch.Id, Vehicle = vehicle,
+                TicketNumber = $"DEMO-{i:00}", CreatedByUserId = h.User.Id
+            });
+        }
+        await h.Db.SaveChangesAsync();
+        var premium = h.Provider.GetRequiredService<PremiumEntitlementService>();
+        Assert.Equal(402, (await Assert.ThrowsAsync<ApiException>(() => premium.EnsureCanCreateVehicleRecordAsync(default))).StatusCode);
+        var oldest = await h.Db.ParkingTickets.FirstAsync();
+        oldest.DeletedAt = DateTimeOffset.UtcNow;
+        await h.Db.SaveChangesAsync();
+        await premium.EnsureCanCreateVehicleRecordAsync(default);
+    }
+
+    [Fact]
+    public async Task Verified_purchase_is_persisted_per_user_and_unlocks_premium_profile_options()
+    {
+        await using var h = await Harness.CreateAsync();
+        var controller = h.Auth();
+        var locked = new UpdateAccountProfileRequest("Support User", null, "System", "Blue", "#2563EB", "CarTrack", ProfileFrame: "Gold");
+        Assert.Equal(402, (await Assert.ThrowsAsync<ApiException>(() => controller.UpdateAccountProfile(locked, default))).StatusCode);
+
+        var result = await h.Provider.GetRequiredService<PremiumEntitlementService>()
+            .VerifyAndGrantAsync(new(PremiumProduct.Id, new string('p', 32)), default);
+        Assert.True(result.Entitlement.IsPremium);
+        h.Db.ChangeTracker.Clear();
+        var saved = await controller.UpdateAccountProfile(locked, default);
+        var profile = Assert.IsType<AccountProfileDto>(Assert.IsType<OkObjectResult>(saved.Result).Value);
+        Assert.Equal("CarTrack", profile.BackgroundTheme);
+        Assert.Equal("Gold", profile.ProfileFrame);
     }
 
     [Fact]
@@ -156,6 +198,7 @@ public sealed class SupportFeatureTests
         public UserManager<AppUser> Users => provider.GetRequiredService<UserManager<AppUser>>();
         public Company Company => company;
         public Branch Branch => branch;
+        public AppUser User => user;
         public AuthController Auth()
         {
             var context = provider.GetRequiredService<IHttpContextAccessor>().HttpContext!;
@@ -175,7 +218,9 @@ public sealed class SupportFeatureTests
             services.AddSingleton<IOptions<JwtOptions>>(Options.Create(new JwtOptions { Key = new string('x', 64) }));
             services.AddSingleton<IOptions<DeviceSessionOptions>>(Options.Create(new DeviceSessionOptions()));
             services.AddSingleton<IOptions<EmailOptions>>(Options.Create(new EmailOptions()));
+            services.AddSingleton<IOptions<BillingOptions>>(Options.Create(new BillingOptions()));
             services.AddScoped<IValeEmailSender, SmtpValeEmailSender>(); services.AddScoped<CurrentUserContext>(); services.AddScoped<AuditService>();
+            services.AddScoped<IGooglePlayPurchaseVerifier, SuccessfulPurchaseVerifier>(); services.AddScoped<PremiumEntitlementService>();
             services.AddScoped<TokenService>(); services.AddScoped<DeviceSessionService>(); services.AddScoped<PasswordResetCodeService>(); services.AddScoped<OneTimeCodeService>();
             var provider = services.BuildServiceProvider();
             var db = provider.GetRequiredService<ValeDbContext>(); await db.Database.EnsureCreatedAsync();
@@ -189,5 +234,12 @@ public sealed class SupportFeatureTests
             return new(connection, provider, company, branch, user);
         }
         public async ValueTask DisposeAsync() { await provider.DisposeAsync(); await connection.DisposeAsync(); }
+    }
+
+    private sealed class SuccessfulPurchaseVerifier : IGooglePlayPurchaseVerifier
+    {
+        public Task<GooglePlayVerification> VerifyAsync(string productId, string purchaseToken, CancellationToken cancellationToken) =>
+            Task.FromResult(new GooglePlayVerification(true, false, "TEST-ORDER", null, DateTimeOffset.UtcNow));
+        public Task AcknowledgeAsync(string productId, string purchaseToken, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

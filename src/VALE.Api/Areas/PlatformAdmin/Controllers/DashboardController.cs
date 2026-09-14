@@ -17,6 +17,7 @@ public sealed class DashboardController(ValeDbContext db) : PlatformAdminControl
         var activeCompanies = await db.Companies.AsNoTracking().CountAsync(x => x.IsActive, cancellationToken);
         var users = await db.Users.AsNoTracking().CountAsync(x => x.CompanyId != null, cancellationToken);
         var activeUsers = await db.Users.AsNoTracking().CountAsync(x => x.CompanyId != null && x.IsActive, cancellationToken);
+        var premiumUsers = await db.UserEntitlements.AsNoTracking().CountAsync(x => x.IsActive && x.Plan == "PremiumLifetime", cancellationToken);
         var branches = await db.Branches.AsNoTracking().CountAsync(cancellationToken);
         var activeTickets = await db.ParkingTickets.AsNoTracking().CountAsync(x =>
             x.Status != VALE.Contracts.TicketStatus.Delivered && x.Status != VALE.Contracts.TicketStatus.Cancelled,
@@ -34,6 +35,7 @@ public sealed class DashboardController(ValeDbContext db) : PlatformAdminControl
             activeCompanies,
             users,
             activeUsers,
+            premiumUsers,
             branches,
             activeTickets,
             pending,

@@ -64,6 +64,11 @@ builder.Services.AddOptions<BusinessRulesOptions>()
     .ValidateOnStart();
 builder.Services.AddOptions<EmailOptions>().Bind(builder.Configuration.GetSection(EmailOptions.SectionName));
 builder.Services.AddOptions<FirebaseOptions>().Bind(builder.Configuration.GetSection(FirebaseOptions.SectionName));
+builder.Services.AddOptions<BillingOptions>()
+    .Bind(builder.Configuration.GetSection(BillingOptions.SectionName))
+    .Validate(x => x.DemoVehicleLimit is >= 1 and <= 10000, "Deneme araç sınırı 1-10000 arasında olmalıdır.")
+    .Validate(x => !string.IsNullOrWhiteSpace(x.ProductId), "Google Play ürün kimliği gereklidir.")
+    .ValidateOnStart();
 
 var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
 if (Encoding.UTF8.GetByteCount(jwt.Key) < 32) throw new InvalidOperationException("Jwt:Key en az 32 bayt olmalıdır.");
@@ -189,6 +194,7 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("email-code", context => Fixed(context, 5, TimeSpan.FromMinutes(10)));
     options.AddPolicy("2fa", context => Fixed(context, 10, TimeSpan.FromMinutes(5)));
     options.AddPolicy("diagnostic", context => Fixed(context, 3, TimeSpan.FromMinutes(5)));
+    options.AddPolicy("billing", context => Fixed(context, 10, TimeSpan.FromMinutes(5)));
 });
 
 builder.Services.AddProblemDetails();
@@ -209,6 +215,8 @@ builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<DeviceSessionService>();
 builder.Services.AddScoped<PlatformAuditService>();
 builder.Services.AddScoped<TicketService>();
+builder.Services.AddScoped<PremiumEntitlementService>();
+builder.Services.AddScoped<IGooglePlayPurchaseVerifier, GooglePlayPurchaseVerifier>();
 builder.Services.AddScoped<PasswordResetCodeService>();
 builder.Services.AddScoped<OneTimeCodeService>();
 builder.Services.AddScoped<AuditService>();
@@ -287,11 +295,11 @@ app.MapGet("/health/email", async (IValeEmailSender email, CancellationToken ct)
         : Results.Json(new { status = "not-ready", smtp = false, stage = probe.Stage }, statusCode: StatusCodes.Status503ServiceUnavailable);
 }).AllowAnonymous().RequireRateLimiting("diagnostic");
 
-// VALE 3.4.0: passwordless OTP login and open, isolated self-service registration.
+// VALE 3.5.0: guided onboarding and server-verified account-bound premium access.
 app.MapGet("/api/status", (IValeEmailSender email, FirebasePushSender push) => Results.Ok(new
 {
     service = "VALE.Api",
-    version = "3.4.0",
+    version = "3.5.0",
     status = "ok",
     capabilities = new
     {
