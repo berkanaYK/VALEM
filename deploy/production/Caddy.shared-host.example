@@ -1,6 +1,13 @@
 # Arkadaşınızın sunucudaki merkezi Caddyfile dosyasına ekleyeceği örnek blok.
-# 10000 portunu compose.shared-host.yml içindeki API_HOST_PORT ile aynı tutun.
-api.example.com {
+# Upstream IP'yi VALEM VM'nin özel IP'siyle değiştirin. API ve web paneli
+# aynı ASP.NET Core uygulamasında çalıştığı için iki alan adı aynı porta gider.
+api.valemyonetim.com {
     encode zstd gzip
-    reverse_proxy 127.0.0.1:10000
+    reverse_proxy VALEM_VM_PRIVATE_IP:50180
+}
+
+panel.valemyonetim.com {
+    encode zstd gzip
+    redir / /platform-admin 302
+    reverse_proxy VALEM_VM_PRIVATE_IP:50180
 }

@@ -11,11 +11,16 @@ fi
 
 printf "API alan adı (ör. api.valem.com): "
 read -r domain
+printf "Yönetim paneli alan adı (ör. panel.valem.com): "
+read -r panel_domain
 printf "Platform yönetici e-postası: "
 read -r admin_email
 
 case "$domain" in
     ""|*/*|*:*|*" "*) echo "Geçerli, yalnızca alan adı girin." >&2; exit 1 ;;
+esac
+case "$panel_domain" in
+    ""|*/*|*:*|*" "*) echo "Geçerli, yalnızca panel alan adı girin." >&2; exit 1 ;;
 esac
 case "$admin_email" in
     *@*.*) ;;
@@ -41,9 +46,12 @@ chmod 400 secrets/dataprotection.pfx
 
 cat > .env <<EOF
 VALEM_DOMAIN=$domain
+VALEM_PANEL_DOMAIN=$panel_domain
 VALEM_IMAGE_TAG=3.4.0
 HTTP_PORT=80
 HTTPS_PORT=443
+API_BIND_ADDRESS=127.0.0.1
+API_HOST_PORT=50180
 POSTGRES_DB=valem
 POSTGRES_USER=valem
 POSTGRES_PASSWORD=$postgres_password

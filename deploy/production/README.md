@@ -39,9 +39,9 @@ API her başlangıçta advisory lock altında EF Core migration'larını uygular
 
 Varsayılan kaynak dağılımı PostgreSQL için 2 CPU/4 GB, API için 1,5 CPU/2 GB ve Caddy için 0,5 CPU/512 MB'dır. Böylece 4 CPU/8 GB kotasında işletim sistemi ve kısa süreli işler için bellek bırakılır. Bu değerler `.env` üzerinden değiştirilebilir.
 
-## Arkadaşla paylaşılan fiziksel sunucu
+## Proxmox VM ve merkezi reverse proxy
 
-Size ayrı VM/VPS ve ayrı genel IP veriliyorsa yukarıdaki `standalone` kurulumu kullanın. Yalnızca aynı Linux işletim sisteminde kullanıcı/klasör ayrıldıysa arkadaşınızın merkezi ters proxy'si 80/443 portlarını yönetmelidir:
+VALEM ayrı bir Proxmox VM'de çalışırken arkadaşınızın merkezi reverse proxy'si 80/443 ve TLS sertifikalarını yönetebilir. `.env` içinde `API_BIND_ADDRESS` değerini VM'nin yalnızca özel ağda erişilen IP'si, `API_HOST_PORT` değerini `50180` yapın. Reverse proxy kaynak IP'si dışındaki erişimleri VM güvenlik duvarında engelleyin. PostgreSQL için host portu açmayın.
 
 ```bash
 ./preflight.sh shared-host
@@ -49,7 +49,16 @@ docker compose --env-file .env -f compose.yml -f compose.shared-host.yml build a
 docker compose --env-file .env -f compose.yml -f compose.shared-host.yml up -d postgres api
 ```
 
-Bu kip API'yi yalnızca hostun `127.0.0.1:10000` adresine açar ve paketteki Caddy'yi başlatmaz. Arkadaşınız [Caddy.shared-host.example](Caddy.shared-host.example) örneğini kendi Caddy yapılandırmasına ekler. Ayrı VM, güvenlik ve kaynak izolasyonu açısından tercih edilen düzendir.
+Bu kip paketteki Caddy'yi başlatmaz. `api.valemyonetim.com` ve `panel.valemyonetim.com` aynı API sürecinde sunulduğu için merkezi reverse proxy her iki alan adını da `VALEM_VM_PRIVATE_IP:50180` hedefine yollar. Panel kökü `/platform-admin` yoludur. Arkadaşınız [Caddy.shared-host.example](Caddy.shared-host.example) örneğini kullandığı reverse proxy veya Kubernetes Ingress yapısına uyarlayabilir.
+
+Cloudflare DNS'te iki `A` kaydı merkezi reverse proxy'nin genel IP adresine yöneltilir:
+
+| Tür | Ad | Hedef |
+| --- | --- | --- |
+| `A` | `api` | Merkezi reverse proxy genel IPv4 adresi |
+| `A` | `panel` | Merkezi reverse proxy genel IPv4 adresi |
+
+Geçişten önce `https://api.valemyonetim.com/health/ready` ve `https://panel.valemyonetim.com/platform-admin` dış ağdan doğrulanır. Bundan sonra mobil uygulamanın `ProductionBaseUrl` değeri yeni API adresine geçirilir; DNS kurulmadan bu değeri değiştirmek mevcut sürümlerin bağlantısını keser.
 
 ## Neon verisini taşıma
 
