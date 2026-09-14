@@ -14,6 +14,6 @@ public static class UserMessages
         System.Text.Json.JsonException => "Sunucudan gelen yanıt okunamadı. Uygulamayı güncelleyip yeniden deneyin.",
         IOException => "Dosya okunamadı veya kaydedilemedi. Dosyayı ve telefonunuzdaki boş alanı kontrol edin.",
         HttpRequestException => "İnternet bağlantınızı kontrol edip tekrar deneyin.",
-        _ => "İşlem tamamlanamadı. Tekrar deneyin; sorun sürerse destek ekibine hangi ekranda olduğunu bildirin."
+        _ => "İşlem tamamlanamadı. Tekrar deneyin; sorun sürerse İletişim ve Destek bölümünden hangi ekranda olduğunu bildirin."
     };
 }

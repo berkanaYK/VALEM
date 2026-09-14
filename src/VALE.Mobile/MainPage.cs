@@ -77,6 +77,10 @@ public sealed class MainPage : ContentPage
         var connection = UiKit.TextButton("Bağlantı ayarları");
         connection.FontSize = 12;
         connection.Clicked += async (_, _) => await Navigation.PushAsync(new ConnectionSettingsPage(_api));
+        var support = UiKit.TextButton("İletişim ve Destek");
+        support.FontSize = 12;
+        support.AutomationId = "login-support-open";
+        support.Clicked += async (_, _) => await Navigation.PushAsync(new SupportContactPage());
 
         _status = UiKit.Label("Size uygun tek bir giriş yöntemini kullanmanız yeterli.", 11.5, false, true);
         _status.AutomationId = "login-status";
@@ -123,7 +127,7 @@ public sealed class MainPage : ContentPage
                 UiKit.Label("Parola", 11, true, true), _password,
                 forgot, rememberRow, _login, alternativesToggle, alternatives, statusRow,
                 UiKit.Divider(),
-                register, demo, connection
+                register, demo, connection, support
             }
         }, new Thickness(18), 24);
         loginCard.MaximumWidthRequest = 520;

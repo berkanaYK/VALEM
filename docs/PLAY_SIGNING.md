@@ -1,7 +1,7 @@
 # Play imzalama ve dağıtım
 
-Android uygulama kimliği: `com.berkanayk.vale`. Mobil sürüm 3.5.0 / build 19.
-Kota, satın alma ve premium profil özellikleri API 3.5.0 gerektirir.
+Android uygulama kimliği: `com.berkanayk.vale`. Mobil sürüm 3.5.1 / build 20.
+Kota, satın alma ve premium profil özellikleri API 3.5.1 gerektirir.
 
 ## Kalıcı anahtar
 

@@ -51,7 +51,7 @@ services:
         max-file: "5"
 
   api:
-    image: valem-api:${VALEM_IMAGE_TAG:-3.5.0}
+    image: valem-api:${VALEM_IMAGE_TAG:-3.5.1}
     build:
       context: ../..
       dockerfile: Dockerfile

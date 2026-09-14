@@ -1,4 +1,4 @@
-> 14 Eylül 2026 güncellemesi: 3.5.0 / build 19 için ilk kullanım rehberi, 50 kayıtlık deneme kotası, Google Play ile sunucuda doğrulanan Sınırsız paket, premium temalar/çerçeveler ve alfabetik araç kataloğu hazırlandı. [Sürüm notları](RELEASE-3.5.0.md), [satın alma kurulumu](GOOGLE_PLAY_BILLING.md) ve [kurulum/sınırlar](SUPPORT_TOOLS.md). Canlı API dağıtımı Render kaynak erişimi veya yeni VDS kurulumu tamamlandığında yapılacaktır.
+> 15 Eylül 2026 güncellemesi: 3.5.1 / build 20 için ilk kullanım baloncuklarına ek olarak görsel ve etkileşimli kullanım kılavuzu ile doğrudan iletişim/destek ekranı hazırlandı. 50 kayıtlık deneme kotası, Google Play ile sunucuda doğrulanan Sınırsız paket, premium temalar/çerçeveler ve alfabetik araç kataloğu korunmaktadır. [Sürüm notları](RELEASE-3.5.1.md), [satın alma kurulumu](GOOGLE_PLAY_BILLING.md) ve [kurulum/sınırlar](SUPPORT_TOOLS.md). Canlı API dağıtımı yeni VDS kurulumu tamamlandığında yapılacaktır.
 
 # VALEM inceleme ve düzeltme notu — 8 Eylül 2026
 

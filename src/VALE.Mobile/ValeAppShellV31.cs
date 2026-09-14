@@ -70,7 +70,7 @@ public sealed class ValeAppShellV31 : Shell
         if (CompanyAccess.CanManageBranches(user)) Items.Add(CreateFlyout("Firma & Şubeler", "menu_company.svg", new CompanyManagementPage(api)));
         if (CompanyAccess.CanAudit(user)) Items.Add(CreateFlyout("Denetim Kayıtları", "menu_audit.svg", new AuditPage(api)));
         Items.Add(CreateFlyout("Ayarlar", "menu_settings.svg", new MoreHubPage(api, user)));
-        Items.Add(CreateFlyout("Yardım", "menu_help.svg", new ValeHelpPage()));
+        Items.Add(CreateFlyout("Yardım", "menu_help.svg", new ValeHelpPage(api, user)));
         Items.Add(CreateFlyout("Çıkış", "menu_logout.svg", new LogoutPage(api)));
 
         _observedItem = tabs;
@@ -276,7 +276,7 @@ public sealed class CompanyManagementPage : ContentPage
 
 public sealed class ValeHelpPage : ContentPage
 {
-    public ValeHelpPage()
+    public ValeHelpPage(ApiClient api, UserDto user)
     {
         Title = "Yardım";
         UiKit.StylePage(this);
@@ -290,10 +290,26 @@ public sealed class ValeHelpPage : ContentPage
                     UiKit.Label("VALE Yardım", 27, true),
                     UiKit.Card(new VerticalStackLayout { Spacing = 6, Children = { UiKit.Label("Personel katılımı", 16, true), UiKit.Label("Firma yöneticinizden firma ve şube kodlarını alın. Hesap Oluştur → Mevcut firmama katıl ekranından başvurun. Firmanın yöneticisi onayladığında erişiminiz açılır.", 12.5, false, true) } }),
                     UiKit.Card(new VerticalStackLayout { Spacing = 6, Children = { UiKit.Label("Araç ücreti", 16, true), UiKit.Label("Aktif aracın tahmini ücreti araç detayında anlık gösterilir; kesin tahsilat teslim anında hesaplanır.", 12.5, false, true) } }),
-                    UiKit.Card(new VerticalStackLayout { Spacing = 6, Children = { UiKit.Label("Bildirim ve güvenlik", 16, true), UiKit.Label("Google/Microsoft Authenticator TOTP, e-posta ile giriş ve gerçek Firebase push bildirimleri kullanılabilir.", 12.5, false, true) } })
+                    UiKit.Card(new VerticalStackLayout { Spacing = 6, Children = { UiKit.Label("Bildirim ve güvenlik", 16, true), UiKit.Label("Google/Microsoft Authenticator TOTP, e-posta ile giriş ve gerçek Firebase push bildirimleri kullanılabilir.", 12.5, false, true) } }),
+                    GuideButton(),
+                    ContactButton()
                 }
             }
         };
+
+        View GuideButton()
+        {
+            var button = UiKit.PrimaryButton("Görsel Kullanım Kılavuzunu Aç");
+            button.Clicked += async (_, _) => await Navigation.PushAsync(new UserGuidePage(api, user));
+            return button;
+        }
+
+        View ContactButton()
+        {
+            var button = UiKit.SecondaryButton("İletişim ve Destek");
+            button.Clicked += async (_, _) => await Navigation.PushAsync(new SupportContactPage());
+            return button;
+        }
     }
 }
 

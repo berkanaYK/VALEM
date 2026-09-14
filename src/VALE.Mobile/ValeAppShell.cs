@@ -62,9 +62,8 @@ public sealed class MoreHubPage : ContentPage
         Link("Profilim ve Fotoğrafım", "Fotoğraf, telefon, doğum tarihi, şehir ve kişisel bilgiler.", () => new CompanyProfilePage(api, user));
         Link("Görünüm ve Resimli Temalar", "Arka plan görseli, renkler, açık veya koyu görünüm.", () => new CompanyProfilePage(api, user));
         Link("Sürüm ve Satın Alma", "Kalan ücretsiz araç hakkınız, Sınırsız paket ve satın alma geri yükleme.", () => new PremiumPage(api, user));
-        var guide = UiKit.SecondaryButton("Uygulama Rehberi");
-        guide.Clicked += async (_, _) => await GuidedTour.ShowMainAsync(this, user, true);
-        content.Add(UiKit.Card(new VerticalStackLayout { Spacing = 6, Children = { guide, UiKit.Label("Ana bölümleri ve kullanım adımlarını tekrar anlatır.", 12, false, true) } }));
+        Link("Görsel Kullanım Kılavuzu", "Araç kabulden teslime, profil, güvenlik ve paket haklarına kadar görselli ve adım adım anlatım.", () => new UserGuidePage(api, user));
+        Link("İletişim ve Destek", $"Hata, kullanım sorusu ve öneriler için {SupportContactPage.SupportEmail}", () => new SupportContactPage());
         Link("Hesap Güvenliği", "İki adımlı doğrulama ve kurtarma kodları.", () => new TwoFactorPage(api));
         Link("Parolayı Değiştir", "Mevcut parolanızı güncelleyin.", () => new ChangePasswordPage(api));
         if (CompanyAccess.CanAudit(user)) Link("Denetim Kayıtları", "Firmanızdaki önemli işlemleri inceleyin.", () => new AuditPage(api));
