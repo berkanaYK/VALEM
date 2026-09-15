@@ -1,15 +1,33 @@
 # VALEM bağımsız VPS kurulumu
 
-Bu paket, VALEM API ve PostgreSQL'i kişisel bilgisayardan bağımsız bir Linux VPS'te çalıştırır. PostgreSQL dış ağa port yayınlamaz. İnternete yalnızca Caddy üzerinden HTTP/HTTPS açılır; Caddy alan adı doğru DNS kaydına yöneldiğinde TLS sertifikasını otomatik yönetir.
+Bu paket, VALEM API ve PostgreSQL'i kişisel bilgisayardan bağımsız bir Linux VPS'te çalıştırır. PostgreSQL dış ağa port yayınlamaz. İnternet erişimi bağımsız Caddy, ortak reverse proxy veya sunucuya giriş portu açmayan Cloudflare Tunnel ile sağlanabilir.
 
 ## Önerilen başlangıç kapasitesi
 
 - Ubuntu 24.04 LTS veya güncel desteklenen Debian
 - VALEM için ayrılmış 4 vCPU, 8 GB RAM ve en az 50 GB SSD
-- Sabit genel IPv4/IPv6 ve alan adı
+- Alan adı; Caddy kipinde sabit genel IP, Tunnel kipinde yalnız dış ağ erişimi
 - Ayrı bir sağlayıcıya günlük şifreli yedek
 
 Bu kapasite sınırsız değildir. CPU, bellek, disk, veritabanı bağlantısı ve ağ kullanımı izlenerek VPS dikey büyütülür. Yük tek sunucunun kapasitesini aştığında API kopyaları ve yönetilen/yüksek erişilebilir PostgreSQL'e geçilir.
+
+## SSH güvenliği
+
+Ubuntu cloud-init dosyası parola girişini yeniden açabildiğinden sertleştirme dosyasını önce okunacak adla oluşturun. Değişikliği etkin oturumu kapatmadan `sshd -t` ve `sshd -T` ile doğrulayın:
+
+```text
+/etc/ssh/sshd_config.d/01-valem-hardening.conf
+```
+
+```sshconfig
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+AllowUsers berkandev
+```
+
+Etkin çıktıda `passwordauthentication no` görülmeden parola girişinin kapandığını varsaymayın. Güvenlik duvarında SSH yalnız `tailscale0` üzerinden kabul edilir.
 
 ## İlk kurulum
 
