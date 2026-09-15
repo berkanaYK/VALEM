@@ -21,6 +21,7 @@ src/VALE.Mobile/Platforms/Android/google-services.json
 .env
 .env.*
 !.env.example
+deploy/production/secrets/
 secrets.json
 *.jks
 *.keystore

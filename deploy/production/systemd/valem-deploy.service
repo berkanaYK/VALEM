@@ -1,0 +1,14 @@
+[Unit]
+Description=Deploy latest verified VALEM GitHub release
+Requires=docker.service network-online.target
+After=docker.service network-online.target tailscaled.service
+
+[Service]
+Type=oneshot
+User=berkandev
+Group=berkandev
+WorkingDirectory=/opt/valem/deploy/production
+ExecStart=/opt/valem/deploy/production/deploy-latest-release.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

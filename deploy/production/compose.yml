@@ -91,6 +91,7 @@ services:
       Billing__DemoVehicleLimit: ${BILLING_DEMO_VEHICLE_LIMIT:-50}
       Billing__ServiceAccountJson: ${BILLING_SERVICE_ACCOUNT_JSON:-}
       Billing__TestPremiumEmails__0: ${BILLING_TEST_PREMIUM_EMAIL_0:-}
+      DeveloperTools__ReadOnlyConnectionString: Host=postgres;Port=5432;Database=${POSTGRES_DB:-valem};Username=valem_readonly;Password=${DEVELOPER_DB_PASSWORD:?DEVELOPER_DB_PASSWORD is required};SSL Mode=Disable;Pooling=false;Timeout=5;Command Timeout=5
     expose:
       - "10000"
     volumes:

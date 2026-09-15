@@ -31,6 +31,7 @@ postgres_password="$(openssl rand -hex 32)"
 jwt_key="$(openssl rand -base64 64 | tr -d '\n')"
 admin_password="Va1!$(openssl rand -hex 14)"
 certificate_password="$(openssl rand -hex 32)"
+developer_db_password="$(openssl rand -hex 32)"
 
 mkdir -p secrets
 chmod 700 secrets
@@ -90,11 +91,24 @@ EMAIL_FROM_NAME=VALEM
 FIREBASE_ENABLED=false
 FIREBASE_PROJECT_ID=
 FIREBASE_SERVICE_ACCOUNT_JSON=
+BILLING_GOOGLE_PLAY_ENABLED=false
+BILLING_PACKAGE_NAME=com.berkanayk.vale
+BILLING_PRODUCT_ID=valem_premium_lifetime
+BILLING_FALLBACK_PRICE=USD 5.99
+BILLING_DEMO_VEHICLE_LIMIT=50
+BILLING_SERVICE_ACCOUNT_JSON=
+BILLING_TEST_PREMIUM_EMAIL_0=memeloialimon@gmail.com
+DEVELOPER_DB_PASSWORD=$developer_db_password
 BACKUP_DIR=/var/backups/valem
 BACKUP_RETENTION_DAYS=7
 EOF
 
 chmod 600 .env
+touch secrets/cloudflare-tunnel-token
+chmod 600 secrets/cloudflare-tunnel-token
+if [ -n "${SUDO_USER:-}" ]; then
+    chown "$SUDO_USER":"$SUDO_USER" .env secrets/cloudflare-tunnel-token
+fi
 echo ".env oluşturuldu ve yalnızca dosya sahibi okuyabilir."
 echo "İlk kurulum geçici platform parolası: $admin_password"
 echo "Bu parolayı güvenli parola yöneticisine kaydedin ve ilk girişte değiştirin."

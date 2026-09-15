@@ -60,6 +60,37 @@ Cloudflare DNS'te iki `A` kaydı merkezi reverse proxy'nin genel IP adresine yö
 
 Geçişten önce `https://api.valemyonetim.com/health/ready` ve `https://panel.valemyonetim.com/platform-admin` dış ağdan doğrulanır. Bundan sonra mobil uygulamanın `ProductionBaseUrl` değeri yeni API adresine geçirilir; DNS kurulmadan bu değeri değiştirmek mevcut sürümlerin bağlantısını keser.
 
+## Cloudflare Tunnel ile portsuz yayın
+
+Sunucuya gelen 80/443 portlarını açmadan yayın yapmak için Cloudflare Zero Trust'ta bir named tunnel oluşturun. Public Hostname kayıtlarında `api.valemyonetim.com` ve `panel.valemyonetim.com` adreslerinin ikisini de `http://api:10000` servisine yönlendirin. Tunnel belirtecini satır sonu olmadan `secrets/cloudflare-tunnel-token` dosyasına yazıp dosya iznini `600` yapın ve şu kipi kullanın:
+
+```bash
+sudo install -o berkandev -g berkandev -m 600 /dev/null secrets/cloudflare-tunnel-token
+# belirteci etkileşimli ve ekrana yazdırmadan dosyaya kaydedin
+read -rsp "Cloudflare tunnel belirteci: " token && printf '%s' "$token" > secrets/cloudflare-tunnel-token && unset token
+```
+
+```bash
+./preflight.sh tunnel
+docker compose --env-file .env -f compose.yml -f compose.tunnel.yml build --pull api
+docker compose --env-file .env -f compose.yml -f compose.tunnel.yml up -d --wait postgres api cloudflared
+./setup-readonly-db.sh
+```
+
+Bu kipte PostgreSQL, API ve SSH için genel internet portu açılmaz. `cloudflared` yalnız dışarı doğru bağlantı kurar; API yalnız Docker'ın iç `edge` ağı üzerinden tunnel'a görünür.
+
+## Sürümden otomatik dağıtım
+
+`deploy-latest-release.sh`, `main` dalına bağlı en yeni `vX.Y.Z` etiketini bulur. Çalışan veritabanının yedeğini aldıktan sonra imajı kurar; health check başarısız olursa önceki kaynak sürümüne döner. GitHub erişimi hazır olduğunda zamanlayıcıyı kurun:
+
+```bash
+sudo cp systemd/valem-deploy.* /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now valem-deploy.timer
+```
+
+GitHub hesabı işaretli durumdayken deploy key kimlik doğrulaması başarılı olsa bile depo indirme isteği GitHub tarafından reddedilebilir. Bu durumda ilk kurulum güvenli kopyayla yapılır; destek engeli kalkınca aynı read-only deploy key ile zamanlayıcı otomatik çalışmaya başlar.
+
 ## Neon verisini taşıma
 
 Taşıma bakım penceresinde yapılır. Önce Neon'dan PostgreSQL 17 uyumlu özel biçimli yedek alın:
