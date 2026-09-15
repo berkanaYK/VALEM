@@ -49,13 +49,18 @@ if [[ "$mode" == "shared-host" ]]; then
   compose_args+=(-f compose.shared-host.yml)
 elif [[ "$mode" == "tunnel" ]]; then
   compose_args+=(-f compose.tunnel.yml)
-  [[ -s secrets/cloudflare-tunnel-token ]] || {
-    echo "secrets/cloudflare-tunnel-token bulunamadı veya boş." >&2
+  [[ -s secrets/cloudflare-tunnel-credentials.json ]] || {
+    echo "secrets/cloudflare-tunnel-credentials.json bulunamadı veya boş." >&2
     exit 1
   }
-  token_mode="$(stat -c '%a' secrets/cloudflare-tunnel-token)"
-  [[ "$token_mode" == "600" ]] || {
-    echo "Tunnel belirteci dosya izni 600 olmalı; görülen: $token_mode" >&2
+  credentials_mode="$(stat -c '%a' secrets/cloudflare-tunnel-credentials.json)"
+  [[ "$credentials_mode" == "644" ]] || {
+    echo "Tunnel kimlik dosyası izni 644 olmalı; görülen: $credentials_mode" >&2
+    exit 1
+  }
+  secrets_mode="$(stat -c '%a' secrets)"
+  [[ "$secrets_mode" == "700" ]] || {
+    echo "secrets dizini izni 700 olmalı; görülen: $secrets_mode" >&2
     exit 1
   }
 else

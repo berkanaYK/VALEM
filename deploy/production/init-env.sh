@@ -48,7 +48,7 @@ chmod 400 secrets/dataprotection.pfx
 cat > .env <<EOF
 VALEM_DOMAIN=$domain
 VALEM_PANEL_DOMAIN=$panel_domain
-VALEM_IMAGE_TAG=3.5.2
+VALEM_IMAGE_TAG=3.5.3
 HTTP_PORT=80
 HTTPS_PORT=443
 API_BIND_ADDRESS=127.0.0.1
@@ -104,11 +104,14 @@ BACKUP_RETENTION_DAYS=7
 EOF
 
 chmod 600 .env
-touch secrets/cloudflare-tunnel-token
-chmod 600 secrets/cloudflare-tunnel-token
+touch secrets/cloudflare-tunnel-credentials.json
+chmod 644 secrets/cloudflare-tunnel-credentials.json
 if [ -n "${SUDO_USER:-}" ]; then
-    chown "$SUDO_USER":"$SUDO_USER" .env secrets/cloudflare-tunnel-token
+    chown "$SUDO_USER":"$SUDO_USER" .env secrets secrets/cloudflare-tunnel-credentials.json
+    install -d -o "$SUDO_USER" -g "$SUDO_USER" -m 700 /var/backups/valem
+else
+    install -d -m 700 /var/backups/valem
 fi
 echo ".env oluşturuldu ve yalnızca dosya sahibi okuyabilir."
 echo "İlk kurulum geçici platform parolası: $admin_password"
-echo "Bu parolayı güvenli parola yöneticisine kaydedin ve ilk girişte değiştirin."
+echo "Bu parolayı güvenli parola yöneticisine kaydedin; gerektiğinde .env üzerinden döndürün."

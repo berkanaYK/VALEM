@@ -22,7 +22,7 @@ if [[ "$confirmation" != "RESTORE VALEM" ]]; then echo "Geri yükleme iptal edil
 
 compose_files=(-f compose.yml)
 edge_service=caddy
-if [[ -s secrets/cloudflare-tunnel-token ]]; then
+if [[ -s secrets/cloudflare-tunnel-credentials.json ]]; then
   compose_files+=(-f compose.tunnel.yml)
   edge_service=cloudflared
 fi

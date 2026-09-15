@@ -12,11 +12,13 @@ services:
     command:
       - tunnel
       - --no-autoupdate
+      - --config
+      - /etc/cloudflared/config.yml
       - run
-      - --token-file
-      - /run/secrets/cloudflare_tunnel_token
+    volumes:
+      - ./cloudflared.config.yml:/etc/cloudflared/config.yml:ro
     secrets:
-      - cloudflare_tunnel_token
+      - cloudflare_tunnel_credentials
     networks:
       - edge
     read_only: true
@@ -34,5 +36,5 @@ services:
         max-file: "5"
 
 secrets:
-  cloudflare_tunnel_token:
-    file: ./secrets/cloudflare-tunnel-token
+  cloudflare_tunnel_credentials:
+    file: ./secrets/cloudflare-tunnel-credentials.json

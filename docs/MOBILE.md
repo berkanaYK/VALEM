@@ -37,7 +37,7 @@ dotnet publish .\src\VALE.Mobile\VALE.Mobile.csproj -f net10.0-android -c Releas
 Varsayılan üretim API'si:
 
 ```text
-https://vale-api-5fvb.onrender.com/
+https://api.valemyonetim.com/
 ```
 
 Bu adres normal giriş ekranında gösterilmez. Yalnızca özel bir sunucu kullanılacaksa `Bağlantı ayarları` üzerinden değiştirilebilir. Telefon ve Windows istemcileri aynı API adresine bağlandığında ortak PostgreSQL verisini görür.

@@ -1,4 +1,4 @@
-> 15 Eylül 2026 güncellemesi: 3.5.2 / build 21 için yayın öncesi mobil, API, PostgreSQL, Docker ve güvenlik kontrolleri tamamlandı. E-posta doğrulama sayfasının güvenli stil yüklemesi, tanılama tablosunun tarama gürültüsüne karşı korunması ve platform yöneticisi parola rotasyonu düzeltildi. [Sürüm notları](RELEASE-3.5.2.md), [satın alma kurulumu](GOOGLE_PLAY_BILLING.md) ve [kurulum/sınırlar](SUPPORT_TOOLS.md). Canlı API dağıtımı yeni VDS kurulumu tamamlandığında yapılacaktır.
+> 15 Eylül 2026 güncellemesi: 3.5.3 / build 22, kalıcı VDS API adresi ve kart gerektirmeyen Cloudflare Tunnel üzerinden yayına hazırlandı. PostgreSQL 18 verileri, yedek geri yükleme, tenant hesapları, salt okunur destek hesabı, dış HTTPS ve güvenlik başlıkları doğrulandı. [Sürüm notları](RELEASE-3.5.3.md), [satın alma kurulumu](GOOGLE_PLAY_BILLING.md) ve [kurulum/sınırlar](SUPPORT_TOOLS.md).
 
 # VALEM inceleme ve düzeltme notu — 8 Eylül 2026
 

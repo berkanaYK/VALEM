@@ -22,7 +22,7 @@ public sealed class ApiClient : IDisposable
     private const string CustomEnabledPreference = "vale_custom_server_v2_enabled";
     private const string CustomUrlPreference = "vale_custom_server_v2_url";
     private const string RefreshTokenStorageKey = "vale_refresh_token_v1";
-    public const string ProductionBaseUrl = "https://vale-api-5fvb.onrender.com/";
+    public const string ProductionBaseUrl = "https://api.valemyonetim.com/";
 
     private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
     private HttpClient _httpClient;

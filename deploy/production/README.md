@@ -62,13 +62,13 @@ Geçişten önce `https://api.valemyonetim.com/health/ready` ve `https://panel.v
 
 ## Cloudflare Tunnel ile portsuz yayın
 
-Sunucuya gelen 80/443 portlarını açmadan yayın yapmak için Cloudflare Zero Trust'ta bir named tunnel oluşturun. Public Hostname kayıtlarında `api.valemyonetim.com` ve `panel.valemyonetim.com` adreslerinin ikisini de `http://api:10000` servisine yönlendirin. Tunnel belirtecini satır sonu olmadan `secrets/cloudflare-tunnel-token` dosyasına yazıp dosya iznini `600` yapın ve şu kipi kullanın:
+Sunucuya gelen 80/443 portlarını açmadan yayın yapmak için kart gerektirmeyen yerel yönetimli Cloudflare Tunnel kullanılır. `cloudflared tunnel login`, `tunnel create` ve `tunnel route dns` adımlarından sonra oluşan kimlik JSON dosyasını yalnız sunucudaki `secrets/cloudflare-tunnel-credentials.json` yoluna kopyalayın:
 
 ```bash
-sudo install -o berkandev -g berkandev -m 600 /dev/null secrets/cloudflare-tunnel-token
-# belirteci etkileşimli ve ekrana yazdırmadan dosyaya kaydedin
-read -rsp "Cloudflare tunnel belirteci: " token && printf '%s' "$token" > secrets/cloudflare-tunnel-token && unset token
+install -m 644 ~/.cloudflared/53d6daad-6919-4546-907b-8966b581b3fb.json secrets/cloudflare-tunnel-credentials.json
 ```
+
+Kimlik dosyası Docker içindeki ayrıcalıksız `cloudflared` kullanıcısınca okunabilmesi için `644` modundadır; üst `secrets` dizini `700` olduğu için sunucudaki diğer kullanıcılar dosyaya erişemez.
 
 ```bash
 ./preflight.sh tunnel
@@ -93,11 +93,14 @@ GitHub hesabı işaretli durumdayken deploy key kimlik doğrulaması başarılı
 
 ## Neon verisini taşıma
 
-Taşıma bakım penceresinde yapılır. Önce Neon'dan PostgreSQL 17 uyumlu özel biçimli yedek alın:
+Taşıma bakım penceresinde yapılır. Kaynak Neon veritabanı PostgreSQL 18 kullandığı için yedeği PostgreSQL 18 `pg_dump` aracıyla alın:
 
 ```bash
 umask 077
-pg_dump "$NEON_DATABASE_URL" --format=custom --compress=9 --no-owner --no-privileges --file=/root/valem-neon.dump
+docker run --rm -e PGPASSWORD="$NEON_DATABASE_PASSWORD" -e PGSSLMODE=require \
+  -v "$PWD:/backup" postgres:18-alpine pg_dump \
+  --host "$NEON_DATABASE_HOST" --username "$NEON_DATABASE_USER" --dbname "$NEON_DATABASE_NAME" \
+  --format=custom --compress=9 --no-owner --no-privileges --file=/backup/valem-neon.dump
 ```
 
 Ardından VPS'teki API'yi durdurup dosyayı geri yükleyin:

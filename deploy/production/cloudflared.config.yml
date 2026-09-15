@@ -1,0 +1,9 @@
+tunnel: 53d6daad-6919-4546-907b-8966b581b3fb
+credentials-file: /run/secrets/cloudflare_tunnel_credentials
+
+ingress:
+  - hostname: api.valemyonetim.com
+    service: http://api:10000
+  - hostname: panel.valemyonetim.com
+    service: http://api:10000
+  - service: http_status:404

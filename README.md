@@ -2,11 +2,11 @@
 
 VALEM, vale işletmelerinin araç kabulünden teslim ve tahsilata kadar günlük operasyonunu telefondan yönetmesini sağlayan çok firmalı bir platformdur. Güncel ürün; .NET MAUI Android uygulaması, ASP.NET Core API, PostgreSQL veritabanı ve yalnızca geliştiriciye açık web yönetim panelinden oluşur.
 
-Güncel mobil sürüm: **3.5.2** (`Android build 21`); API sözleşmesi **3.5.2**.
+Güncel mobil sürüm: **3.5.3** (`Android build 22`); API sözleşmesi **3.5.3**.
 
 Kalıcı imzalı APK/AAB dağıtımı ve Play Console adımları: [PLAY_SIGNING.md](docs/PLAY_SIGNING.md).
 
-Canlı API: [vale-api-5fvb.onrender.com](https://vale-api-5fvb.onrender.com/api/status)
+Canlı API: [api.valemyonetim.com](https://api.valemyonetim.com/api/status)
 
 ## Bu sürümde neler var?
 
@@ -91,7 +91,7 @@ PostgreSQL/Neon korunmuştur. Mevcut ilişkisel veri, tenant sınırları, ödem
 
 - .NET 10 SDK
 - Android derlemek için Java 17, Android SDK ve `maui-android` workload
-- Yerel API için PostgreSQL 17 veya Neon bağlantısı
+- Yerel API için PostgreSQL 18 (üretimle aynı ana sürüm) veya Neon bağlantısı
 - İsteğe bağlı Docker Desktop (`docker-compose.dev.yml` için)
 - Fiziksel cihaz testi için Node.js, Appium, UiAutomator2, `adb` ve USB hata ayıklaması açık bir Android telefon
 

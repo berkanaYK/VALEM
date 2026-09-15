@@ -32,8 +32,13 @@ END
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT CONNECT ON DATABASE "$postgres_db" TO valem_readonly;
 GRANT USAGE ON SCHEMA public TO valem_readonly;
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO valem_readonly;
-ALTER DEFAULT PRIVILEGES FOR ROLE "$postgres_user" IN SCHEMA public GRANT SELECT ON TABLES TO valem_readonly;
+REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM valem_readonly;
+ALTER DEFAULT PRIVILEGES FOR ROLE "$postgres_user" IN SCHEMA public REVOKE ALL ON TABLES FROM valem_readonly;
+GRANT SELECT ON TABLE
+  "Companies", "Branches", "Customers", "Vehicles", "ParkingTickets", "Payments",
+  "RegistrationRequests", "UserBranchMemberships", "Notifications", "UserEntitlements",
+  "AuditEntries", "PlatformAuditEntries", "RequestFailures", "__EFMigrationsHistory"
+TO valem_readonly;
 SQL
 
 echo "Salt okunur geliştirici veritabanı hesabı hazır."

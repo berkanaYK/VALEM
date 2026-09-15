@@ -22,7 +22,10 @@ CREATE ROLE valem_diagnostics LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLIC
 GRANT CONNECT ON DATABASE your_database TO valem_diagnostics;
 GRANT USAGE ON SCHEMA public TO valem_diagnostics;
 GRANT SELECT ON TABLE public."Companies", public."Branches",
-  public."Customers", public."Vehicles", public."ParkingTickets", public."Payments"
+  public."Customers", public."Vehicles", public."ParkingTickets", public."Payments",
+  public."RegistrationRequests", public."UserBranchMemberships", public."Notifications",
+  public."UserEntitlements", public."AuditEntries", public."PlatformAuditEntries",
+  public."RequestFailures", public."__EFMigrationsHistory"
   TO valem_diagnostics;
 ALTER ROLE valem_diagnostics SET default_transaction_read_only = on;
 ```
