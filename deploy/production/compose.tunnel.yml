@@ -4,7 +4,7 @@ services:
       - standalone-edge
 
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:2026.9.1
     restart: unless-stopped
     depends_on:
       api:
