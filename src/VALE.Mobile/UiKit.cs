@@ -52,6 +52,79 @@ public static class UiKit
         return entry;
     }
 
+    public static Border Field(Entry entry)
+    {
+        entry.BackgroundColor = Colors.Transparent;
+        entry.Margin = Thickness.Zero;
+        var border = new Border
+        {
+            StrokeThickness = 1.2,
+            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 13 },
+            Padding = new Thickness(10, 0),
+            MinimumHeightRequest = 54,
+            HorizontalOptions = LayoutOptions.Fill,
+            Content = entry
+        };
+        border.SetDynamicResource(Border.StrokeProperty, "ValeBorderBrush");
+        border.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeSoftCard");
+        entry.Focused += (_, _) => border.Stroke = new SolidColorBrush(ThemeService.Palette.Accent);
+        entry.Unfocused += (_, _) => border.SetDynamicResource(Border.StrokeProperty, "ValeBorderBrush");
+        return border;
+    }
+
+    public static Border PasswordField(Entry entry, string? toggleAutomationId = null)
+    {
+        entry.IsPassword = true;
+        entry.BackgroundColor = Colors.Transparent;
+        entry.Margin = Thickness.Zero;
+        var toggle = new Button
+        {
+            Text = "👁",
+            FontSize = 18,
+            WidthRequest = 46,
+            HeightRequest = 46,
+            Padding = 0,
+            BackgroundColor = Colors.Transparent,
+            BorderWidth = 0,
+            AutomationId = toggleAutomationId
+        };
+        SemanticProperties.SetDescription(toggle, "Parolayı göster");
+        toggle.SetDynamicResource(Button.TextColorProperty, "ValeSecondary");
+        toggle.Clicked += (_, _) =>
+        {
+            entry.IsPassword = !entry.IsPassword;
+            toggle.Opacity = entry.IsPassword ? 0.72 : 1;
+            SemanticProperties.SetDescription(toggle, entry.IsPassword ? "Parolayı göster" : "Parolayı gizle");
+        };
+
+        var grid = new Grid
+        {
+            ColumnSpacing = 2,
+            ColumnDefinitions =
+            {
+                new ColumnDefinition(GridLength.Star),
+                new ColumnDefinition(GridLength.Auto)
+            }
+        };
+        grid.Add(entry, 0, 0);
+        grid.Add(toggle, 1, 0);
+
+        var border = new Border
+        {
+            StrokeThickness = 1.2,
+            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 13 },
+            Padding = new Thickness(10, 0, 4, 0),
+            MinimumHeightRequest = 54,
+            HorizontalOptions = LayoutOptions.Fill,
+            Content = grid
+        };
+        border.SetDynamicResource(Border.StrokeProperty, "ValeBorderBrush");
+        border.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeSoftCard");
+        entry.Focused += (_, _) => border.Stroke = new SolidColorBrush(ThemeService.Palette.Accent);
+        entry.Unfocused += (_, _) => border.SetDynamicResource(Border.StrokeProperty, "ValeBorderBrush");
+        return border;
+    }
+
     public static Editor Editor(string placeholder)
     {
         var editor = new Editor

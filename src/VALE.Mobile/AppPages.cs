@@ -65,9 +65,9 @@ public sealed class RegisterPage : ContentPage
                         {
                             name,
                             email,
-                            password,
-                            repeat,
-                            UiKit.Label("En az 10 karakter; büyük/küçük harf, rakam ve özel karakter kullanın.", 11, false, true),
+                            UiKit.PasswordField(password),
+                            UiKit.PasswordField(repeat),
+                            UiKit.Label("6-20 karakter; büyük/küçük harf, rakam ve özel karakter kullanın.", 11, false, true),
                             button,
                             activity
                         }
@@ -886,10 +886,10 @@ public sealed class ChangePasswordPage : ContentPage
                     Spacing = 10,
                     Children =
                     {
-                        current,
-                        next,
-                        repeat,
-                        UiKit.Label("En az 10 karakter; büyük/küçük harf, rakam ve özel karakter.", 11, false, true),
+                        UiKit.PasswordField(current),
+                        UiKit.PasswordField(next),
+                        UiKit.PasswordField(repeat),
+                        UiKit.Label("6-20 karakter; büyük/küçük harf, rakam ve özel karakter.", 11, false, true),
                         save
                     }
                 })

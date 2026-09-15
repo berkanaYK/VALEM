@@ -12,6 +12,7 @@ public sealed class GuestJourneyTests : DeviceTestBase
     {
         var email = WaitForElement("login-email");
         var password = WaitForElement("login-password");
+        var passwordVisibility = WaitForElement("login-password-visibility");
         var rememberDevice = WaitForElement("remember-device");
         var login = WaitForElement("login-submit");
 
@@ -19,6 +20,7 @@ public sealed class GuestJourneyTests : DeviceTestBase
         {
             Assert.That(email.Enabled, Is.True, "E-posta alanı kullanılabilir olmalı.");
             Assert.That(password.Enabled, Is.True, "Parola alanı kullanılabilir olmalı.");
+            Assert.That(passwordVisibility.Enabled, Is.True, "Parola görünürlüğü değiştirilebilmelidir.");
             Assert.That(login.Enabled, Is.True, "Giriş düğmesi kullanılabilir olmalı.");
         });
 
@@ -47,10 +49,11 @@ public sealed class GuestJourneyTests : DeviceTestBase
             Assert.That(WaitForElement("register-account-type").Displayed, Is.True);
             Assert.That(WaitForElement("register-name").Displayed, Is.True);
             Assert.That(WaitForElement("register-email").Displayed, Is.True);
+            Assert.That(WaitForElement("register-username").Displayed, Is.True);
+            Assert.That(WaitForElement("register-password").Displayed, Is.True);
+            Assert.That(WaitForElement("register-password-repeat").Displayed, Is.True);
             Assert.That(WaitForElement("register-company-name").Displayed, Is.True);
             Assert.That(WaitForElement("register-submit").Displayed, Is.True);
-            Assert.That(IsVisible("register-password"), Is.False,
-                "Varsayılan e-posta kodu kaydında parola alanı kapalı kalmalıdır.");
             Assert.That(IsVisible("register-company-code"), Is.False,
                 "İleri firma ayrıntıları ilk açılışta gizli kalmalıdır.");
         });

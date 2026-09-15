@@ -13,26 +13,28 @@ public static class LoginMethods
 public sealed record OwnerRegisterRequest(
     [param: Required, MinLength(2), MaxLength(120)] string FullName,
     [param: Required, EmailAddress, MaxLength(256)] string Email,
-    [param: MaxLength(128)] string? Password,
+    [param: Required, MinLength(6), MaxLength(20)] string? Password,
     [param: MaxLength(30)] string? PhoneNumber,
     [param: Required, MinLength(2), MaxLength(160)] string CompanyName,
     [param: MinLength(2), MaxLength(40)] string? CompanyCode = null,
     [param: MinLength(2), MaxLength(120)] string? FirstBranchName = null,
     [param: MinLength(1), MaxLength(20)] string? FirstBranchCode = null,
     [param: MaxLength(80)] string? City = null,
-    [param: Required] string LoginMethod = LoginMethods.EmailCode);
+    [param: Required] string LoginMethod = LoginMethods.Password,
+    [param: MinLength(3), MaxLength(30), RegularExpression("^[A-Za-z0-9._-]+$")] string? Username = null);
 
 public sealed record StaffRegisterRequest(
     [param: Required, MinLength(2), MaxLength(120)] string FullName,
     [param: Required, EmailAddress, MaxLength(256)] string Email,
-    [param: MaxLength(128)] string? Password,
+    [param: Required, MinLength(6), MaxLength(20)] string? Password,
     [param: MaxLength(30)] string? PhoneNumber,
     [param: MaxLength(40)] string? CompanyCode,
     [param: MaxLength(20)] string? BranchCode,
     [param: MaxLength(40)] string? InviteCode,
     [param: MaxLength(40)] string? EmployeeCode = null,
-    [param: Required] string LoginMethod = LoginMethods.EmailCode,
-    [param: MinLength(2), MaxLength(160)] string? CompanyName = null);
+    [param: Required] string LoginMethod = LoginMethods.Password,
+    [param: MinLength(2), MaxLength(160)] string? CompanyName = null,
+    [param: MinLength(3), MaxLength(30), RegularExpression("^[A-Za-z0-9._-]+$")] string? Username = null);
 
 public sealed record RegistrationRequestDto(
     Guid Id,

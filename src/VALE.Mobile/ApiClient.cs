@@ -89,10 +89,10 @@ public sealed class ApiClient : IDisposable
         if (!response.IsSuccessStatusCode) throw new UserFacingException("Sunucu henüz hazır değil. Tekrar deneyin.");
     }
 
-    public async Task<LoginResponse> LoginAsync(string email, string password, bool rememberDevice = false, CancellationToken ct = default)
+    public async Task<LoginResponse> LoginAsync(string identifier, string password, bool rememberDevice = false, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password)) throw new UserFacingException("E-posta ve parola alanlarını doldurun.");
-        using var response = await SendJsonAsync(HttpMethod.Post, "api/auth/login", new LoginRequest(email.Trim(), password, rememberDevice, DeviceName), false, ct);
+        if (string.IsNullOrWhiteSpace(identifier) || string.IsNullOrWhiteSpace(password)) throw new UserFacingException("E-posta/kullanıcı adı ve parola alanlarını doldurun.");
+        using var response = await SendJsonAsync(HttpMethod.Post, "api/auth/login", new LoginRequest(identifier.Trim(), password, rememberDevice, DeviceName), false, ct);
         if (await IsTwoFactorRequiredAsync(response, ct)) throw new TwoFactorRequiredException();
         await EnsureSuccessAsync(response, ct);
         return await AcceptLoginAsync(response, ct);

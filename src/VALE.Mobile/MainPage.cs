@@ -27,7 +27,7 @@ public sealed class MainPage : ContentPage
         UiKit.StylePage(this);
         NavigationPage.SetHasNavigationBar(this, false);
 
-        _email = UiKit.Entry("E-posta adresiniz", Keyboard.Email);
+        _email = UiKit.Entry("E-posta veya kullanıcı adınız", Keyboard.Text);
         _email.ReturnType = ReturnType.Next;
         _email.AutomationId = "login-email";
         _password = UiKit.Entry("Parolanız", password: true);
@@ -120,11 +120,11 @@ public sealed class MainPage : ContentPage
             Children =
             {
                 UiKit.Label("Hesabınıza giriş yapın", 24, true),
-                UiKit.Label("E-posta koduyla parolasız giriş yapabilir veya mevcut parolanızı kullanabilirsiniz.", 13, false, true),
+                UiKit.Label("E-posta adresiniz veya kullanıcı adınızla giriş yapabilirsiniz. E-posta kodu ayrı bir giriş seçeneği olarak kullanılabilir.", 13, false, true),
                 emailCode,
                 UiKit.Divider(),
-                UiKit.Label("E-posta", 11, true, true), _email,
-                UiKit.Label("Parola", 11, true, true), _password,
+                UiKit.Label("E-posta / Kullanıcı adı", 11, true, true), UiKit.Field(_email),
+                UiKit.Label("Parola", 11, true, true), UiKit.PasswordField(_password, "login-password-visibility"),
                 forgot, rememberRow, _login, alternativesToggle, alternatives, statusRow,
                 UiKit.Divider(),
                 register, demo, connection, support

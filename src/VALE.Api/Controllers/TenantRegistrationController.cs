@@ -35,11 +35,14 @@ public sealed class TenantRegistrationController(
     {
         var email = request.Email.Trim();
         var loginMethod = NormalizeLoginMethod(request.LoginMethod);
-        ValidatePasswordForMethod(loginMethod, request.Password);
+        ValidatePassword(request.Password);
+        var userName = ResolveUserName(request.Username, email);
         var companyCode = await ResolveCompanyCodeAsync(request.CompanyCode, request.CompanyName, cancellationToken);
         var branchCode = string.IsNullOrWhiteSpace(request.FirstBranchCode) ? "MRKZ" : Normalize(request.FirstBranchCode);
         if (await userManager.FindByEmailAsync(email) is not null)
             throw new ApiException(StatusCodes.Status409Conflict, "E-posta kullanımda", "Bu e-posta adresiyle bir hesap zaten bulunuyor.");
+        if (await userManager.FindByNameAsync(userName) is not null)
+            throw new ApiException(StatusCodes.Status409Conflict, "Kullanıcı adı kullanımda", "Bu kullanıcı adı daha önce alınmış. Başka bir kullanıcı adı deneyin.");
 
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         var company = new Company
@@ -65,7 +68,7 @@ public sealed class TenantRegistrationController(
 
         var user = new AppUser
         {
-            UserName = email,
+            UserName = userName,
             Email = email,
             EmailConfirmed = false,
             FullName = request.FullName.Trim(),
@@ -77,7 +80,7 @@ public sealed class TenantRegistrationController(
             IsActive = true,
             JobTitle = "Firma Sahibi"
         };
-        var create = await CreateUserAsync(user, request.Password, loginMethod);
+        var create = await userManager.CreateAsync(user, request.Password!);
         if (!create.Succeeded)
             throw new ApiException(StatusCodes.Status400BadRequest, "Hesap oluşturulamadı", string.Join(" ", create.Errors.Select(x => x.Description)));
         var role = await userManager.AddToRoleAsync(user, Roles.Owner);
@@ -112,8 +115,8 @@ public sealed class TenantRegistrationController(
         var sent = await TrySendConfirmationAsync(user, cancellationToken);
         var methodHint = LoginMethodHint(loginMethod);
         var message = sent
-            ? $"Firma ve yönetici hesabınız hazır. {methodHint} E-posta sahipliği için {email} adresine ayrıca doğrulama bağlantısı gönderdik."
-            : $"Firma ve yönetici hesabınız hazır. {methodHint} Doğrulama e-postası şu anda gönderilemedi; bu durum girişinizi engellemez.";
+            ? $"Firma ve yönetici hesabınız hazır. {methodHint} Giriş yapmadan önce {email} adresine gönderdiğimiz bağlantıyla e-postanızı doğrulayın."
+            : $"Firma ve yönetici hesabınız hazır. Doğrulama e-postası şu anda gönderilemedi; giriş ekranından yeni doğrulama bağlantısı isteyin.";
         return Created("/api/registration/owner", new RegisterResponse(message, false));
     }
 
@@ -124,9 +127,12 @@ public sealed class TenantRegistrationController(
     {
         var email = request.Email.Trim();
         var loginMethod = NormalizeLoginMethod(request.LoginMethod);
-        ValidatePasswordForMethod(loginMethod, request.Password);
+        ValidatePassword(request.Password);
+        var userName = ResolveUserName(request.Username, email);
         if (await userManager.FindByEmailAsync(email) is not null)
             throw new ApiException(StatusCodes.Status409Conflict, "E-posta kullanımda", "Bu e-posta adresiyle bir hesap zaten bulunuyor.");
+        if (await userManager.FindByNameAsync(userName) is not null)
+            throw new ApiException(StatusCodes.Status409Conflict, "Kullanıcı adı kullanımda", "Bu kullanıcı adı daha önce alınmış. Başka bir kullanıcı adı deneyin.");
 
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         var selfService = !string.IsNullOrWhiteSpace(request.CompanyName);
@@ -180,7 +186,7 @@ public sealed class TenantRegistrationController(
 
         var user = new AppUser
         {
-            UserName = email,
+            UserName = userName,
             Email = email,
             EmailConfirmed = false,
             FullName = request.FullName.Trim(),
@@ -193,7 +199,7 @@ public sealed class TenantRegistrationController(
             IsActive = selfService,
             JobTitle = selfService ? "Personel" : null
         };
-        var create = await CreateUserAsync(user, request.Password, loginMethod);
+        var create = await userManager.CreateAsync(user, request.Password!);
         if (!create.Succeeded)
             throw new ApiException(StatusCodes.Status400BadRequest, "Hesap oluşturulamadı", string.Join(" ", create.Errors.Select(x => x.Description)));
         var role = await userManager.AddToRoleAsync(user, Roles.Valet);
@@ -232,8 +238,8 @@ public sealed class TenantRegistrationController(
 
             var selfServiceConfirmationSent = await TrySendConfirmationAsync(user, cancellationToken);
             var verification = selfServiceConfirmationSent
-                ? $" E-posta sahipliği için {email} adresine ayrıca doğrulama bağlantısı gönderdik."
-                : " Doğrulama e-postası şu anda gönderilemedi; bu durum girişinizi engellemez.";
+                ? $" Giriş yapmadan önce {email} adresine gönderdiğimiz bağlantıyla e-postanızı doğrulayın."
+                : " Doğrulama e-postası şu anda gönderilemedi; giriş ekranından yeni doğrulama bağlantısı isteyin.";
             return Created("/api/registration/staff", new RegisterResponse($"Personel deneme hesabınız ve {branch.Company.Name} firmanız hazır. {LoginMethodHint(loginMethod)}{verification}", false));
         }
 
@@ -334,13 +340,6 @@ public sealed class TenantRegistrationController(
         return Ok(Map(registration));
     }
 
-    private async Task<IdentityResult> CreateUserAsync(AppUser user, string? password, string loginMethod)
-    {
-        if (loginMethod == LoginMethods.EmailCode)
-            return await userManager.CreateAsync(user);
-        return await userManager.CreateAsync(user, password!);
-    }
-
     private async Task<bool> TrySendConfirmationAsync(AppUser user, CancellationToken cancellationToken)
     {
         if (!emailSender.IsConfigured || string.IsNullOrWhiteSpace(user.Email)) return false;
@@ -402,11 +401,21 @@ public sealed class TenantRegistrationController(
         return method ?? throw new ApiException(StatusCodes.Status400BadRequest, "Giriş yöntemi geçersiz", "Parola, e-posta kodu veya Authenticator seçeneklerinden birini kullanın.");
     }
 
-    private static void ValidatePasswordForMethod(string loginMethod, string? password)
+    private static void ValidatePassword(string? password)
     {
-        if (loginMethod == LoginMethods.EmailCode) return;
-        if (string.IsNullOrWhiteSpace(password) || password.Length < 10)
-            throw new ApiException(StatusCodes.Status400BadRequest, "Parola gerekli", "Parola veya Authenticator girişini seçtiyseniz en az 10 karakterlik güçlü bir parola oluşturun.");
+        if (string.IsNullOrWhiteSpace(password) || password.Length is < 6 or > 20 ||
+            !password.Any(char.IsUpper) || !password.Any(char.IsLower) ||
+            !password.Any(char.IsDigit) || !password.Any(ch => !char.IsLetterOrDigit(ch)))
+            throw new ApiException(StatusCodes.Status400BadRequest, "Güçlü parola gerekli", "Parola 6-20 karakter olmalı; en az bir büyük harf, küçük harf, rakam ve özel karakter içermelidir.");
+    }
+
+    private static string ResolveUserName(string? requestedUserName, string email)
+    {
+        var userName = string.IsNullOrWhiteSpace(requestedUserName) ? email : requestedUserName.Trim();
+        if (!string.Equals(userName, email, StringComparison.OrdinalIgnoreCase) &&
+            (userName.Length is < 3 or > 30 || userName.Any(ch => !char.IsAsciiLetterOrDigit(ch) && ch is not '.' and not '_' and not '-')))
+            throw new ApiException(StatusCodes.Status400BadRequest, "Kullanıcı adı geçersiz", "Kullanıcı adı 3-30 karakter olmalı ve yalnızca harf, rakam, nokta, alt çizgi veya kısa çizgi içermelidir.");
+        return userName;
     }
 
     private static string LoginMethodHint(string loginMethod) => loginMethod switch

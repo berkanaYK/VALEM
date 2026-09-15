@@ -244,7 +244,7 @@ public sealed class AdvancedRegisterPage : ContentPage
         Content = new ScrollView { Content = new VerticalStackLayout { Padding = 18, Spacing = 14, Children = {
             UiKit.Label("VALE hesabınızı oluşturun", 27, true),
             UiKit.Label("Şube kodunuzu yöneticinizden öğrenebilirsiniz. Yeni hesaplar onaylandıktan sonra açılır.", 12.5, false, true),
-            UiKit.Card(new VerticalStackLayout { Spacing = 10, Children = { name, email, phone, employee, branch, password, repeat, UiKit.Label("Parola en az 10 karakter olmalı; büyük/küçük harf, rakam ve özel karakter içermeli.", 11, false, true), save } })
+            UiKit.Card(new VerticalStackLayout { Spacing = 10, Children = { name, email, phone, employee, branch, UiKit.PasswordField(password), UiKit.PasswordField(repeat), UiKit.Label("Parola 6-20 karakter olmalı; büyük/küçük harf, rakam ve özel karakter içermeli.", 11, false, true), save } })
         } } };
     }
 

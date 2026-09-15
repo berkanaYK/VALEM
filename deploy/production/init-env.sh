@@ -48,7 +48,7 @@ chmod 400 secrets/dataprotection.pfx
 cat > .env <<EOF
 VALEM_DOMAIN=$domain
 VALEM_PANEL_DOMAIN=$panel_domain
-VALEM_IMAGE_TAG=3.5.3
+VALEM_IMAGE_TAG=3.5.4
 HTTP_PORT=80
 HTTPS_PORT=443
 API_BIND_ADDRESS=127.0.0.1

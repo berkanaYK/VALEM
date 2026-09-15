@@ -2,7 +2,7 @@
 
 VALEM, vale işletmelerinin araç kabulünden teslim ve tahsilata kadar günlük operasyonunu telefondan yönetmesini sağlayan çok firmalı bir platformdur. Güncel ürün; .NET MAUI Android uygulaması, ASP.NET Core API, PostgreSQL veritabanı ve yalnızca geliştiriciye açık web yönetim panelinden oluşur.
 
-Güncel mobil sürüm: **3.5.3** (`Android build 22`); API sözleşmesi **3.5.3**.
+Güncel mobil sürüm: **3.5.4** (`Android build 23`); API sözleşmesi **3.5.4**.
 
 Kalıcı imzalı APK/AAB dağıtımı ve Play Console adımları: [PLAY_SIGNING.md](docs/PLAY_SIGNING.md).
 
@@ -14,7 +14,8 @@ Canlı API: [api.valemyonetim.com](https://api.valemyonetim.com/api/status)
 - Firma sahibi için ad, e-posta ve firma adıyla başlayan sade kayıt
 - Personel deneme hesabı için davet/bağlantı kodu istemeyen, benzersiz firma ve Merkez şubesi oluşturan açık kayıt
 - Personel için tek davet koduyla katılım; firma/şube kodu yalnızca alternatif yol
-- Varsayılan parolasız e-posta kodu, isteğe bağlı parola veya Authenticator girişi
+- Kayıtta zorunlu güçlü parola ve benzersiz kullanıcı adı; girişte e-posta veya kullanıcı adı desteği
+- İsteğe bağlı e-posta kodu veya Authenticator girişi
 - Authenticator etkin hesaplarda parola istemeyen e-posta + 6 haneli TOTP girişi; deneme sınırı ve hesap kilitleme koruması
 - Güvenli cihazı hatırlama; 30 günlük dönen ve sunucuda yalnızca özeti saklanan oturum anahtarı
 - Firma ve şube sınırlarını API ile zorlayan çok kiracılı yetkilendirme
@@ -34,17 +35,17 @@ Canlı API: [api.valemyonetim.com](https://api.valemyonetim.com/api/status)
 ### Firma sahibi
 
 1. `Yeni Hesap Oluştur` seçilir.
-2. Ad soyad, e-posta ve firma adı yazılır.
+2. Ad soyad, e-posta, kullanıcı adı, güçlü parola ve firma adı yazılır.
 3. Firma kodu ile `Merkez` şubesi otomatik üretilir; özel kodlar gelişmiş bölümde isteğe bağlıdır.
 4. E-posta sahipliği doğrulanır.
-5. Seçilen tek giriş yöntemiyle uygulamaya girilir.
+5. E-posta adresi veya kullanıcı adı ve parola ile uygulamaya girilir; e-posta kodu alternatif olarak kullanılabilir.
 
 ### Personel
 
-1. `Personel / deneme hesabı` seçilir; ad soyad, e-posta ve istenen firma adı yazılır.
+1. `Personel / deneme hesabı` seçilir; ad soyad, e-posta, kullanıcı adı, güçlü parola ve istenen firma adı yazılır.
 2. Sistem aynı firma adı daha önce kullanılmış olsa bile hesaba özel, benzersiz firma ve Merkez şubesi kodları üretir.
 3. Yönetici onayı, davet kodu veya bağlantı kodu beklenmeden hesap etkinleşir.
-4. Varsayılan parolasız e-posta kodu veya kullanıcının seçtiği giriş yöntemiyle hemen devam edilir.
+4. E-posta doğrulamasından sonra e-posta/kullanıcı adı ve parola ile giriş yapılır; e-posta kodu seçeneği de kullanılabilir.
 
 ### Günlük vale işlemi
 

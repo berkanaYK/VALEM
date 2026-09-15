@@ -3,8 +3,8 @@ using System.ComponentModel.DataAnnotations;
 namespace VALE.Contracts;
 
 public sealed record LoginRequest(
-    [param: Required, EmailAddress, MaxLength(256)] string Email,
-    [param: Required, MinLength(8), MaxLength(128)] string Password,
+    [param: Required, MaxLength(256)] string Email,
+    [param: Required, MinLength(6), MaxLength(128)] string Password,
     bool RememberDevice = false,
     [param: MaxLength(120)] string? DeviceName = null);
 
@@ -22,7 +22,7 @@ public sealed record RefreshSessionRequest(
 public sealed record RegisterRequest(
     [param: Required, MinLength(2), MaxLength(120)] string FullName,
     [param: Required, EmailAddress, MaxLength(256)] string Email,
-    [param: Required, MinLength(10), MaxLength(128)] string Password,
+    [param: Required, MinLength(6), MaxLength(20)] string Password,
     [param: MaxLength(30)] string? PhoneNumber = null,
     [param: MaxLength(20)] string? BranchCode = null,
     [param: MaxLength(40)] string? EmployeeCode = null);
@@ -35,14 +35,14 @@ public sealed record ForgotPasswordRequest(
 public sealed record ResetPasswordRequest(
     [param: Required, EmailAddress, MaxLength(256)] string Email,
     [param: Required, RegularExpression("^[0-9]{6}$")] string Code,
-    [param: Required, MinLength(10), MaxLength(128)] string NewPassword);
+    [param: Required, MinLength(6), MaxLength(20)] string NewPassword);
 
 public sealed record UpdateProfileRequest(
     [param: Required, MinLength(2), MaxLength(120)] string FullName);
 
 public sealed record ChangePasswordRequest(
-    [param: Required, MinLength(8), MaxLength(128)] string CurrentPassword,
-    [param: Required, MinLength(10), MaxLength(128)] string NewPassword);
+    [param: Required, MinLength(6), MaxLength(128)] string CurrentPassword,
+    [param: Required, MinLength(6), MaxLength(20)] string NewPassword);
 
 public sealed record UserDto(
     Guid Id,
@@ -54,7 +54,7 @@ public sealed record UserDto(
 
 public sealed record CreateUserRequest(
     [param: Required, EmailAddress, MaxLength(256)] string Email,
-    [param: Required, MinLength(10), MaxLength(128)] string Password,
+    [param: Required, MinLength(6), MaxLength(20)] string Password,
     [param: Required, MinLength(2), MaxLength(120)] string FullName,
     Guid BranchId,
     [param: Required, MinLength(1)] IReadOnlyList<string> Roles);

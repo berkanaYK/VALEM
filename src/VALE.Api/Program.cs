@@ -77,7 +77,7 @@ if (Encoding.UTF8.GetByteCount(jwt.Key) < 32) throw new InvalidOperationExceptio
 builder.Services.AddDbContext<ValeDbContext>(options => options.UseNpgsql(connectionString));
 builder.Services.AddIdentityCore<AppUser>(options =>
     {
-        options.Password.RequiredLength = 10;
+        options.Password.RequiredLength = 6;
         options.Password.RequireDigit = true;
         options.Password.RequireLowercase = true;
         options.Password.RequireUppercase = true;
@@ -295,11 +295,11 @@ app.MapGet("/health/email", async (IValeEmailSender email, CancellationToken ct)
         : Results.Json(new { status = "not-ready", smtp = false, stage = probe.Stage }, statusCode: StatusCodes.Status503ServiceUnavailable);
 }).AllowAnonymous().RequireRateLimiting("diagnostic");
 
-// VALE 3.5.3: production VDS and Cloudflare Tunnel migration.
+// VALE 3.5.4: verified password registration and username login.
 app.MapGet("/api/status", (IValeEmailSender email, FirebasePushSender push) => Results.Ok(new
 {
     service = "VALE.Api",
-    version = "3.5.3",
+    version = "3.5.4",
     status = "ok",
     capabilities = new
     {
@@ -311,7 +311,8 @@ app.MapGet("/api/status", (IValeEmailSender email, FirebasePushSender push) => R
         migrations = true,
         publicDemo = true,
         extendedProfiles = true,
-        supportTools = true
+        supportTools = true,
+        usernameLogin = true
     },
     utc = DateTimeOffset.UtcNow
 })).AllowAnonymous();

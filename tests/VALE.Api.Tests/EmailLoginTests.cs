@@ -18,6 +18,32 @@ namespace VALE.Api.Tests;
 public sealed class EmailLoginTests
 {
     [Fact]
+    public async Task Password_login_accepts_username_or_email()
+    {
+        await using var h = await Harness.CreateAsync();
+
+        var byUsername = await h.Controller.Login(new LoginRequest(h.User.UserName!, "Test!1"), default);
+        var usernameLogin = Assert.IsType<LoginResponse>(Assert.IsType<OkObjectResult>(byUsername.Result).Value);
+        Assert.Equal(h.User.Email, usernameLogin.User.Email);
+
+        var byEmail = await h.Controller.Login(new LoginRequest(h.User.Email!, "Test!1"), default);
+        Assert.IsType<LoginResponse>(Assert.IsType<OkObjectResult>(byEmail.Result).Value);
+    }
+
+    [Fact]
+    public async Task Password_login_requires_email_confirmation()
+    {
+        await using var h = await Harness.CreateAsync();
+        h.User.EmailConfirmed = false;
+        await h.Users.UpdateAsync(h.User);
+
+        var error = await Assert.ThrowsAsync<ApiException>(() =>
+            h.Controller.Login(new LoginRequest(h.User.UserName!, "Test!1"), default));
+
+        Assert.Equal(StatusCodes.Status403Forbidden, error.StatusCode);
+    }
+
+    [Fact]
     public async Task Five_invalid_email_codes_lock_the_account_and_block_a_valid_code()
     {
         await using var h = await Harness.CreateAsync();
@@ -102,7 +128,7 @@ public sealed class EmailLoginTests
             await db.SaveChangesAsync();
             var user = new AppUser
             {
-                UserName = "login@example.test",
+                UserName = "login_user",
                 Email = "login@example.test",
                 FullName = "Login Test",
                 Company = company,
@@ -112,7 +138,7 @@ public sealed class EmailLoginTests
                 IsActive = true,
                 EmailConfirmed = true
             };
-            Assert.True((await provider.GetRequiredService<UserManager<AppUser>>().CreateAsync(user)).Succeeded);
+            Assert.True((await provider.GetRequiredService<UserManager<AppUser>>().CreateAsync(user, "Test!1")).Succeeded);
             return new Harness(connection, provider, user);
         }
 

@@ -55,7 +55,7 @@ public sealed class AuthController(
             throw new ApiException(StatusCodes.Status503ServiceUnavailable, "E-posta ile giriş hazır değil", "Sunucu e-posta ayarları tamamlanmadan bu giriş yöntemi kullanılamaz.");
 
         var user = await userManager.FindByEmailAsync(request.Email.Trim());
-        if (user is { IsActive: true } && !await userManager.IsLockedOutAsync(user))
+        if (user is { IsActive: true, EmailConfirmed: true } && !await userManager.IsLockedOutAsync(user))
         {
             var code = await oneTimeCodes.CreateAsync(user, "email-login");
             await emailSender.SendLoginCodeAsync(user.Email ?? request.Email.Trim(), user.FullName, code, cancellationToken);
@@ -331,15 +331,19 @@ public sealed class AuthController(
         return Ok(new TwoFactorRecoveryCodesDto(codes));
     }
 
-    private async Task<AppUser> FindUserAsync(string email, CancellationToken cancellationToken, bool hideNotFound = false)
+    private async Task<AppUser> FindUserAsync(string identifier, CancellationToken cancellationToken, bool hideNotFound = false)
     {
-        var normalizedEmail = userManager.NormalizeEmail(email.Trim());
-        var user = await userManager.Users.Include(x => x.Branch).Include(x => x.Company).SingleOrDefaultAsync(x => x.NormalizedEmail == normalizedEmail, cancellationToken);
+        var normalizedEmail = userManager.NormalizeEmail(identifier.Trim());
+        var normalizedUserName = userManager.NormalizeName(identifier.Trim());
+        var user = await userManager.Users.Include(x => x.Branch).Include(x => x.Company)
+            .SingleOrDefaultAsync(x => x.NormalizedEmail == normalizedEmail || x.NormalizedUserName == normalizedUserName, cancellationToken);
         if (user is null || !user.IsActive || user.Company is not { IsActive: true } || user.Branch is not { IsActive: true } || user.Branch.CompanyId != user.CompanyId)
         {
             if (hideNotFound) throw new ApiException(StatusCodes.Status401Unauthorized, "Giriş doğrulanamadı", "Kod hatalı, süresi dolmuş veya hesap aktif değil.");
-            throw new ApiException(StatusCodes.Status401Unauthorized, "Giriş başarısız", user is { IsActive: false } ? "Hesabınız yönetici onayı bekliyor veya devre dışı." : "E-posta adresi veya parola hatalı.");
+            throw new ApiException(StatusCodes.Status401Unauthorized, "Giriş başarısız", user is { IsActive: false } ? "Hesabınız yönetici onayı bekliyor veya devre dışı." : "E-posta, kullanıcı adı veya parola hatalı.");
         }
+        if (!user.EmailConfirmed)
+            throw new ApiException(StatusCodes.Status403Forbidden, "E-posta doğrulaması gerekli", "Giriş yapmadan önce e-posta adresinize gönderilen bağlantıyla hesabınızı doğrulayın.");
         if (await userManager.IsLockedOutAsync(user))
             throw new ApiException(423, "Hesap geçici olarak kilitli", "Çok sayıda hatalı deneme yapıldı. Bir süre sonra yeniden deneyin.");
         return user;
@@ -353,7 +357,7 @@ public sealed class AuthController(
             return;
         }
         await userManager.AccessFailedAsync(user);
-        throw new ApiException(StatusCodes.Status401Unauthorized, "Giriş başarısız", "E-posta adresi veya parola hatalı.");
+        throw new ApiException(StatusCodes.Status401Unauthorized, "Giriş başarısız", "E-posta, kullanıcı adı veya parola hatalı.");
     }
 
     private async Task<LoginResponse> CompleteLoginAsync(

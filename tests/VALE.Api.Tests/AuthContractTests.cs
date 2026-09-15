@@ -32,17 +32,24 @@ public sealed class AuthContractTests
     }
 
     [Fact]
-    public void Email_code_registration_contract_allows_no_password()
+    public void Registration_requires_a_bounded_password_and_validates_username()
     {
         var ownerConstructor = typeof(OwnerRegisterRequest).GetConstructors(BindingFlags.Public | BindingFlags.Instance).Single();
         var ownerPassword = ownerConstructor.GetParameters()[2];
-        Assert.DoesNotContain(ownerPassword.GetCustomAttributes<ValidationAttribute>(true), x => x is RequiredAttribute);
-        Assert.All(ownerPassword.GetCustomAttributes<ValidationAttribute>(true), x => Assert.True(x.IsValid(null)));
+        Assert.Contains(ownerPassword.GetCustomAttributes<ValidationAttribute>(true), x => x is RequiredAttribute);
+        Assert.False(ownerPassword.GetCustomAttributes<ValidationAttribute>(true).All(x => x.IsValid(null)));
+        Assert.True(ownerPassword.GetCustomAttributes<ValidationAttribute>(true).All(x => x.IsValid("Test!1")));
+        Assert.False(ownerPassword.GetCustomAttributes<ValidationAttribute>(true).All(x => x.IsValid("Test!1234567890123456")));
 
         var staffConstructor = typeof(StaffRegisterRequest).GetConstructors(BindingFlags.Public | BindingFlags.Instance).Single();
         var staffPassword = staffConstructor.GetParameters()[2];
-        Assert.DoesNotContain(staffPassword.GetCustomAttributes<ValidationAttribute>(true), x => x is RequiredAttribute);
-        Assert.All(staffPassword.GetCustomAttributes<ValidationAttribute>(true), x => Assert.True(x.IsValid(null)));
+        Assert.Contains(staffPassword.GetCustomAttributes<ValidationAttribute>(true), x => x is RequiredAttribute);
+        Assert.False(staffPassword.GetCustomAttributes<ValidationAttribute>(true).All(x => x.IsValid(null)));
+
+        var username = ownerConstructor.GetParameters().Single(x => x.Name!.Equals("Username", StringComparison.OrdinalIgnoreCase));
+        var usernameRules = username.GetCustomAttributes<ValidationAttribute>(true).ToArray();
+        Assert.True(usernameRules.All(x => x.IsValid("berkan_01")));
+        Assert.False(usernameRules.All(x => x.IsValid("geçersiz kullanıcı")));
     }
 
     [Fact]

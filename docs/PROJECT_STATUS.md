@@ -1,4 +1,4 @@
-> 15 Eylül 2026 güncellemesi: 3.5.3 / build 22, kalıcı VDS API adresi ve kart gerektirmeyen Cloudflare Tunnel üzerinden yayına hazırlandı. PostgreSQL 18 verileri, yedek geri yükleme, tenant hesapları, salt okunur destek hesabı, dış HTTPS ve güvenlik başlıkları doğrulandı. [Sürüm notları](RELEASE-3.5.3.md), [satın alma kurulumu](GOOGLE_PLAY_BILLING.md) ve [kurulum/sınırlar](SUPPORT_TOOLS.md).
+> 15 Eylül 2026 güncellemesi: 3.5.4 / build 23, zorunlu güçlü parola kaydı, benzersiz kullanıcı adı, e-posta/kullanıcı adıyla giriş ve parola görünürlük düğmeleri eklendi. Kalıcı VDS API adresi ile Cloudflare Tunnel kullanılır. [Sürüm notları](RELEASE-3.5.4.md), [satın alma kurulumu](GOOGLE_PLAY_BILLING.md) ve [kurulum/sınırlar](SUPPORT_TOOLS.md).
 
 # VALEM inceleme ve düzeltme notu — 8 Eylül 2026
 

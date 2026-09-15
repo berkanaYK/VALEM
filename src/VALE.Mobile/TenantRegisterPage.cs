@@ -7,14 +7,13 @@ public sealed class TenantRegisterPage : ContentPage
 {
     private readonly ApiClient _api;
     private readonly Picker _accountType = UiKit.Picker("Hesap türü");
-    private readonly Picker _loginMethod = UiKit.Picker("Giriş yöntemi");
     private readonly Entry _name = UiKit.Entry("Ad soyad");
     private readonly Entry _email = UiKit.Entry("E-posta", Keyboard.Email);
+    private readonly Entry _username = UiKit.Entry("Kullanıcı adı");
     private readonly Entry _phone = UiKit.Entry("Telefon (isteğe bağlı)", Keyboard.Telephone);
     private readonly Entry _password = UiKit.Entry("Parola", password: true);
     private readonly Entry _repeat = UiKit.Entry("Parolayı tekrar girin", password: true);
     private readonly VerticalStackLayout _passwordFields = new() { Spacing = 10 };
-    private readonly Label _loginHint = UiKit.Label(string.Empty, 11.5, false, true);
     private readonly VerticalStackLayout _ownerFields = new() { Spacing = 10 };
     private readonly VerticalStackLayout _staffFields = new() { Spacing = 10 };
     private readonly Entry _companyName = UiKit.Entry("Firma adı");
@@ -34,9 +33,9 @@ public sealed class TenantRegisterPage : ContentPage
         UiKit.StylePage(this);
 
         _accountType.AutomationId = "register-account-type";
-        _loginMethod.AutomationId = "register-login-method";
         _name.AutomationId = "register-name";
         _email.AutomationId = "register-email";
+        _username.AutomationId = "register-username";
         _phone.AutomationId = "register-phone";
         _password.AutomationId = "register-password";
         _repeat.AutomationId = "register-password-repeat";
@@ -51,18 +50,9 @@ public sealed class TenantRegisterPage : ContentPage
         _accountType.SelectedIndex = 0;
         _accountType.SelectedIndexChanged += (_, _) => UpdateMode();
 
-        _loginMethod.ItemsSource = new[]
-        {
-            "E-posta + parola",
-            "E-posta koduyla giriş (personel için önerilen)",
-            "Parola + Authenticator (2FA)"
-        };
-        _loginMethod.SelectedIndex = 1;
-        _loginMethod.SelectedIndexChanged += (_, _) => UpdateLoginMethod();
-
-        _passwordFields.Add(_password);
-        _passwordFields.Add(_repeat);
-        _passwordFields.Add(UiKit.Label("Parola en az 10 karakter olmalı; büyük/küçük harf, rakam ve özel karakter içermeli.", 11, false, true));
+        _passwordFields.Add(UiKit.PasswordField(_password, "register-password-visibility"));
+        _passwordFields.Add(UiKit.PasswordField(_repeat, "register-password-repeat-visibility"));
+        _passwordFields.Add(UiKit.Label("Parola 6-20 karakter olmalı; en az bir büyük harf, küçük harf, rakam ve özel karakter içermeli.", 11, false, true));
 
         _ownerFields.Children.Add(UiKit.Label("Firma kodu ve Merkez şubesi otomatik oluşturulur.", 11, false, true));
         var ownerAdvancedFields = new VerticalStackLayout
@@ -71,7 +61,7 @@ public sealed class TenantRegisterPage : ContentPage
             Children =
             {
                 UiKit.Label("Yalnızca özel kodlandırma kullanıyorsanız doldurun.", 11, false, true),
-                _companyCode, _branchName, _branchCode, _city
+                UiKit.Field(_companyCode), UiKit.Field(_branchName), UiKit.Field(_branchCode), UiKit.Field(_city)
             }
         };
         var ownerAdvancedCard = UiKit.Card(ownerAdvancedFields, new Thickness(12), 14);
@@ -87,36 +77,14 @@ public sealed class TenantRegisterPage : ContentPage
         _ownerFields.Children.Add(ownerAdvancedCard);
 
         _staffFields.Children.Add(UiKit.Label("Deneme için istediğiniz firma adını yazabilirsiniz. Size özel firma ve Merkez şube kodları otomatik oluşturulur; davet veya yönetici onayı gerekmez.", 11.5, false, true));
-        _staffFields.Children.Add(_employeeCode);
+        _staffFields.Children.Add(UiKit.Field(_employeeCode));
         _joinFields.Add(UiKit.Label("Firma ve şube kodunu yöneticinizden alın. Başvurunuz onaylandığında firmanın izin verilen kayıtlarına erişebilirsiniz. Davet kodu gerekmez.", 11.5, false, true));
-        _joinFields.Add(_joinCompanyCode);
-        _joinFields.Add(_joinBranchCode);
+        _joinFields.Add(UiKit.Field(_joinCompanyCode));
+        _joinFields.Add(UiKit.Field(_joinBranchCode));
 
         var save = UiKit.PrimaryButton("Hesabı Oluştur");
         save.AutomationId = "register-submit";
         save.Clicked += async (_, _) => await SaveAsync(save);
-        var signInFields = new VerticalStackLayout
-        {
-            Spacing = 10,
-            Children =
-            {
-                UiKit.Label("Giriş yöntemi", 11, true, true),
-                _loginMethod,
-                _loginHint,
-                _passwordFields,
-                _phone
-            }
-        };
-        var signInCard = UiKit.Card(signInFields, new Thickness(12), 14);
-        signInCard.IsVisible = false;
-        var signInToggle = UiKit.TextButton("Giriş yöntemini veya telefonu değiştir");
-        signInToggle.AutomationId = "register-login-options-toggle";
-        signInToggle.Clicked += (_, _) =>
-        {
-            signInCard.IsVisible = !signInCard.IsVisible;
-            signInToggle.Text = signInCard.IsVisible ? "Ek seçenekleri kapat" : "Giriş yöntemini veya telefonu değiştir";
-        };
-
         Content = new ScrollView
         {
             Content = new VerticalStackLayout
@@ -126,7 +94,7 @@ public sealed class TenantRegisterPage : ContentPage
                 Children =
                 {
                     UiKit.Label("VALE hesabı oluşturun", 27, true),
-                    UiKit.Label("Sadece temel bilgileri yazın. Varsayılan olarak parola gerekmez; e-posta koduyla giriş yaparsınız ve daha sonra bu cihazı hatırlatabilirsiniz.", 12.5, false, true),
+                    UiKit.Label("E-posta doğrulamasından sonra e-posta adresiniz veya kullanıcı adınız ve parolanızla giriş yapabilirsiniz.", 12.5, false, true),
                     UiKit.Card(new VerticalStackLayout
                     {
                         Spacing = 10,
@@ -134,15 +102,17 @@ public sealed class TenantRegisterPage : ContentPage
                         {
                             UiKit.Label("Hesap türü", 11, true, true),
                             _accountType,
-                            _name,
-                            _email,
-                            _companyName,
+                            UiKit.Field(_name),
+                            UiKit.Field(_email),
+                            UiKit.Field(_username),
+                            UiKit.Label("Kullanıcı adı 3-30 karakter olabilir; harf, rakam, nokta, alt çizgi ve kısa çizgi kullanabilirsiniz.", 11, false, true),
+                            _passwordFields,
+                            UiKit.Field(_phone),
+                            UiKit.Field(_companyName),
                             _ownerFields,
                             _staffFields,
                             _joinFields,
-                            signInToggle,
-                            signInCard,
-                            UiKit.Label("Yeni firma ve kişisel hesapla hemen giriş yapabilirsiniz. Mevcut firmaya katılım için e-posta doğrulaması ve yönetici onayı gerekir.", 11, false, true),
+                            UiKit.Label("E-posta koduyla giriş seçeneği giriş ekranında ayrıca bulunur. Mevcut firmaya katılım için e-posta doğrulaması ve yönetici onayı gerekir.", 11, false, true),
                             save
                         }
                     })
@@ -150,7 +120,6 @@ public sealed class TenantRegisterPage : ContentPage
             }
         };
         UpdateMode();
-        UpdateLoginMethod();
     }
 
     protected override async void OnAppearing()
@@ -166,48 +135,29 @@ public sealed class TenantRegisterPage : ContentPage
         _staffFields.IsVisible = _accountType.SelectedIndex == 1;
         _joinFields.IsVisible = _accountType.SelectedIndex == 2;
         _companyName.IsVisible = _accountType.SelectedIndex != 2;
-        if (!owner && _loginMethod.SelectedIndex == 0)
-            _loginMethod.SelectedIndex = 1;
     }
-
-    private void UpdateLoginMethod()
-    {
-        var emailCodeOnly = _loginMethod.SelectedIndex == 1;
-        _passwordFields.IsVisible = !emailCodeOnly;
-        _loginHint.Text = _loginMethod.SelectedIndex switch
-        {
-            1 => "Parola oluşturmanız gerekmez. Giriş ekranında e-posta adresinize gelen tek kullanımlık 6 haneli kodu kullanırsınız.",
-            2 => "Güçlü bir parola oluşturun. E-posta doğrulamasından ve ilk girişten sonra Authenticator Güvenliği ekranındaki QR kodu Google/Microsoft Authenticator ile okutursunuz.",
-            _ => "Standart giriş: e-posta adresiniz ve güçlü parolanız. Authenticator zorunlu değildir."
-        };
-    }
-
-    private string SelectedLoginMethod() => _loginMethod.SelectedIndex switch
-    {
-        1 => LoginMethods.EmailCode,
-        2 => LoginMethods.Authenticator,
-        _ => LoginMethods.Password
-    };
 
     private async Task SaveAsync(Button save)
     {
-        var loginMethod = SelectedLoginMethod();
-        if (loginMethod != LoginMethods.EmailCode)
+        const string loginMethod = LoginMethods.Password;
+        if (_password.Text != _repeat.Text)
         {
-            if (_password.Text != _repeat.Text)
-            {
-                await DisplayAlertAsync("Parola", "Parolalar aynı değil.", "Tamam");
-                return;
-            }
-            if (string.IsNullOrWhiteSpace(_password.Text))
-            {
-                await DisplayAlertAsync("Parola", "Seçtiğiniz giriş yöntemi için güçlü bir parola oluşturun.", "Tamam");
-                return;
-            }
+            await DisplayAlertAsync("Parola", "Parolalar aynı değil.", "Tamam");
+            return;
         }
-        if (string.IsNullOrWhiteSpace(_name.Text) || string.IsNullOrWhiteSpace(_email.Text))
+        if (!IsStrongPassword(_password.Text))
         {
-            await DisplayAlertAsync("Eksik bilgi", "Ad soyad ve e-posta alanlarını doldurun.", "Tamam");
+            await DisplayAlertAsync("Parola", "Parola 6-20 karakter olmalı; en az bir büyük harf, küçük harf, rakam ve özel karakter içermelidir.", "Tamam");
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(_name.Text) || string.IsNullOrWhiteSpace(_email.Text) || string.IsNullOrWhiteSpace(_username.Text))
+        {
+            await DisplayAlertAsync("Eksik bilgi", "Ad soyad, e-posta ve kullanıcı adı alanlarını doldurun.", "Tamam");
+            return;
+        }
+        if (!IsValidUsername(_username.Text))
+        {
+            await DisplayAlertAsync("Kullanıcı adı", "Kullanıcı adı 3-30 karakter olmalı ve yalnızca harf, rakam, nokta, alt çizgi veya kısa çizgi içermelidir.", "Tamam");
             return;
         }
 
@@ -223,8 +173,8 @@ public sealed class TenantRegisterPage : ContentPage
                     return;
                 }
                 result = await _api.RegisterStaffAsync(new StaffRegisterRequest(
-                    _name.Text.Trim(), _email.Text.Trim(), loginMethod == LoginMethods.EmailCode ? null : _password.Text,
-                    N(_phone.Text), N(_joinCompanyCode.Text), N(_joinBranchCode.Text), null, null, loginMethod, null));
+                    _name.Text.Trim(), _email.Text.Trim(), _password.Text,
+                    N(_phone.Text), N(_joinCompanyCode.Text), N(_joinBranchCode.Text), null, null, loginMethod, null, _username.Text.Trim()));
             }
             else if (_accountType.SelectedIndex == 0)
             {
@@ -234,9 +184,9 @@ public sealed class TenantRegisterPage : ContentPage
                     return;
                 }
                 result = await _api.RegisterOwnerAsync(new OwnerRegisterRequest(
-                    _name.Text.Trim(), _email.Text.Trim(), loginMethod == LoginMethods.EmailCode ? null : _password.Text,
+                    _name.Text.Trim(), _email.Text.Trim(), _password.Text,
                     N(_phone.Text), _companyName.Text.Trim(), N(_companyCode.Text),
-                    N(_branchName.Text), N(_branchCode.Text), N(_city.Text), loginMethod));
+                    N(_branchName.Text), N(_branchCode.Text), N(_city.Text), loginMethod, _username.Text.Trim()));
             }
             else
             {
@@ -246,8 +196,8 @@ public sealed class TenantRegisterPage : ContentPage
                     return;
                 }
                 result = await _api.RegisterStaffAsync(new StaffRegisterRequest(
-                    _name.Text.Trim(), _email.Text.Trim(), loginMethod == LoginMethods.EmailCode ? null : _password.Text, N(_phone.Text),
-                    null, null, null, N(_employeeCode.Text), loginMethod, _companyName.Text.Trim()));
+                    _name.Text.Trim(), _email.Text.Trim(), _password.Text, N(_phone.Text),
+                    null, null, null, N(_employeeCode.Text), loginMethod, _companyName.Text.Trim(), _username.Text.Trim()));
             }
 
             await DisplayAlertAsync(result.RequiresApproval ? "Başvuru oluşturuldu" : "Hesap hazır", result.Message, "Tamam");
@@ -264,4 +214,12 @@ public sealed class TenantRegisterPage : ContentPage
     }
 
     private static string? N(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private static bool IsStrongPassword(string? password) =>
+        !string.IsNullOrWhiteSpace(password) && password.Length is >= 6 and <= 20 &&
+        password.Any(char.IsUpper) && password.Any(char.IsLower) && password.Any(char.IsDigit) &&
+        password.Any(ch => !char.IsLetterOrDigit(ch));
+
+    private static bool IsValidUsername(string? username) =>
+        !string.IsNullOrWhiteSpace(username) && username.Trim().Length is >= 3 and <= 30 &&
+        username.Trim().All(ch => char.IsAsciiLetterOrDigit(ch) || ch is '.' or '_' or '-');
 }
