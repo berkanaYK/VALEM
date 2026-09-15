@@ -1,4 +1,4 @@
-> 15 Eylül 2026 güncellemesi: 3.5.1 / build 20 için ilk kullanım baloncuklarına ek olarak görsel ve etkileşimli kullanım kılavuzu ile doğrudan iletişim/destek ekranı hazırlandı. 50 kayıtlık deneme kotası, Google Play ile sunucuda doğrulanan Sınırsız paket, premium temalar/çerçeveler ve alfabetik araç kataloğu korunmaktadır. [Sürüm notları](RELEASE-3.5.1.md), [satın alma kurulumu](GOOGLE_PLAY_BILLING.md) ve [kurulum/sınırlar](SUPPORT_TOOLS.md). Canlı API dağıtımı yeni VDS kurulumu tamamlandığında yapılacaktır.
+> 15 Eylül 2026 güncellemesi: 3.5.2 / build 21 için yayın öncesi mobil, API, PostgreSQL, Docker ve güvenlik kontrolleri tamamlandı. E-posta doğrulama sayfasının güvenli stil yüklemesi, tanılama tablosunun tarama gürültüsüne karşı korunması ve platform yöneticisi parola rotasyonu düzeltildi. [Sürüm notları](RELEASE-3.5.2.md), [satın alma kurulumu](GOOGLE_PLAY_BILLING.md) ve [kurulum/sınırlar](SUPPORT_TOOLS.md). Canlı API dağıtımı yeni VDS kurulumu tamamlandığında yapılacaktır.
 
 # VALEM inceleme ve düzeltme notu — 8 Eylül 2026
 

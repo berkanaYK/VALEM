@@ -8,6 +8,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using VALE.Api.Areas.PlatformAdmin.Controllers;
 using VALE.Api.Configuration;
@@ -128,6 +129,39 @@ public sealed class SupportFeatureTests
     }
 
     [Fact]
+    public async Task Email_confirmation_page_respects_the_global_content_security_policy()
+    {
+        await using var h = await Harness.CreateAsync();
+        var controller = new EmailVerificationController(
+            h.Users,
+            h.Db,
+            h.Provider.GetRequiredService<IValeEmailSender>(),
+            h.Provider.GetRequiredService<IOptions<EmailOptions>>(),
+            h.Provider.GetRequiredService<AuditService>());
+
+        var result = await controller.ConfirmEmail(Guid.NewGuid(), "invalid", default);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, result.StatusCode);
+        Assert.Contains("/platform-admin/admin.css", result.Content);
+        Assert.Contains("noindex,nofollow,noarchive", result.Content);
+        Assert.DoesNotContain("<style", result.Content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Diagnostics_ignores_unmatched_routes_to_prevent_scan_noise()
+    {
+        await using var h = await Harness.CreateAsync();
+        var diagnostics = new RequestDiagnostics(
+            h.Provider.GetRequiredService<IServiceScopeFactory>(),
+            h.Provider.GetRequiredService<ILogger<RequestDiagnostics>>());
+        var context = new DefaultHttpContext { RequestServices = h.Provider };
+
+        await diagnostics.RecordAsync(context, StatusCodes.Status404NotFound);
+
+        Assert.Empty(await h.Db.RequestFailures.ToListAsync());
+    }
+
+    [Fact]
     public async Task Demo_vehicle_limit_is_per_user_and_deleting_a_record_frees_capacity()
     {
         await using var h = await Harness.CreateAsync();
@@ -138,8 +172,11 @@ public sealed class SupportFeatureTests
             h.Db.Vehicles.Add(vehicle);
             h.Db.ParkingTickets.Add(new ParkingTicket
             {
-                CompanyId = h.Company.Id, BranchId = h.Branch.Id, Vehicle = vehicle,
-                TicketNumber = $"DEMO-{i:00}", CreatedByUserId = h.User.Id
+                CompanyId = h.Company.Id,
+                BranchId = h.Branch.Id,
+                Vehicle = vehicle,
+                TicketNumber = $"DEMO-{i:00}",
+                CreatedByUserId = h.User.Id
             });
         }
         await h.Db.SaveChangesAsync();

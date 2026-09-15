@@ -18,7 +18,7 @@ public sealed class DeveloperQueryService(IConfiguration configuration)
             throw new ApiException(400, "Sorgu uygun değil", "Tek bir SELECT veya WITH sorgusu yazın. En fazla 200 satır gösterilir.");
 
         var connectionOptions = new NpgsqlConnectionStringBuilder(configuration["DeveloperTools:ReadOnlyConnectionString"]!)
-            { Pooling = false, Timeout = 5, CommandTimeout = 5, ApplicationName = "VALEM Developer Console" };
+        { Pooling = false, Timeout = 5, CommandTimeout = 5, ApplicationName = "VALEM Developer Console" };
         await using var connection = new NpgsqlConnection(connectionOptions.ConnectionString);
         await connection.OpenAsync(ct);
         // The console refuses powerful roles, including inherited write/DDL privileges.

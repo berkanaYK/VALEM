@@ -73,9 +73,14 @@ public sealed class AdminController(ValeDbContext db, UserManager<AppUser> userM
             throw new ApiException(StatusCodes.Status409Conflict, "E-posta kullanımda", "Bu e-posta adresine ait kullanıcı zaten var.");
         var user = new AppUser
         {
-            UserName = request.Email.Trim(), Email = request.Email.Trim(), EmailConfirmed = true,
-            FullName = request.FullName.Trim(), CompanyId = currentUser.CompanyId,
-            BranchId = branch.Id, Branch = branch, IsActive = true
+            UserName = request.Email.Trim(),
+            Email = request.Email.Trim(),
+            EmailConfirmed = true,
+            FullName = request.FullName.Trim(),
+            CompanyId = currentUser.CompanyId,
+            BranchId = branch.Id,
+            Branch = branch,
+            IsActive = true
         };
         var createResult = await userManager.CreateAsync(user, request.Password);
         if (!createResult.Succeeded) throw new ApiException(StatusCodes.Status400BadRequest, "Kullanıcı oluşturulamadı", string.Join(" ", createResult.Errors.Select(x => x.Description)));

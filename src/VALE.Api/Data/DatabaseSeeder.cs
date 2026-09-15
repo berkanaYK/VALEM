@@ -190,6 +190,17 @@ public static class DatabaseSeeder
             var updated = await userManager.UpdateAsync(admin);
             if (!updated.Succeeded)
                 throw new InvalidOperationException($"Platform yöneticisi güncellenemedi: {string.Join(", ", updated.Errors.Select(x => x.Description))}");
+
+            // This dedicated account has no self-service password screen. Keep the
+            // configured secret authoritative so planned rotations take effect.
+            if (!await userManager.CheckPasswordAsync(admin, options.Password))
+            {
+                var resetToken = await userManager.GeneratePasswordResetTokenAsync(admin);
+                var reset = await userManager.ResetPasswordAsync(admin, resetToken, options.Password);
+                if (!reset.Succeeded)
+                    throw new InvalidOperationException($"Platform yöneticisi parolası yenilenemedi: {string.Join(", ", reset.Errors.Select(x => x.Description))}");
+                logger.LogInformation("Web platform yönetimi parolası güvenli yapılandırmadan yenilendi.");
+            }
         }
 
         if (!await userManager.IsInRoleAsync(admin, Roles.PlatformAdmin))

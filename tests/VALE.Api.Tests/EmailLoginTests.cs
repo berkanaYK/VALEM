@@ -102,9 +102,15 @@ public sealed class EmailLoginTests
             await db.SaveChangesAsync();
             var user = new AppUser
             {
-                UserName = "login@example.test", Email = "login@example.test", FullName = "Login Test",
-                Company = company, CompanyId = company.Id, Branch = branch, BranchId = branch.Id,
-                IsActive = true, EmailConfirmed = true
+                UserName = "login@example.test",
+                Email = "login@example.test",
+                FullName = "Login Test",
+                Company = company,
+                CompanyId = company.Id,
+                Branch = branch,
+                BranchId = branch.Id,
+                IsActive = true,
+                EmailConfirmed = true
             };
             Assert.True((await provider.GetRequiredService<UserManager<AppUser>>().CreateAsync(user)).Succeeded);
             return new Harness(connection, provider, user);

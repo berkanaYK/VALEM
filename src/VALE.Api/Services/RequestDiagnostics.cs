@@ -24,6 +24,8 @@ public sealed class RequestDiagnostics(IServiceScopeFactory scopes, ILogger<Requ
 {
     public async Task RecordAsync(HttpContext context, int statusCode, Exception? exception = null)
     {
+        // Do not let automated scans fill the diagnostics table with arbitrary 404 routes.
+        if (context.GetEndpoint() is not RouteEndpoint) return;
         if (context.Items.ContainsKey(typeof(RequestFailure))) return;
         context.Items[typeof(RequestFailure)] = true;
         try
@@ -34,8 +36,10 @@ public sealed class RequestDiagnostics(IServiceScopeFactory scopes, ILogger<Requ
             var route = (context.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText ?? "Eşleşmeyen adres";
             db.RequestFailures.Add(new RequestFailure
             {
-                TraceId = Limit(context.TraceIdentifier, 100), Method = Limit(context.Request.Method, 10),
-                Route = Limit(route, 200), StatusCode = statusCode,
+                TraceId = Limit(context.TraceIdentifier, 100),
+                Method = Limit(context.Request.Method, 10),
+                Route = Limit(route, 200),
+                StatusCode = statusCode,
                 UserId = Guid.TryParse(context.User.FindFirst("sub")?.Value ?? context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var userId) ? userId : null,
                 CompanyId = Guid.TryParse(context.User.FindFirst("company_id")?.Value, out var companyId) ? companyId : null,
                 Category = Limit(exception?.GetType().Name ?? "İstek reddedildi", 160)

@@ -62,10 +62,20 @@ public sealed class TicketService(
         var customer = await UpsertCustomerAsync(request.CustomerName, request.CustomerPhone, cancellationToken);
         var ticket = new ParkingTicket
         {
-            CompanyId = currentUser.CompanyId, TicketNumber = GenerateTicketNumber(), BranchId = branchId, Branch = branch, Vehicle = vehicle, Customer = customer,
-            AssignedUserId = currentUser.UserId, CreatedByUserId = currentUser.UserId,
-            KeyTag = Clean(request.KeyTag), ParkingSpot = Clean(request.ParkingSpot), Notes = Clean(request.Notes),
-            HourlyRate = request.HourlyRate ?? _rules.DefaultHourlyRate, Status = TicketStatus.Received, EntryAt = DateTimeOffset.UtcNow
+            CompanyId = currentUser.CompanyId,
+            TicketNumber = GenerateTicketNumber(),
+            BranchId = branchId,
+            Branch = branch,
+            Vehicle = vehicle,
+            Customer = customer,
+            AssignedUserId = currentUser.UserId,
+            CreatedByUserId = currentUser.UserId,
+            KeyTag = Clean(request.KeyTag),
+            ParkingSpot = Clean(request.ParkingSpot),
+            Notes = Clean(request.Notes),
+            HourlyRate = request.HourlyRate ?? _rules.DefaultHourlyRate,
+            Status = TicketStatus.Received,
+            EntryAt = DateTimeOffset.UtcNow
         };
         db.ParkingTickets.Add(ticket);
         await db.SaveChangesAsync(cancellationToken);
@@ -238,9 +248,14 @@ public sealed class TicketService(
 
     private static bool CanTransition(TicketStatus current, TicketStatus next) => (current, next) switch
     {
-        (TicketStatus.Received, TicketStatus.Parked) => true, (TicketStatus.Received, TicketStatus.Requested) => true, (TicketStatus.Received, TicketStatus.Cancelled) => true,
-        (TicketStatus.Parked, TicketStatus.Requested) => true, (TicketStatus.Parked, TicketStatus.Cancelled) => true,
-        (TicketStatus.Requested, TicketStatus.Parked) => true, (TicketStatus.Requested, TicketStatus.Cancelled) => true, _ => false
+        (TicketStatus.Received, TicketStatus.Parked) => true,
+        (TicketStatus.Received, TicketStatus.Requested) => true,
+        (TicketStatus.Received, TicketStatus.Cancelled) => true,
+        (TicketStatus.Parked, TicketStatus.Requested) => true,
+        (TicketStatus.Parked, TicketStatus.Cancelled) => true,
+        (TicketStatus.Requested, TicketStatus.Parked) => true,
+        (TicketStatus.Requested, TicketStatus.Cancelled) => true,
+        _ => false
     };
 
     private TicketSummaryDto Map(ParkingTicket ticket)

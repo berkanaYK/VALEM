@@ -18,6 +18,9 @@
 
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--wash); color: var(--ink); font-size: 15px; line-height: 1.5; }
+.confirmation-page { padding: 32px; }
+.confirmation-card { max-width: 560px; margin: 8vh auto; padding: 32px; background: var(--paper); border: 1px solid var(--line); border-radius: 24px; box-shadow: 0 10px 35px rgba(16, 24, 40, .08); }
+.confirmation-card p { color: var(--muted); }
 a { color: var(--blue); text-decoration: none; font-weight: 650; }
 a:hover { text-decoration: underline; }
 .topbar { min-height: 72px; display: flex; align-items: center; gap: 28px; padding: 12px max(24px, calc((100vw - 1480px) / 2)); background: #0b1739; color: white; }
