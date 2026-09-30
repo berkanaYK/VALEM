@@ -14,6 +14,7 @@ public sealed class ValeAppShellV31 : Shell
     private readonly Label _headerInitials = UiKit.Label("VA", 20, true);
     private readonly Label _headerName = UiKit.Label("", 13, true);
     private bool _loadingAvatar;
+    private readonly Image _headerBackground = new() { Aspect = Aspect.AspectFill };
 
     public ValeAppShellV31(ApiClient api, UserDto user)
     {
@@ -27,10 +28,11 @@ public sealed class ValeAppShellV31 : Shell
 
         _headerInitials.Text = string.Concat(user.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
         _headerName.Text = user.FullName;
+        _headerName.TextColor = Colors.White;
         _headerInitials.TextColor = Colors.White; _headerInitials.HorizontalTextAlignment = TextAlignment.Center; _headerInitials.VerticalTextAlignment = TextAlignment.Center;
         var avatarLayer = new Grid(); avatarLayer.Add(_headerInitials); avatarLayer.Add(_headerAvatar);
         var avatar = new Border { WidthRequest = 62, HeightRequest = 62, StrokeThickness = 2, Stroke = new SolidColorBrush(Colors.White), StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 31 }, BackgroundColor = ThemeService.Palette.Accent, Content = avatarLayer };
-        FlyoutHeader = new Border
+        var header = new Border
         {
             StrokeThickness = 0,
             Background = new LinearGradientBrush(
@@ -46,21 +48,26 @@ public sealed class ValeAppShellV31 : Shell
                 Children =
                 {
                     avatar,
-                    UiKit.Label("VALE", 26, true),
+                    new Label { Text = "VALEM", FontSize = 26, FontAttributes = FontAttributes.Bold, TextColor = Colors.White },
                     _headerName,
-                    UiKit.Label(user.BranchName ?? "Şube atanmamış", 11.5, false, true)
+                    new Label { Text = user.BranchName ?? "Şube atanmamış", FontSize = 11.5, TextColor = Colors.White }
                 }
             }
         };
+        var headerLayer = new Grid();
+        headerLayer.Add(_headerBackground);
+        headerLayer.Add(new BoxView { Color = Color.FromRgba(0, 0, 0, 100) });
+        headerLayer.Add(header);
+        FlyoutHeader = headerLayer;
 
         var tabs = new TabBar { Title = "Ana Sayfa", Icon = "tab_home.svg", FlyoutDisplayOptions = FlyoutDisplayOptions.AsSingleItem };
-        tabs.Items.Add(CreateTab("Ana", "tab_home.svg", new CompanyDashboardPage(api, user)));
+        tabs.Items.Add(CreateTab("Ana Sayfa", "tab_home.svg", new CompanyDashboardPage(api, user)));
         tabs.Items.Add(CreateTab("Araçlar", "tab_car.svg", new CompanyTicketsPage(api, user)));
         tabs.Items.Add(CreateTab("Raporlar", "tab_report.svg", CompanyAccess.CanReport(user)
             ? new ReportsV31Page(api)
             : new RestrictedPage("Raporlar", "Bu hesap için rapor görüntüleme yetkisi tanımlı değil.")));
         tabs.Items.Add(CreateTab("Bildirim", "tab_bell.svg", new NotificationsPage(api, user)));
-        tabs.Items.Add(CreateTab("Daha", "tab_more.svg", new MoreHubPage(api, user)));
+        tabs.Items.Add(CreateTab("Daha Fazla", "tab_more.svg", new MoreHubPage(api, user)));
         Items.Add(tabs);
         _homeItem = tabs;
 
@@ -69,12 +76,26 @@ public sealed class ValeAppShellV31 : Shell
         if (CompanyAccess.CanManageUsers(user)) Items.Add(CreateFlyout("Ekip", "menu_team.svg", new TeamManagementPage(api, user)));
         if (CompanyAccess.CanManageBranches(user)) Items.Add(CreateFlyout("Firma & Şubeler", "menu_company.svg", new CompanyManagementPage(api)));
         if (CompanyAccess.CanAudit(user)) Items.Add(CreateFlyout("Denetim Kayıtları", "menu_audit.svg", new AuditPage(api)));
-        Items.Add(CreateFlyout("Ayarlar", "menu_settings.svg", new MoreHubPage(api, user)));
+        Items.Add(CreateFlyout("Ayarlar", "menu_settings.svg", new ApplicationSettingsPage(api, user)));
         Items.Add(CreateFlyout("Yardım", "menu_help.svg", new ValeHelpPage(api, user)));
         Items.Add(CreateFlyout("İletişim ve Destek", "menu_help.svg", new SupportContactPage()));
+        Items.Add(CreateFlyout("Satın Al / Paketim", "menu_security.svg", new PremiumPage(api, user)));
         Items.Add(CreateFlyout("Çıkış", "menu_logout.svg", new LogoutPage(api)));
 
         _observedItem = tabs;
+        var sessionTimer = Dispatcher.CreateTimer();
+        sessionTimer.Interval = TimeSpan.FromSeconds(15);
+        sessionTimer.Tick += (_, _) => { if (api.IsSessionExpired) api.ExpireSession(); };
+        Loaded += (_, _) => sessionTimer.Start();
+        Unloaded += (_, _) => sessionTimer.Stop();
+        Navigated += async (_, e) =>
+        {
+            if (e.Source is ShellNavigationSource.ShellSectionChanged or ShellNavigationSource.ShellItemChanged)
+            {
+                var navigation = CurrentItem?.CurrentItem?.Navigation;
+                if (navigation?.NavigationStack.Count > 1) await navigation.PopToRootAsync(false);
+            }
+        };
         Navigated += (_, _) => TrackTopLevelNavigation();
         _ = LoadHeaderAvatarAsync(api);
         PropertyChanged += (_, e) => { if (e.PropertyName == nameof(FlyoutIsPresented) && FlyoutIsPresented) _ = LoadHeaderAvatarAsync(api); };
@@ -87,6 +108,14 @@ public sealed class ValeAppShellV31 : Shell
         {
             _loadingAvatar = true;
             var profile = await api.GetAccountProfileAsync();
+            _headerBackground.Source = profile.HeaderBackgroundTheme switch
+            {
+                "CarHotel" => "theme_car_hotel.png", "CarNeon" => "theme_car_garage.png", "CarTrack" => "theme_car_coast.png",
+                "Theme" => profile.BackgroundTheme switch { "CarHotel" => "theme_car_hotel.png", "CarNeon" => "theme_car_garage.png", "CarTrack" => "theme_car_coast.png", "AnimeNeon" => "theme_anime_neon.jpg", "AnimeSunset" => "theme_anime_sunset.jpg", _ => null },
+                _ => null
+            };
+            if (FlyoutHeader is Grid layer && layer.Children.LastOrDefault() is Border panel)
+                panel.Background = new SolidColorBrush(Color.FromArgb(profile.ProfileColor).WithAlpha(_headerBackground.Source is null ? 1f : 0.25f));
             _headerName.Text = profile.FullName;
             _headerInitials.Text = string.Concat(profile.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
             if (string.IsNullOrWhiteSpace(profile.ProfilePhotoDataUrl))

@@ -29,7 +29,7 @@ jobs:
             echo "Production readiness check $i/60"
             if curl -fsS --max-time 12 "$endpoint/health/ready" > ready.json; then
               status_json=$(curl -fsS --max-time 12 "$endpoint/api/status" || true)
-              if printf '%s' "$status_json" | grep -q '"version":"3.5.5"' && \
+              if printf '%s' "$status_json" | grep -q '"version":"3.6.0"' && \
                  printf '%s' "$status_json" | grep -q '"rememberedDevices":true' && \
                  printf '%s' "$status_json" | grep -q '"platformAdmin":true' && \
                  printf '%s' "$status_json" | grep -q '"migrations":true'; then
@@ -37,14 +37,14 @@ jobs:
                 cat ready.json
                 break
               fi
-              echo 'VDS henüz VALE API 3.5.5 kayıt ve giriş sürümünde değil.'
+              echo 'VDS henüz VALE API 3.6.0 kayıt ve giriş sürümünde değil.'
             fi
             sleep 10
           done
           test "$ready" = "1"
           curl -fsS --max-time 12 "$endpoint/api/status" | tee status.json
           grep -q 'VALE.Api' status.json
-          grep -q '"version":"3.5.5"' status.json
+          grep -q '"version":"3.6.0"' status.json
           grep -q '"usernameLogin":true' status.json
           grep -q '"multiTenant":true' status.json
           grep -q '"rememberedDevices":true' status.json

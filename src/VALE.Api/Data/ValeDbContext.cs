@@ -259,6 +259,8 @@ public sealed class ValeDbContext(DbContextOptions<ValeDbContext> options)
             entity.Property(x => x.ProfileColor).HasMaxLength(20);
             entity.Property(x => x.ProfileFrame).HasMaxLength(20);
             entity.Property(x => x.BackgroundTheme).HasMaxLength(30);
+            entity.Property(x => x.HeaderBackgroundTheme).HasMaxLength(30);
+            entity.HasIndex(x => x.PhoneNumber).IsUnique().HasFilter("\"PhoneNumberConfirmed\" = TRUE AND \"PhoneNumber\" IS NOT NULL");
             entity.Property(x => x.ProfilePhotoContentType).HasMaxLength(30);
             entity.Property(x => x.City).HasMaxLength(80);
             entity.Property(x => x.About).HasMaxLength(300);

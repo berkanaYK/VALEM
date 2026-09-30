@@ -118,6 +118,8 @@ public sealed class CompanyDashboardPage : ContentPage
 
         var metrics = new Grid { ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star) }, ColumnSpacing = 10, RowSpacing = 10 };
         for (var i = 0; i < cards.Count; i++) metrics.Add(cards[i], i % 2, i / 2);
+        metrics.AutomationId = "home-metrics";
+        _planStatus.AutomationId = "home-plan-status";
 
         var actions = new VerticalStackLayout { Spacing = 9 };
         if (CompanyAccess.CanOperate(user))
@@ -138,13 +140,7 @@ public sealed class CompanyDashboardPage : ContentPage
             team.Clicked += async (_, _) => await Navigation.PushAsync(new TeamManagementPage(_api, _user));
             actions.Add(team);
         }
-        var plan = UiKit.SecondaryButton("Sürüm Ayrıntıları");
-        var support = UiKit.SecondaryButton("İletişim ve Destek");
-        support.AutomationId = "home-support-open";
-        support.Clicked += async (_, _) => await Navigation.PushAsync(new SupportContactPage());
-        actions.Add(support);
-        plan.Clicked += async (_, _) => await Navigation.PushAsync(new PremiumPage(_api, _user));
-        actions.Add(UiKit.Card(new VerticalStackLayout { Spacing = 6, Children = { _planStatus, plan } }, new Thickness(12), 14));
+        actions.Add(UiKit.Card(_planStatus, new Thickness(12), 14));
 
         var list = new CollectionView { ItemsSource = _recent, SelectionMode = SelectionMode.Single, ItemTemplate = ModernTicketTemplates.Card(), HeightRequest = 330, EmptyView = UiKit.Label("Şu anda açık araç kaydı yok.", 13, false, true) };
         list.SelectionChanged += async (_, e) =>
@@ -155,6 +151,8 @@ public sealed class CompanyDashboardPage : ContentPage
                 await Navigation.PushAsync(new CompanyTicketDetailPage(_api, _user, ticket.Id));
             }
         };
+
+        list.AutomationId = "home-recent";
 
         Content = new ScrollView
         {
@@ -191,7 +189,7 @@ public sealed class CompanyDashboardPage : ContentPage
             {
                 var entitlement = await _api.GetEntitlementAsync();
                 PremiumState.Set(_user.Id, entitlement.IsPremium);
-                _planStatus.Text = entitlement.IsPremium ? "VALEM Sınırsız • Tüm özellikler açık" : $"Ücretsiz Deneme • {entitlement.RemainingVehicleRecords} araç hakkı kaldı";
+                _planStatus.Text = entitlement.IsPremium ? "VALEM Ömür Boyu • Tüm özellikler açık" : $"Ücretsiz Deneme • {entitlement.RemainingVehicleRecords} araç hakkı kaldı";
             }
             catch { _planStatus.Text = "Sürüm bilgisi sunucu güncellemesinden sonra açılacak"; }
             _active.Text = data.ActiveVehicles.ToString(CultureInfo.CurrentCulture);
@@ -325,6 +323,7 @@ public sealed class CompanyProfilePage : ContentPage
     private readonly Picker _profileColor = UiKit.Picker("Profil rengi");
     private readonly Picker _profileFrame = UiKit.Picker("Profil çerçevesi");
     private readonly Picker _background = UiKit.Picker("Arka plan teması");
+    private readonly Picker _headerTheme = UiKit.Picker("Sol menü arka planı");
     private AccountProfileDto? _profile;
     private EntitlementDto? _entitlement;
 
@@ -334,20 +333,29 @@ public sealed class CompanyProfilePage : ContentPage
         _about.SetDynamicResource(Editor.TextColorProperty, "ValeText");
         _about.SetDynamicResource(Editor.PlaceholderColorProperty, "ValeSecondary");
         _theme.ItemsSource = new[] { "Sistem", "Açık", "Koyu" };
+        _headerTheme.ItemsSource = new[] { "Profil rengi • Ücretsiz", "Otel Girişi • Ücretsiz", "Gece Garajı • Ömür Boyu", "Sahil Gün Batımı • Ömür Boyu", "Uygulama temasını kullan" };
+        _theme.SelectedIndexChanged += (_, _) => { if (_theme.SelectedIndex >= 0) ThemeService.Apply((ValeThemeMode)_theme.SelectedIndex); };
         _accent.ItemsSource = new[] { "Mavi", "İndigo", "Zümrüt", "Turuncu" };
         _profileColor.ItemsSource = new[] { "Mavi", "İndigo", "Zümrüt", "Turuncu", "Kırmızı", "Mor" };
-        _profileFrame.ItemsSource = new[] { "Çerçevesiz", "Altın • Sınırsız", "Neon • Sınırsız", "Karbon • Sınırsız" };
-        _background.ItemsSource = new[] { "Sade", "Anime • Neon Şehir • Sınırsız", "Anime • Gün Batımı • Ücretsiz", "Araba • Neon Garaj • Sınırsız", "Araba • Gece Rotası • Sınırsız", "Galerimden Özel • Sınırsız" };
+        _profileFrame.ItemsSource = new[] { "Çerçevesiz", "Altın • Ömür Boyu", "Neon • Ömür Boyu", "Karbon • Ömür Boyu" };
+        _background.ItemsSource = new[] { "Sade • Ücretsiz", "Anime • Neon Şehir • Ömür Boyu", "Anime • Gün Batımı • Ücretsiz", "Araba • Gece Garajı • Ömür Boyu", "Araba • Sahil Gün Batımı • Ömür Boyu", "Galerimden Özel • Ömür Boyu", "Araba • Otel Girişi • Ücretsiz" };
 
         var avatarLayer = new Grid(); avatarLayer.Add(_avatar); avatarLayer.Add(_avatarImage);
         _avatarBox = new Border { StrokeThickness = 2, Stroke = new SolidColorBrush(Colors.White), BackgroundColor = ThemeService.Palette.Accent, StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 48 }, WidthRequest = 96, HeightRequest = 96, HorizontalOptions = LayoutOptions.Center, Content = avatarLayer };
         _avatar.HorizontalTextAlignment = TextAlignment.Center; _avatar.VerticalTextAlignment = TextAlignment.Center; _avatar.TextColor = Colors.White;
 
         var photo = UiKit.SecondaryButton("Fotoğraf Ekle / Değiştir"); photo.Clicked += async (_, _) => await ChoosePhotoAsync(photo);
+        photo.AutomationId = "profile-photo";
+        _background.AutomationId = "profile-appearance";
+        _headerTheme.AutomationId = "profile-header";
         var customBackground = UiKit.SecondaryButton("Galeriden Arka Plan Seç"); customBackground.Clicked += async (_, _) => await ChooseCustomBackgroundAsync(customBackground);
         var save = UiKit.PrimaryButton("Değişiklikleri Kaydet"); save.Clicked += async (_, _) => await SaveAsync(save, _avatarBox);
         var security = UiKit.SecondaryButton("İki Adımlı Doğrulama"); security.Clicked += async (_, _) => await Navigation.PushAsync(new TwoFactorPage(_api));
         var password = UiKit.SecondaryButton("Parolayı Değiştir"); password.Clicked += async (_, _) => await Navigation.PushAsync(new ChangePasswordPage(_api));
+        var changeEmail = UiKit.SecondaryButton("E-posta Adresini Değiştir");
+        changeEmail.Clicked += async (_, _) => await Navigation.PushAsync(new ChangeEmailPage(_api));
+        var verifyPhone = UiKit.SecondaryButton("Telefonu SMS ile Doğrula");
+        verifyPhone.Clicked += async (_, _) => await Navigation.PushAsync(new SmsLoginPage(_api, false, true, _phone.Text));
         var logout = UiKit.TextButton("Oturumu Kapat");
         logout.TextColor = ThemeService.Palette.Danger;
         logout.Clicked += async (_, _) =>
@@ -359,8 +367,8 @@ public sealed class CompanyProfilePage : ContentPage
         Content = new ScrollView { Content = new VerticalStackLayout { Padding = 16, Spacing = 14, Children = {
             _avatarBox, photo, UiKit.Label("Profilim", 27, true),
             UiKit.Card(new VerticalStackLayout { Spacing = 9, Children = { UiKit.Label("Kişisel bilgiler", 16, true), _name, _phone, _birthDate, _city, _about, UiKit.Label("Telefon, doğum tarihi, şehir ve hakkımda alanları isteğe bağlıdır. Boş bırakabilir veya daha sonra silebilirsiniz.", 11, false, true), Detail("E-posta", _email), Detail("Personel kodu", _employee), Detail("Görev", _job), Detail("Şube", _branch), Detail("Yetkiler", _roles) } }),
-            UiKit.Card(new VerticalStackLayout { Spacing = 9, Children = { UiKit.Label("Görünüm", 16, true), _theme, _accent, _profileColor, _profileFrame, _background, customBackground, UiKit.Label("Tema tüm sayfalara uygulanır. Görsel arka planda kartlar koyulaşır; yazı rengi ve ağırlığı okunabilirlik için otomatik uyarlanır. Sınırsız etiketli seçenekler premium pakete dahildir.", 11, false, true) } }),
-            save, security, password, logout
+            UiKit.Card(new VerticalStackLayout { Spacing = 9, Children = { UiKit.Label("Görünüm", 16, true), _theme, _accent, _profileColor, _profileFrame, _background, customBackground, UiKit.Label("Tema tüm sayfalara uygulanır. Görsel arka planda kartlar koyulaşır; yazı rengi ve ağırlığı okunabilirlik için otomatik uyarlanır. Ömür Boyu etiketli seçenekler premium pakete dahildir.", 11, false, true) } }),
+            _headerTheme, save, changeEmail, verifyPhone, security, password, logout
         } } };
     }
 
@@ -378,6 +386,7 @@ public sealed class CompanyProfilePage : ContentPage
             _birthDate.Text = _profile.BirthDate?.ToString("dd.MM.yyyy"); _city.Text = _profile.City; _about.Text = _profile.About;
             _email.Text = _profile.Email; _employee.Text = _profile.EmployeeCode ?? "—"; _job.Text = _profile.JobTitle ?? "—"; _branch.Text = _profile.BranchName ?? "—";
             _roles.Text = CompanyAccess.RolesText(_profile.Roles); SetAvatar(_profile);
+            _headerTheme.SelectedIndex = Array.IndexOf(HeaderThemes, _profile.HeaderBackgroundTheme);
             _theme.SelectedIndex = ThemeIndex(_profile.PreferredTheme); _accent.SelectedIndex = AccentIndex(_profile.AccentTheme); _profileColor.SelectedIndex = ProfileColorIndex(_profile.ProfileColor); _profileFrame.SelectedIndex = FrameIndex(_profile.ProfileFrame); _background.SelectedIndex = BackgroundIndex(_profile.BackgroundTheme);
             ApplyFrame(_profile.ProfileFrame);
         }
@@ -401,11 +410,11 @@ public sealed class CompanyProfilePage : ContentPage
             }
             if (!IsPremiumChoiceAllowed())
             {
-                await DisplayAlertAsync("VALEM Sınırsız özelliği", "Seçtiğiniz tema veya profil çerçevesi Sınırsız pakete dahildir.", "Paketi Gör");
+                await DisplayAlertAsync("VALEM Ömür Boyu özelliği", "Seçtiğiniz tema veya profil çerçevesi Ömür Boyu pakete dahildir.", "Paketi Gör");
                 await Navigation.PushAsync(new PremiumPage(_api, _user));
                 return;
             }
-            var request = new UpdateAccountProfileRequest(_name.Text ?? "", N(_phone.Text), ThemeValue(_theme.SelectedIndex), AccentValue(_accent.SelectedIndex), ProfileColorValue(_profileColor.SelectedIndex), BackgroundValue(_background.SelectedIndex), birthDate, N(_city.Text), N(_about.Text), FrameValue(_profileFrame.SelectedIndex));
+            var request = new UpdateAccountProfileRequest(_name.Text ?? "", N(_phone.Text), ThemeValue(_theme.SelectedIndex), AccentValue(_accent.SelectedIndex), ProfileColorValue(_profileColor.SelectedIndex), BackgroundValue(_background.SelectedIndex), birthDate, N(_city.Text), N(_about.Text), FrameValue(_profileFrame.SelectedIndex), HeaderThemes[Math.Clamp(_headerTheme.SelectedIndex, 0, HeaderThemes.Length - 1)]);
             _profile = await _api.UpdateAccountProfileAsync(request);
             ThemeService.ApplyServerPreferences(_profile.PreferredTheme, _profile.AccentTheme, _profile.BackgroundTheme);
             avatarBox.BackgroundColor = Color.FromArgb(_profile.ProfileColor); SetAvatar(_profile); ApplyFrame(_profile.ProfileFrame);
@@ -442,7 +451,7 @@ public sealed class CompanyProfilePage : ContentPage
         {
             if (_entitlement?.IsPremium != true)
             {
-                await DisplayAlertAsync("Kişisel arka plan", "Galerinizden arka plan seçmek VALEM Sınırsız paketine dahildir.", "Paketi Gör");
+                await DisplayAlertAsync("Kişisel arka plan", "Galerinizden arka plan seçmek VALEM Ömür Boyu paketine dahildir.", "Paketi Gör");
                 await Navigation.PushAsync(new PremiumPage(_api, _user));
                 return;
             }
@@ -491,11 +500,12 @@ public sealed class CompanyProfilePage : ContentPage
     private static int AccentIndex(string value) => value.Equals("Indigo", StringComparison.OrdinalIgnoreCase) ? 1 : value.Equals("Emerald", StringComparison.OrdinalIgnoreCase) ? 2 : value.Equals("Orange", StringComparison.OrdinalIgnoreCase) ? 3 : 0;
     private static string AccentValue(int index) => index == 1 ? "Indigo" : index == 2 ? "Emerald" : index == 3 ? "Orange" : "Blue";
     private static readonly string[] ProfileColors = ["#2563EB", "#4F46E5", "#059669", "#EA580C", "#DC2626", "#9333EA"];
+    private static readonly string[] HeaderThemes = ["Profile", "CarHotel", "CarNeon", "CarTrack", "Theme"];
     private static int ProfileColorIndex(string value) { var i = Array.FindIndex(ProfileColors, x => x.Equals(value, StringComparison.OrdinalIgnoreCase)); return i < 0 ? 0 : i; }
     private static string ProfileColorValue(int index) => ProfileColors[Math.Clamp(index, 0, ProfileColors.Length - 1)];
-    private static int BackgroundIndex(string value) => value switch { "AnimeNeon" => 1, "AnimeSunset" => 2, "CarNeon" => 3, "CarTrack" => 4, "Custom" => 5, _ => 0 };
-    private static string BackgroundValue(int index) => index switch { 1 => "AnimeNeon", 2 => "AnimeSunset", 3 => "CarNeon", 4 => "CarTrack", 5 => "Custom", _ => "None" };
-    private bool IsPremiumChoiceAllowed() => _entitlement?.IsPremium == true || (_background.SelectedIndex is 0 or 2 && _profileFrame.SelectedIndex <= 0);
+    private static int BackgroundIndex(string value) => value switch { "AnimeNeon" => 1, "AnimeSunset" => 2, "CarNeon" => 3, "CarTrack" => 4, "Custom" => 5, "CarHotel" => 6, _ => 0 };
+    private static string BackgroundValue(int index) => index switch { 1 => "AnimeNeon", 2 => "AnimeSunset", 3 => "CarNeon", 4 => "CarTrack", 5 => "Custom", 6 => "CarHotel", _ => "None" };
+    private bool IsPremiumChoiceAllowed() => _entitlement?.IsPremium == true || (_background.SelectedIndex is 0 or 2 or 6 && _profileFrame.SelectedIndex <= 0);
     private static int FrameIndex(string value) => value switch { "Gold" => 1, "Neon" => 2, "Carbon" => 3, _ => 0 };
     private static string FrameValue(int index) => index switch { 1 => "Gold", 2 => "Neon", 3 => "Carbon", _ => "None" };
     private void ApplyFrame(string frame)
@@ -641,16 +651,19 @@ public sealed class CompanyTicketsPage : ContentPage
     {
         _api = api; _user = user; UiKit.StylePage(this);
         _branchSelector = new BranchContextSelector(_api, RefreshAsync);
+        _search.AutomationId = "tickets-search";
+        _closed.AutomationId = "tickets-closed";
         _list = new CollectionView { ItemsSource = _items, SelectionMode = SelectionMode.Single, ItemTemplate = ModernTicketTemplates.Card(), EmptyView = UiKit.Label("Kayıt bulunamadı.", 13, false, true) };
         _list.SelectionChanged += async (_, e) => { if (e.CurrentSelection.FirstOrDefault() is TicketSummaryDto ticket) { _list.SelectedItem = null; await Navigation.PushAsync(new CompanyTicketDetailPage(_api, _user, ticket.Id)); } };
+        _list.AutomationId = "tickets-list";
         _search.Completed += async (_, _) => await RefreshAsync(); _closed.Toggled += async (_, _) => await RefreshAsync();
         var find = UiKit.SecondaryButton("Ara"); find.Clicked += async (_, _) => await RefreshAsync();
         var rows = new VerticalStackLayout { Spacing = 10 };
         var searchRow = new Grid { ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }, ColumnSpacing = 8 }; searchRow.Add(_search, 0, 0); searchRow.Add(find, 1, 0);
         rows.Add(_branchSelector); rows.Add(searchRow); rows.Add(new HorizontalStackLayout { Spacing = 9, Children = { _closed, UiKit.Label("Kapanan kayıtları göster", 12, false, true) } });
         if (CompanyAccess.CanOperate(user)) { var add = UiKit.PrimaryButton("Yeni Araç Kabulü"); add.Clicked += async (_, _) => await Navigation.PushAsync(new ModernNewTicketPage(_api, _user)); rows.Add(add); }
-        Content = new Grid { Padding = 16, RowSpacing = 10, RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Star) } };
-        var root = (Grid)Content; root.Add(UiKit.Label("Araçlar", 27, true), 0, 0); root.Add(rows, 0, 1); root.Add(_list, 0, 2);
+        Content = new Grid { Padding = 16, RowSpacing = 10, RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Star) } };
+        var root = (Grid)Content; root.Add(rows, 0, 0); root.Add(_list, 0, 1);
     }
 
     protected override async void OnAppearing() { base.OnAppearing(); await _branchSelector.EnsureLoadedAsync(); await RefreshAsync(); }

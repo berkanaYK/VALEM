@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- VALEM v3.5.5 build 24: login, support and password recovery. -->
+  <!-- VALEM v3.6.0 build 25: page coaching, profile and secure account access. -->
   <PropertyGroup>
     <TargetFramework>net10.0-android</TargetFramework>
     <OutputType>Exe</OutputType>
@@ -11,8 +11,8 @@
     <UseNativeHttpHandler>false</UseNativeHttpHandler>
     <ApplicationTitle>VALE</ApplicationTitle>
     <ApplicationId>com.berkanayk.vale</ApplicationId>
-    <ApplicationDisplayVersion>3.5.5</ApplicationDisplayVersion>
-    <ApplicationVersion>24</ApplicationVersion>
+    <ApplicationDisplayVersion>3.6.0</ApplicationDisplayVersion>
+    <ApplicationVersion>25</ApplicationVersion>
     <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
   </PropertyGroup>
   <ItemGroup>

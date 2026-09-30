@@ -48,26 +48,26 @@ public sealed class MoreHubPage : ContentPage
 {
     public MoreHubPage(ApiClient api, UserDto user)
     {
-        Title = "Ayarlar";
+        Title = "Daha Fazla";
         UiKit.StylePage(this);
         var content = new VerticalStackLayout { Padding = 18, Spacing = 14 };
-        content.Add(UiKit.Label("Ayarlar", 27, true));
+        content.Add(UiKit.Label("Daha Fazla", 27, true));
         content.Add(UiKit.Label("Profilinizi, güvenliğinizi ve görünüm tercihlerinizi yönetin.", 13, false, true));
         void Link(string title, string detail, Func<Page> page)
         {
             var button = UiKit.SecondaryButton(title);
+            button.AutomationId = title switch { "Ayarlar" => "more-settings", "İletişim ve Destek" => "more-support", "Profilim ve Fotoğrafım" => "more-profile", _ => null };
             button.Clicked += async (_, _) => await Navigation.PushAsync(page());
             content.Add(UiKit.Card(new VerticalStackLayout { Spacing = 6, Children = { button, UiKit.Label(detail, 12, false, true) } }));
         }
         Link("Profilim ve Fotoğrafım", "Fotoğraf, telefon, doğum tarihi, şehir ve kişisel bilgiler.", () => new CompanyProfilePage(api, user));
         Link("Görünüm ve Resimli Temalar", "Arka plan görseli, renkler, açık veya koyu görünüm.", () => new CompanyProfilePage(api, user));
-        Link("Sürüm ve Satın Alma", "Kalan ücretsiz araç hakkınız, Sınırsız paket ve satın alma geri yükleme.", () => new PremiumPage(api, user));
+        Link("Ayarlar", "Görünüm, hesap güvenliği ve sistem tercihleri.", () => new ApplicationSettingsPage(api, user));
         Link("Görsel Kullanım Kılavuzu", "Araç kabulden teslime, profil, güvenlik ve paket haklarına kadar görselli ve adım adım anlatım.", () => new UserGuidePage(api, user));
         Link("İletişim ve Destek", $"Hata, kullanım sorusu ve öneriler için {SupportContactPage.SupportEmail}", () => new SupportContactPage());
         Link("Hesap Güvenliği", "İki adımlı doğrulama ve kurtarma kodları.", () => new TwoFactorPage(api));
         Link("Parolayı Değiştir", "Mevcut parolanızı güncelleyin.", () => new ChangePasswordPage(api));
         if (CompanyAccess.CanAudit(user)) Link("Denetim Kayıtları", "Firmanızdaki önemli işlemleri inceleyin.", () => new AuditPage(api));
-        if (CompanyAccess.HasAny(user, ["Owner", "Admin"])) Link("Bağlantı Ayarları", "Sunucu bağlantısını kontrol edin.", () => new ConnectionSettingsPage(api));
         var developer = UiKit.TextButton("Geliştirici");
         developer.Clicked += async (_, _) => await Navigation.PushAsync(new DeveloperSettingsPage(api));
         content.Add(developer);

@@ -25,7 +25,8 @@ public enum ValeBackgroundTheme
     AnimeSunset,
     CarNeon,
     CarTrack,
-    Custom
+    Custom,
+    CarHotel
 }
 
 public sealed record ValePalette(
@@ -263,10 +264,13 @@ public static class ThemeService
 
         if (CurrentBackground != ValeBackgroundTheme.None)
         {
-            return new ValePalette(
+            return dark ? new ValePalette(
                 Color.FromArgb("#101827"), Color.FromRgba(12, 22, 38, 220), Color.FromRgba(21, 34, 54, 225),
                 Colors.White, Color.FromArgb("#D4E2F3"), Color.FromRgba(255, 255, 255, 55), accentColor,
-                Color.FromArgb("#4ADE80"), Color.FromArgb("#FBBF24"), Color.FromArgb("#FB7185"));
+                Color.FromArgb("#4ADE80"), Color.FromArgb("#FBBF24"), Color.FromArgb("#FB7185"))
+                : new ValePalette(Color.FromArgb("#EEF3FA"), Color.FromRgba(255, 255, 255, 242), Color.FromRgba(235, 242, 251, 245),
+                    Color.FromArgb("#14243B"), Color.FromArgb("#465B75"), Color.FromArgb("#BCCBDD"), accentColor,
+                    Color.FromArgb("#166534"), Color.FromArgb("#854D0E"), Color.FromArgb("#B91C1C"));
         }
 
         var tintedPage = accent switch

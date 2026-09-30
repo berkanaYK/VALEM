@@ -7,15 +7,18 @@ public static class UiKit
 {
     public static void StylePage(ContentPage page)
     {
+        GuidedTour.Attach(page);
         page.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValePage");
-        PropertyChangedEventHandler? handler = null;
-        handler = (_, args) =>
+        // Wrap after the page constructor has finished adding rows and children.
+        // Wrapping synchronously during Content assignment makes callers populate
+        // the background host instead of their original Grid.
+        page.Loaded += (_, _) =>
         {
-            if (args.PropertyName != nameof(ContentPage.Content) || page.Content is null || page.Content is ThemeBackgroundHost) return;
-            page.PropertyChanged -= handler;
-            page.Content = new ThemeBackgroundHost(page.Content);
+            if (page.Content is null || page.Content is ThemeBackgroundHost) return;
+            var content = page.Content;
+            page.Content = null;
+            page.Content = new ThemeBackgroundHost(content);
         };
-        page.PropertyChanged += handler;
     }
 
     public static Label Label(string text, double size = 14, bool bold = false, bool secondary = false)
@@ -326,8 +329,9 @@ public sealed class ThemeBackgroundHost : Grid
         {
             ValeBackgroundTheme.AnimeNeon => ImageSource.FromFile("theme_anime_neon.jpg"),
             ValeBackgroundTheme.AnimeSunset => ImageSource.FromFile("theme_anime_sunset.jpg"),
-            ValeBackgroundTheme.CarNeon => ImageSource.FromFile("theme_car_neon.jpg"),
-            ValeBackgroundTheme.CarTrack => ImageSource.FromFile("theme_car_track.jpg"),
+            ValeBackgroundTheme.CarNeon => ImageSource.FromFile("theme_car_garage.png"),
+            ValeBackgroundTheme.CarTrack => ImageSource.FromFile("theme_car_coast.png"),
+            ValeBackgroundTheme.CarHotel => ImageSource.FromFile("theme_car_hotel.png"),
             ValeBackgroundTheme.Custom when File.Exists(ThemeService.CustomBackgroundPath) =>
                 ImageSource.FromStream(() => File.OpenRead(ThemeService.CustomBackgroundPath!)),
             _ => null

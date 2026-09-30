@@ -25,6 +25,45 @@ public sealed class EmailVerificationController(
 {
     private readonly EmailOptions _emailOptions = emailOptions.Value;
 
+    [HttpPost("email-change"), Authorize, EnableRateLimiting("email-code")]
+    public async Task<IActionResult> RequestEmailChange(ChangeEmailRequest request, CancellationToken ct)
+    {
+        if (!Guid.TryParse(User.FindFirst("sub")?.Value, out var id))
+            throw new ApiException(401, "Oturum geçersiz", "Tekrar giriş yapın.");
+        var user = await userManager.FindByIdAsync(id.ToString());
+        if (user is null || !user.IsActive || !await userManager.CheckPasswordAsync(user, request.CurrentPassword))
+            throw new ApiException(400, "Parola doğrulanamadı", "Mevcut parolanızı kontrol edin.");
+        if (!emailSender.IsConfigured) throw new ApiException(503, "E-posta hazır değil", "E-posta şu anda gönderilemiyor.");
+        var address = request.NewEmail.Trim();
+        var existing = await userManager.FindByEmailAsync(address);
+        if (existing is not null) throw new ApiException(409, "E-posta kullanılıyor", "Bu e-posta başka bir hesapta kullanılıyor veya mevcut adresinizle aynı.");
+        if (!Uri.TryCreate(_emailOptions.PublicBaseUrl, UriKind.Absolute, out var root) || root.Scheme != "https")
+            throw new ApiException(503, "Doğrulama hazır değil", "E-posta doğrulaması şu anda kullanılamıyor.");
+        var token = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(await userManager.GenerateChangeEmailTokenAsync(user, address)));
+        var url = $"{root.ToString().TrimEnd('/')}/api/auth/confirm-email-change?userId={user.Id:D}&email={Uri.EscapeDataString(address)}&token={Uri.EscapeDataString(token)}";
+        await emailSender.SendEmailConfirmationLinkAsync(address, user.FullName, url, ct);
+        await audit.RecordAsync(user.Id, user.BranchId, "security.email.change.requested", "User", user.Id.ToString(), "Yeni e-posta adresine doğrulama istendi.", cancellationToken: ct);
+        return Accepted(new { message = "Yeni adresinize doğrulama bağlantısı gönderildi. Onaylayana kadar eski adresiniz geçerlidir." });
+    }
+
+    [HttpGet("confirm-email-change"), AllowAnonymous, EnableRateLimiting("email-code")]
+    public async Task<ContentResult> ConfirmEmailChange(Guid userId, string email, string token, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(email) || email.Length > 256 || string.IsNullOrWhiteSpace(token) || token.Length > 4096)
+            return Html(400, "Bağlantı geçersiz", "Doğrulama bağlantısını kontrol edin.");
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        if (user is null || !user.IsActive) return Html(400, "Bağlantı geçersiz", "Doğrulama bağlantısı kullanılamadı.");
+        var existing = await userManager.FindByEmailAsync(email);
+        if (existing is not null) return Html(400, "Adres kullanılıyor", "Bu e-posta adresi artık kullanılamıyor. Uygulamadan yeni bir adres isteyin.");
+        string raw;
+        try { raw = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(token)); }
+        catch (FormatException) { return Html(400, "Bağlantı geçersiz", "Bağlantının biçimi geçersiz."); }
+        var result = await userManager.ChangeEmailAsync(user, email.Trim(), raw);
+        if (!result.Succeeded) return Html(400, "Bağlantı geçersiz", "Bağlantının süresi dolmuş olabilir. Uygulamadan tekrar isteyin.");
+        await audit.RecordAsync(user.Id, user.BranchId, "security.email.changed", "User", user.Id.ToString(), "Yeni e-posta doğrulandı ve giriş adresi güncellendi.", cancellationToken: ct);
+        return Html(200, "E-posta değiştirildi", "Yeni e-posta adresiniz doğrulandı. Yeni adresiniz veya kullanıcı adınızla giriş yapabilirsiniz.");
+    }
+
     [HttpPost("email-confirmation/resend")]
     [AllowAnonymous]
     [EnableRateLimiting("email-code")]

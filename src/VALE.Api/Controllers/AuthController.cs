@@ -18,8 +18,86 @@ public sealed class AuthController(
     PasswordResetCodeService resetCodes,
     OneTimeCodeService oneTimeCodes,
     IValeEmailSender emailSender,
-    AuditService audit) : ControllerBase
+    AuditService audit,
+    IValeSmsSender? smsSender = null) : ControllerBase
 {
+    [HttpGet("sms/status"), AllowAnonymous]
+    public IActionResult SmsStatus() => Ok(new { enabled = smsSender?.IsConfigured == true });
+
+    [HttpPost("sms/send"), AllowAnonymous, EnableRateLimiting("email-code")]
+    public async Task<IActionResult> SendSms(SmsCodeRequest request, CancellationToken ct)
+    {
+        EnsureSmsReady();
+        var phone = PhoneNumbers.Normalize(request.PhoneNumber);
+        var user = await userManager.Users.SingleOrDefaultAsync(x => x.PhoneNumber == phone && x.PhoneNumberConfirmed, ct);
+        if (user is { IsActive: true, EmailConfirmed: true } && !await userManager.IsLockedOutAsync(user))
+            await smsSender!.SendAsync(phone, await oneTimeCodes.CreateAsync(user, "sms-login"), ct);
+        else await Task.Delay(200, ct);
+        return Accepted(new { message = "Numara doğrulanmış bir hesaba bağlıysa giriş kodu gönderildi." });
+    }
+
+    [HttpPost("sms/verify"), AllowAnonymous, EnableRateLimiting("login")]
+    public async Task<ActionResult<LoginResponse>> VerifySms(SmsVerifyRequest request, CancellationToken ct)
+    {
+        EnsureSmsReady();
+        var phone = PhoneNumbers.Normalize(request.PhoneNumber);
+        var user = await userManager.Users.SingleOrDefaultAsync(x => x.PhoneNumber == phone && x.PhoneNumberConfirmed, ct);
+        if (user is null || !user.IsActive || !user.EmailConfirmed)
+            throw new ApiException(401, "Giriş yapılamadı", "Telefon numarası veya doğrulama kodu geçersiz.");
+        if (await userManager.IsLockedOutAsync(user)) throw new ApiException(423, "Geçici kilit", "Çok sayıda hatalı kod girildi. Bir süre sonra tekrar deneyin.");
+        if (user.TwoFactorEnabled && string.IsNullOrWhiteSpace(request.TwoFactorCode)) return TwoFactorRequired();
+        if (user.TwoFactorEnabled && !await userManager.VerifyTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider, NormalizeCode(request.TwoFactorCode!)))
+        {
+            await userManager.AccessFailedAsync(user);
+            throw new ApiException(401, "Kod geçersiz", "Authenticator kodunu kontrol edin.");
+        }
+        if (!await oneTimeCodes.ValidateAndConsumeAsync(user, "sms-login", request.Code))
+        {
+            await userManager.AccessFailedAsync(user);
+            throw new ApiException(401, "Kod geçersiz", "SMS kodu hatalı veya süresi dolmuş.");
+        }
+        await userManager.ResetAccessFailedCountAsync(user);
+        return Ok(await CompleteLoginAsync(user, user.TwoFactorEnabled ? "sms+totp" : "sms", request.RememberDevice, request.DeviceName, ct));
+    }
+
+    [HttpPost("phone/send"), Authorize, EnableRateLimiting("email-code")]
+    public async Task<IActionResult> SendPhoneVerification(SmsCodeRequest request, CancellationToken ct)
+    {
+        EnsureSmsReady();
+        var user = await GetCurrentUserAsync(ct);
+        var phone = PhoneNumbers.Normalize(request.PhoneNumber);
+        if (await userManager.Users.AnyAsync(x => x.Id != user.Id && x.PhoneNumberConfirmed && x.PhoneNumber == phone, ct))
+            throw new ApiException(409, "Numara kullanılıyor", "Bu telefon numarası başka bir hesapta doğrulanmış.");
+        await smsSender!.SendAsync(phone, await oneTimeCodes.CreateAsync(user, "phone:" + phone), ct);
+        return Accepted(new { message = "Telefon doğrulama kodu gönderildi." });
+    }
+
+    [HttpPost("phone/verify"), Authorize, EnableRateLimiting("login")]
+    public async Task<IActionResult> VerifyPhone(SmsVerifyRequest request, CancellationToken ct)
+    {
+        EnsureSmsReady();
+        var user = await GetCurrentUserAsync(ct);
+        if (await userManager.IsLockedOutAsync(user)) throw new ApiException(423, "Geçici kilit", "Bir süre sonra tekrar deneyin.");
+        var phone = PhoneNumbers.Normalize(request.PhoneNumber);
+        if (!await oneTimeCodes.ValidateAndConsumeAsync(user, "phone:" + phone, request.Code))
+        {
+            await userManager.AccessFailedAsync(user);
+            throw new ApiException(400, "Kod geçersiz", "SMS kodunu kontrol edin veya yeni kod isteyin.");
+        }
+        if (await userManager.Users.AnyAsync(x => x.Id != user.Id && x.PhoneNumberConfirmed && x.PhoneNumber == phone, ct))
+            throw new ApiException(409, "Numara kullanılıyor", "Bu telefon numarası başka bir hesapta doğrulanmış.");
+        user.PhoneNumber = phone; user.PhoneNumberConfirmed = true;
+        var result = await userManager.UpdateAsync(user);
+        if (!result.Succeeded) throw new ApiException(400, "Telefon kaydedilemedi", "Tekrar deneyin.");
+        await userManager.ResetAccessFailedCountAsync(user);
+        await audit.RecordAsync(user.Id, user.BranchId, "security.phone.verified", "User", user.Id.ToString(), "Telefon numarası SMS ile doğrulandı.", cancellationToken: ct);
+        return Ok(new { message = "Telefon doğrulandı. SMS ile giriş yapabilirsiniz." });
+    }
+
+    private void EnsureSmsReady()
+    {
+        if (smsSender?.IsConfigured != true) throw new ApiException(503, "SMS girişi hazır değil", "SMS ile giriş henüz etkin değil. E-posta veya parola ile giriş yapabilirsiniz.");
+    }
     [HttpPost("login")]
     [AllowAnonymous]
     [EnableRateLimiting("login")]
@@ -204,16 +282,22 @@ public sealed class AuthController(
     {
         var theme = NormalizeChoice(request.PreferredTheme, ["System", "Light", "Dark"], "System");
         var accent = NormalizeChoice(request.AccentTheme, ["Blue", "Indigo", "Emerald", "Orange"], "Blue");
-        var background = NormalizeChoice(request.BackgroundTheme, ["None", "AnimeNeon", "AnimeSunset", "CarNeon", "CarTrack", "Custom"], "None");
+        var background = NormalizeChoice(request.BackgroundTheme, ["None", "AnimeNeon", "AnimeSunset", "CarNeon", "CarTrack", "Custom", "CarHotel"], "None");
         var frame = NormalizeChoice(request.ProfileFrame, ["None", "Gold", "Neon", "Carbon"], "None");
         var user = await GetCurrentUserAsync(cancellationToken);
         var premium = IsPremiumUser(user);
-        if (!premium && background is not ("None" or "AnimeSunset"))
+        var header = request.HeaderBackgroundTheme is null ? user.HeaderBackgroundTheme
+            : NormalizeChoice(request.HeaderBackgroundTheme, ["Profile", "CarHotel", "CarNeon", "CarTrack", "Theme"], "Profile");
+        if (!premium && header is "CarNeon" or "CarTrack")
+            throw new ApiException(402, "Premium görünüm", "Bu menü arka planı Ömür Boyu paketine dahildir.");
+        if (!premium && background is not ("None" or "AnimeSunset" or "CarHotel"))
             throw new ApiException(StatusCodes.Status402PaymentRequired, "Bu tema VALEM Sınırsız'a özel", "Anime Gün Batımı ve sade görünümü ücretsiz kullanabilirsiniz. Diğer resimli temalar için VALEM Sınırsız paketini açın.");
         if (!premium && frame != "None")
             throw new ApiException(StatusCodes.Status402PaymentRequired, "Bu çerçeve VALEM Sınırsız'a özel", "Premium profil çerçevelerini kullanmak için VALEM Sınırsız paketini açın.");
         user.FullName = request.FullName.Trim();
-        user.PhoneNumber = Clean(request.PhoneNumber);
+        var phoneNumber = Clean(request.PhoneNumber);
+        if (!string.Equals(user.PhoneNumber, phoneNumber, StringComparison.Ordinal)) user.PhoneNumberConfirmed = false;
+        user.PhoneNumber = phoneNumber;
         if (request.BirthDate is { } birthDate &&
             (birthDate > DateOnly.FromDateTime(DateTime.UtcNow) || birthDate < DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-120)))
             throw new ApiException(400, "Doğum tarihi geçersiz", "Doğum tarihinizi kontrol edin veya bu isteğe bağlı alanı boş bırakın.");
@@ -225,6 +309,7 @@ public sealed class AuthController(
         user.ProfileColor = request.ProfileColor.ToUpperInvariant();
         user.ProfileFrame = frame;
         user.BackgroundTheme = background;
+        user.HeaderBackgroundTheme = header;
         var result = await userManager.UpdateAsync(user);
         if (!result.Succeeded) throw new ApiException(StatusCodes.Status400BadRequest, "Profil kaydedilemedi", string.Join(" ", result.Errors.Select(x => x.Description)));
         await audit.RecordAsync(user.Id, user.BranchId, "profile.preferences.updated", "User", user.Id.ToString(), "Profil ve görünüm tercihleri güncellendi.", cancellationToken: cancellationToken);
@@ -419,7 +504,7 @@ public sealed class AuthController(
         user.PreferredTheme, user.AccentTheme, user.ProfileColor, user.TwoFactorEnabled, user.BackgroundTheme,
         user.ProfilePhoto is { Length: > 0 } && !string.IsNullOrWhiteSpace(user.ProfilePhotoContentType)
             ? $"data:{user.ProfilePhotoContentType};base64,{Convert.ToBase64String(user.ProfilePhoto)}"
-            : null, user.BirthDate, user.City, user.About, user.ProfileFrame);
+            : null, user.BirthDate, user.City, user.About, user.ProfileFrame, user.HeaderBackgroundTheme);
 
     private static bool HasValidImageSignature(string contentType, byte[] bytes) => contentType switch
     {

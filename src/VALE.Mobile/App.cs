@@ -23,10 +23,10 @@ public sealed class App : Application
     {
         if (Current?.Windows.FirstOrDefault() is { } window)
         {
+            GuidedTour.BeginSession(user);
             var shell = new ValeAppShellV31(api, user);
             window.Page = shell;
             _ = SyncAccountAsync(api, user);
-            _ = GuidedTour.ShowMainAsync(shell, user);
             _ = PushTokenManager.AttachAsync(api);
         }
     }

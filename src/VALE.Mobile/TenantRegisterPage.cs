@@ -17,6 +17,7 @@ public sealed class TenantRegisterPage : ContentPage
     private readonly VerticalStackLayout _ownerFields = new() { Spacing = 10 };
     private readonly VerticalStackLayout _staffFields = new() { Spacing = 10 };
     private readonly Entry _companyName = UiKit.Entry("Firma adı");
+    private readonly Border _companyField;
     private readonly Entry _companyCode = UiKit.Entry("Firma kodu (örn. ACME)");
     private readonly Entry _branchName = UiKit.Entry("İlk şube adı");
     private readonly Entry _branchCode = UiKit.Entry("Şube kodu (örn. 01)");
@@ -46,7 +47,8 @@ public sealed class TenantRegisterPage : ContentPage
         _city.AutomationId = "register-city";
         _employeeCode.AutomationId = "register-employee-code";
 
-        _accountType.ItemsSource = new[] { "Kendi firmamı oluştur", "Kişisel hesap oluştur", "Mevcut firmama katıl" };
+        _companyField = UiKit.Field(_companyName);
+        _accountType.ItemsSource = new[] { "Kendi firmanı oluştur", "Kişisel hesap oluştur", "Mevcut firmana katıl" };
         _accountType.SelectedIndex = 0;
         _accountType.SelectedIndexChanged += (_, _) => UpdateMode();
 
@@ -76,7 +78,7 @@ public sealed class TenantRegisterPage : ContentPage
         _ownerFields.Children.Add(ownerAdvancedToggle);
         _ownerFields.Children.Add(ownerAdvancedCard);
 
-        _staffFields.Children.Add(UiKit.Label("Deneme için istediğiniz firma adını yazabilirsiniz. Size özel firma ve Merkez şube kodları otomatik oluşturulur; davet veya yönetici onayı gerekmez.", 11.5, false, true));
+        _staffFields.Children.Add(UiKit.Label("Kişisel çalışma alanınız otomatik oluşturulur. Firma adı veya davet kodu gerekmez.", 11.5, false, true));
         _staffFields.Children.Add(UiKit.Field(_employeeCode));
         _joinFields.Add(UiKit.Label("Firma ve şube kodunu yöneticinizden alın. Başvurunuz onaylandığında firmanın izin verilen kayıtlarına erişebilirsiniz. Davet kodu gerekmez.", 11.5, false, true));
         _joinFields.Add(UiKit.Field(_joinCompanyCode));
@@ -101,14 +103,14 @@ public sealed class TenantRegisterPage : ContentPage
                         Children =
                         {
                             UiKit.Label("Hesap türü", 11, true, true),
-                            _accountType,
+                            PickerField(_accountType),
                             UiKit.Field(_name),
                             UiKit.Field(_email),
                             UiKit.Field(_username),
                             UiKit.Label("Kullanıcı adı 3-30 karakter olabilir; harf, rakam, nokta, alt çizgi ve kısa çizgi kullanabilirsiniz.", 11, false, true),
                             _passwordFields,
                             UiKit.Field(_phone),
-                            UiKit.Field(_companyName),
+                            _companyField,
                             _ownerFields,
                             _staffFields,
                             _joinFields,
@@ -134,7 +136,8 @@ public sealed class TenantRegisterPage : ContentPage
         _ownerFields.IsVisible = owner;
         _staffFields.IsVisible = _accountType.SelectedIndex == 1;
         _joinFields.IsVisible = _accountType.SelectedIndex == 2;
-        _companyName.IsVisible = _accountType.SelectedIndex != 2;
+        _companyField.IsVisible = _accountType.SelectedIndex != 1;
+        _companyName.Placeholder = _accountType.SelectedIndex == 2 ? "Firma adı (isteğe bağlı; bağlantı firma koduyla yapılır)" : "Firma adı";
     }
 
     private async Task SaveAsync(Button save)
@@ -190,14 +193,9 @@ public sealed class TenantRegisterPage : ContentPage
             }
             else
             {
-                if (string.IsNullOrWhiteSpace(_companyName.Text))
-                {
-                    await DisplayAlertAsync("Firma bilgileri", "Deneme hesabınız için bir firma adı yazın.", "Tamam");
-                    return;
-                }
                 result = await _api.RegisterStaffAsync(new StaffRegisterRequest(
                     _name.Text.Trim(), _email.Text.Trim(), _password.Text, N(_phone.Text),
-                    null, null, null, N(_employeeCode.Text), loginMethod, _companyName.Text.Trim(), _username.Text.Trim()));
+                    null, null, null, N(_employeeCode.Text), loginMethod, $"{_name.Text.Trim()} Kişisel", _username.Text.Trim()));
             }
 
             await DisplayAlertAsync(result.RequiresApproval ? "Başvuru oluşturuldu" : "Hesap hazır", result.Message, "Tamam");
@@ -214,6 +212,12 @@ public sealed class TenantRegisterPage : ContentPage
     }
 
     private static string? N(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private static View PickerField(Picker picker)
+    {
+        var grid = new Grid { ColumnDefinitions = [new(GridLength.Star), new(GridLength.Auto)] };
+        grid.Add(picker, 0); grid.Add(UiKit.Label("⌄", 24, true), 1);
+        return UiKit.Card(grid, new Thickness(10, 0), 13);
+    }
     private static bool IsStrongPassword(string? password) =>
         !string.IsNullOrWhiteSpace(password) && password.Length is >= 6 and <= 20 &&
         password.Any(char.IsUpper) && password.Any(char.IsLower) && password.Any(char.IsDigit) &&

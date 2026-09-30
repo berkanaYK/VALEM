@@ -27,6 +27,8 @@ public sealed class ApiClient : IDisposable
     private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
     private HttpClient _httpClient;
     private string? _accessToken;
+    private DateTimeOffset? _sessionExpiresAt;
+    public bool IsSessionExpired => IsAuthenticated && _sessionExpiresAt <= DateTimeOffset.UtcNow;
     private readonly SemaphoreSlim _branchContextGate = new(1, 1);
     private IReadOnlyList<BranchDto> _accessibleBranches = Array.Empty<BranchDto>();
     private Guid? _activeBranchId;
@@ -36,6 +38,28 @@ public sealed class ApiClient : IDisposable
     public string CustomServerUrl => Preferences.Default.Get(CustomUrlPreference, ProductionBaseUrl);
     public string EffectiveBaseUrl => CustomServerEnabled ? NormalizeBaseUrl(CustomServerUrl) : ProductionBaseUrl;
     public bool IsAuthenticated => !string.IsNullOrWhiteSpace(_accessToken);
+    public async Task<bool> IsSmsAvailableAsync()
+    {
+        var status = await GetAsync<Dictionary<string, bool>>("api/auth/sms/status", false, default);
+        return status.GetValueOrDefault("enabled");
+    }
+    public async Task RequestSmsAsync(string phone, bool verifyPhone = false)
+    {
+        using var response = await SendJsonAsync(HttpMethod.Post, verifyPhone ? "api/auth/phone/send" : "api/auth/sms/send", new SmsCodeRequest(phone), verifyPhone, default);
+        await EnsureSuccessAsync(response, default);
+    }
+    public async Task<UserDto?> VerifySmsAsync(string phone, string code, string? totp, bool remember, bool verifyPhone = false)
+    {
+        using var response = await SendJsonAsync(HttpMethod.Post, verifyPhone ? "api/auth/phone/verify" : "api/auth/sms/verify", new SmsVerifyRequest(phone, code, totp, remember, DeviceName), verifyPhone, default);
+        if (await IsTwoFactorRequiredAsync(response, default)) throw new TwoFactorRequiredException();
+        await EnsureSuccessAsync(response, default);
+        return verifyPhone ? null : (await AcceptLoginAsync(response, default)).User;
+    }
+    public async Task RequestEmailChangeAsync(string email, string password)
+    {
+        using var response = await SendJsonAsync(HttpMethod.Post, "api/auth/email-change", new ChangeEmailRequest(email, password), true, default);
+        await EnsureSuccessAsync(response, default);
+    }
     public Guid? ActiveBranchId => _activeBranchId;
     public string? ActiveBranchName => _accessibleBranches.FirstOrDefault(x => x.Id == _activeBranchId)?.Name;
     public IReadOnlyList<BranchDto> AccessibleBranches => _accessibleBranches;
@@ -162,6 +186,7 @@ public sealed class ApiClient : IDisposable
             ?? throw new UserFacingException("Deneme ekranı açılamadı.");
         TryRemoveRefreshToken();
         _accessToken = session.AccessToken;
+        _sessionExpiresAt = session.ExpiresAt;
         ResetBranchContext(session.User.BranchId);
         return session.User;
     }
@@ -489,6 +514,7 @@ public sealed class ApiClient : IDisposable
     {
         var login = await response.Content.ReadFromJsonAsync<LoginResponse>(JsonOptions, ct) ?? throw new UserFacingException("Sunucudan geçerli giriş yanıtı alınamadı.");
         _accessToken = login.AccessToken;
+        _sessionExpiresAt = login.ExpiresAt;
         if (string.IsNullOrWhiteSpace(login.RefreshToken))
             TryRemoveRefreshToken();
         else
@@ -560,10 +586,28 @@ public sealed class ApiClient : IDisposable
         using var request = factory();
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct);
         linked.CancelAfter(timeout);
-        try { return await _httpClient.SendAsync(request, HttpCompletionOption.ResponseContentRead, linked.Token); }
+        try
+        {
+            var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseContentRead, linked.Token);
+            if (response.StatusCode == HttpStatusCode.Unauthorized && request.Headers.Authorization is not null)
+                ExpireSession();
+            return response;
+        }
         catch (TaskCanceledException) when (!ct.IsCancellationRequested) { throw new UserFacingException("Sunucu yanıt vermedi. Tekrar deneyin."); }
         catch (HttpRequestException ex) { throw new UserFacingException("Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.", ex); }
         catch (Exception ex) when (ex.GetType().FullName?.StartsWith("Java.", StringComparison.Ordinal) == true) { throw new UserFacingException("Telefonunuz sunucuya bağlanamadı. Bağlantınızı kontrol edip tekrar deneyin.", ex); }
+    }
+
+    public void ExpireSession()
+    {
+        if (!IsAuthenticated) return;
+        Logout();
+        MainThread.BeginInvokeOnMainThread(async () =>
+        {
+            App.ShowLogin();
+            if (Application.Current?.Windows.FirstOrDefault()?.Page is Page page)
+                await page.DisplayAlertAsync("Oturum sona erdi", "Güvenliğiniz için oturumunuz kapatıldı. Yeniden giriş yapabilirsiniz.", "Tamam");
+        });
     }
 
     private static async Task<bool> IsTwoFactorRequiredAsync(HttpResponseMessage response, CancellationToken ct)

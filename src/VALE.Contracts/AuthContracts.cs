@@ -19,6 +19,17 @@ public sealed record RefreshSessionRequest(
     [param: Required, MinLength(40), MaxLength(256)] string RefreshToken,
     [param: MaxLength(120)] string? DeviceName = null);
 
+public sealed record SmsCodeRequest([param: Required, MaxLength(30)] string PhoneNumber);
+public sealed record SmsVerifyRequest(
+    [param: Required, MaxLength(30)] string PhoneNumber,
+    [param: Required, RegularExpression("^[0-9]{6}$")] string Code,
+    [param: MaxLength(10)] string? TwoFactorCode = null,
+    bool RememberDevice = false,
+    [param: MaxLength(120)] string? DeviceName = null);
+public sealed record ChangeEmailRequest(
+    [param: Required, EmailAddress, MaxLength(256)] string NewEmail,
+    [param: Required, MaxLength(128)] string CurrentPassword);
+
 public sealed record RegisterRequest(
     [param: Required, MinLength(2), MaxLength(120)] string FullName,
     [param: Required, EmailAddress, MaxLength(256)] string Email,

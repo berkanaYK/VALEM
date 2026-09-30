@@ -17,6 +17,115 @@ namespace VALE.Api.Tests;
 
 public sealed class EmailLoginTests
 {
+    [Theory]
+    [InlineData("0532 123 45 67", "+905321234567")]
+    [InlineData("+90 (532) 123-4567", "+905321234567")]
+    [InlineData("00905321234567", "+905321234567")]
+    public void Phone_numbers_use_one_canonical_format(string input, string expected)
+        => Assert.Equal(expected, PhoneNumbers.Normalize(input));
+
+    [Theory]
+    [InlineData("90+5321234567")]
+    [InlineData("++905321234567")]
+    [InlineData("123")]
+    [InlineData("+90abc5321234567")]
+    public void Malformed_phone_numbers_are_rejected(string input)
+        => Assert.Throws<ApiException>(() => PhoneNumbers.Normalize(input));
+
+    [Fact]
+    public async Task Sms_login_requires_a_verified_phone_and_consumes_the_code()
+    {
+        await using var h = await Harness.CreateAsync();
+        h.User.PhoneNumber = "+905321234567";
+        await h.Users.UpdateAsync(h.User);
+        var code = await h.Codes.CreateAsync(h.User, "sms-login");
+        var unverified = await Assert.ThrowsAsync<ApiException>(() => h.Controller.VerifySms(new(h.User.PhoneNumber, code), default));
+        Assert.Equal(401, unverified.StatusCode);
+        h.User.PhoneNumberConfirmed = true;
+        await h.Users.UpdateAsync(h.User);
+        Assert.IsType<OkObjectResult>((await h.Controller.VerifySms(new(h.User.PhoneNumber, code), default)).Result);
+        Assert.Equal(401, (await Assert.ThrowsAsync<ApiException>(() => h.Controller.VerifySms(new(h.User.PhoneNumber, code), default))).StatusCode);
+    }
+
+    [Fact]
+    public async Task Sms_login_does_not_bypass_authenticator()
+    {
+        await using var h = await Harness.CreateAsync();
+        h.User.PhoneNumber = "+905321234567"; h.User.PhoneNumberConfirmed = true;
+        await h.Users.UpdateAsync(h.User);
+        await h.Users.SetTwoFactorEnabledAsync(h.User, true);
+        var code = await h.Codes.CreateAsync(h.User, "sms-login");
+        Assert.IsType<UnauthorizedObjectResult>((await h.Controller.VerifySms(new(h.User.PhoneNumber, code), default)).Result);
+        Assert.Equal(401, (await Assert.ThrowsAsync<ApiException>(() => h.Controller.VerifySms(new(h.User.PhoneNumber, code, "123456"), default))).StatusCode);
+        Assert.True(await h.Codes.ValidateAndConsumeAsync(h.User, "sms-login", code));
+    }
+
+    [Fact]
+    public async Task Sms_codes_are_bound_to_purpose_and_phone()
+    {
+        await using var h = await Harness.CreateAsync();
+        var code = await h.Codes.CreateAsync(h.User, "phone:+905321234567");
+        Assert.False(await h.Codes.ValidateAndConsumeAsync(h.User, "sms-login", code));
+        Assert.False(await h.Codes.ValidateAndConsumeAsync(h.User, "phone:+905331234567", code));
+        Assert.True(await h.Codes.ValidateAndConsumeAsync(h.User, "phone:+905321234567", code));
+    }
+
+    private sealed class TestSmsSender : IValeSmsSender
+    {
+        public bool IsConfigured => true;
+        public Task SendAsync(string phone, string code, CancellationToken ct) => Task.CompletedTask;
+    }
+
+    [Fact]
+    public async Task Free_profile_allows_hotel_theme_but_rejects_paid_theme_and_header()
+    {
+        await using var h = await Harness.CreateAsync();
+        var controller = h.ProfileController;
+        var request = new UpdateAccountProfileRequest(h.User.FullName, null, "Light", "Blue", "#2563EB", "CarHotel", HeaderBackgroundTheme: "CarHotel");
+        Assert.IsType<OkObjectResult>((await controller.UpdateAccountProfile(request, default)).Result);
+        Assert.Equal("CarHotel", h.User.HeaderBackgroundTheme);
+        Assert.Equal(402, (await Assert.ThrowsAsync<ApiException>(() => controller.UpdateAccountProfile(request with { BackgroundTheme = "CarNeon" }, default))).StatusCode);
+        Assert.Equal(402, (await Assert.ThrowsAsync<ApiException>(() => controller.UpdateAccountProfile(request with { HeaderBackgroundTheme = "CarTrack" }, default))).StatusCode);
+    }
+
+    [Fact]
+    public async Task Changing_profile_phone_revokes_its_sms_verification()
+    {
+        await using var h = await Harness.CreateAsync();
+        h.User.PhoneNumber = "+905321234567"; h.User.PhoneNumberConfirmed = true;
+        await h.Users.UpdateAsync(h.User);
+        var request = new UpdateAccountProfileRequest(h.User.FullName, "+905331234567", "Light", "Blue", "#2563EB", "None");
+        await h.ProfileController.UpdateAccountProfile(request, default);
+        Assert.False(h.User.PhoneNumberConfirmed);
+    }
+
+    [Fact]
+    public async Task Email_change_requires_password_and_proof_of_the_new_address()
+    {
+        await using var h = await Harness.CreateAsync();
+        var controller = h.EmailController;
+        Assert.Equal(400, (await Assert.ThrowsAsync<ApiException>(() => controller.RequestEmailChange(new("new@example.test", "wrong"), default))).StatusCode);
+        Assert.IsType<AcceptedResult>(await controller.RequestEmailChange(new("new@example.test", "Test!1"), default));
+        Assert.Equal("login@example.test", h.User.Email);
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(h.Email.LastUrl!).Query);
+        var token = query["token"].ToString();
+        Assert.Equal(400, (await controller.ConfirmEmailChange(h.User.Id, "other@example.test", token, default)).StatusCode);
+        Assert.Equal("login@example.test", h.User.Email);
+        Assert.Equal(200, (await controller.ConfirmEmailChange(h.User.Id, "new@example.test", token, default)).StatusCode);
+        Assert.Equal("new@example.test", h.User.Email);
+        Assert.True(h.User.EmailConfirmed);
+        Assert.Equal(400, (await controller.ConfirmEmailChange(h.User.Id, "new@example.test", token, default)).StatusCode);
+    }
+
+    private sealed class TestEmailSender : IValeEmailSender
+    {
+        public string? LastUrl { get; private set; }
+        public bool IsConfigured => true;
+        public Task<SmtpProbeResult> ProbeAsync(CancellationToken ct) => Task.FromResult(new SmtpProbeResult(true, "test"));
+        public Task SendPasswordResetCodeAsync(string email, string name, string code, CancellationToken ct) => Task.CompletedTask;
+        public Task SendLoginCodeAsync(string email, string name, string code, CancellationToken ct) => Task.CompletedTask;
+        public Task SendEmailConfirmationLinkAsync(string email, string name, string url, CancellationToken ct) { LastUrl = url; return Task.CompletedTask; }
+    }
     [Fact]
     public async Task Reset_code_expires_and_resend_replaces_the_previous_code()
     {
@@ -155,6 +264,25 @@ public sealed class EmailLoginTests
         public OneTimeCodeService Codes => provider.GetRequiredService<OneTimeCodeService>();
         public PasswordResetCodeService ResetCodes => provider.GetRequiredService<PasswordResetCodeService>();
         public AuthController Controller => ActivatorUtilities.CreateInstance<AuthController>(provider);
+        public AuthController ProfileController
+        {
+            get
+            {
+                var controller = Controller;
+                controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity([new("sub", User.Id.ToString()), new("company_id", User.CompanyId!.Value.ToString())], "test")) } };
+                return controller;
+            }
+        }
+        public TestEmailSender Email => (TestEmailSender)provider.GetRequiredService<IValeEmailSender>();
+        public EmailVerificationController EmailController
+        {
+            get
+            {
+                var controller = ActivatorUtilities.CreateInstance<EmailVerificationController>(provider);
+                controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity([new("sub", User.Id.ToString())], "test")) } };
+                return controller;
+            }
+        }
 
         public static async Task<Harness> CreateAsync()
         {
@@ -171,14 +299,15 @@ public sealed class EmailLoginTests
                 .AddDefaultTokenProviders();
             services.AddSingleton<IOptions<JwtOptions>>(Options.Create(new JwtOptions { Key = new string('x', 64) }));
             services.AddSingleton<IOptions<DeviceSessionOptions>>(Options.Create(new DeviceSessionOptions()));
-            services.AddSingleton<IOptions<EmailOptions>>(Options.Create(new EmailOptions()));
-            services.AddScoped<IValeEmailSender, SmtpValeEmailSender>();
+            services.AddSingleton<IOptions<EmailOptions>>(Options.Create(new EmailOptions { PublicBaseUrl = "https://example.test" }));
+            services.AddSingleton<IValeEmailSender, TestEmailSender>();
             services.AddScoped<CurrentUserContext>();
             services.AddScoped<AuditService>();
             services.AddScoped<TokenService>();
             services.AddScoped<DeviceSessionService>();
             services.AddScoped<PasswordResetCodeService>();
             services.AddScoped<OneTimeCodeService>();
+            services.AddSingleton<IValeSmsSender, TestSmsSender>();
             var provider = services.BuildServiceProvider();
             var db = provider.GetRequiredService<ValeDbContext>();
             await db.Database.EnsureCreatedAsync();
