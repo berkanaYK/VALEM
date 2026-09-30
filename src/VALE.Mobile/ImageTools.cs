@@ -75,7 +75,7 @@ public static class ImageTools
         var luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255d;
         var accent = g > r * 1.12 && g > b ? ValeAccent.Emerald
             : r > g * 1.2 && r > b * 1.15 ? ValeAccent.Orange
-            : b > r * 1.12 ? ValeAccent.Indigo : ValeAccent.Blue;
+            : b > r * 1.12 ? ValeAccent.Indigo : ValeAccent.Copper;
         return (accent, luminance < 0.58);
     }
 }

@@ -20,10 +20,14 @@ public sealed class ValeAppShellV31 : Shell
     {
         FlyoutBehavior = FlyoutBehavior.Flyout;
         FlyoutWidth = 310;
-        Title = "VALE";
+        Title = "VALEM";
+        SetDynamicResource(Shell.FlyoutBackgroundColorProperty, "ValePage");
         Shell.SetTabBarBackgroundColor(this, ThemeService.Palette.Card);
         Shell.SetTabBarTitleColor(this, ThemeService.Palette.Accent);
         Shell.SetTabBarUnselectedColor(this, ThemeService.Palette.Secondary);
+        Shell.SetBackgroundColor(this, ThemeService.Palette.Card);
+        Shell.SetTitleColor(this, ThemeService.Palette.Text);
+        Shell.SetForegroundColor(this, ThemeService.Palette.Text);
         Shell.SetNavBarHasShadow(this, false);
 
         _headerInitials.Text = string.Concat(user.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
@@ -31,15 +35,15 @@ public sealed class ValeAppShellV31 : Shell
         _headerName.TextColor = Colors.White;
         _headerInitials.TextColor = Colors.White; _headerInitials.HorizontalTextAlignment = TextAlignment.Center; _headerInitials.VerticalTextAlignment = TextAlignment.Center;
         var avatarLayer = new Grid(); avatarLayer.Add(_headerInitials); avatarLayer.Add(_headerAvatar);
-        var avatar = new Border { WidthRequest = 62, HeightRequest = 62, StrokeThickness = 2, Stroke = new SolidColorBrush(Colors.White), StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 31 }, BackgroundColor = ThemeService.Palette.Accent, Content = avatarLayer };
+        var avatar = new Border { WidthRequest = 62, HeightRequest = 62, StrokeThickness = 2, Stroke = new SolidColorBrush(Colors.White), StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 31 }, BackgroundColor = Color.FromArgb("#101D2A"), Content = avatarLayer };
         var header = new Border
         {
             StrokeThickness = 0,
             Background = new LinearGradientBrush(
                 new GradientStopCollection
                 {
-                    new(ThemeService.Palette.Accent, 0),
-                    new(ThemeService.Palette.SoftCard, 1)
+                    new(Color.FromArgb("#101D2A"), 0),
+                    new(Color.FromArgb("#203546"), 1)
                 }, new Point(0, 0), new Point(1, 1)),
             Padding = new Thickness(20, 30, 20, 18),
             Content = new VerticalStackLayout
@@ -115,7 +119,7 @@ public sealed class ValeAppShellV31 : Shell
                 _ => null
             };
             if (FlyoutHeader is Grid layer && layer.Children.LastOrDefault() is Border panel)
-                panel.Background = new SolidColorBrush(Color.FromArgb(profile.ProfileColor).WithAlpha(_headerBackground.Source is null ? 1f : 0.25f));
+                panel.Background = new SolidColorBrush(Color.FromArgb(profile.ProfileColor == "#2563EB" ? "#101D2A" : profile.ProfileColor).WithAlpha(_headerBackground.Source is null ? 1f : 0.55f));
             _headerName.Text = profile.FullName;
             _headerInitials.Text = string.Concat(profile.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpperInvariant(x[0])));
             if (string.IsNullOrWhiteSpace(profile.ProfilePhotoDataUrl))

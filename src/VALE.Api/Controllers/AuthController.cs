@@ -281,7 +281,7 @@ public sealed class AuthController(
     public async Task<ActionResult<AccountProfileDto>> UpdateAccountProfile(UpdateAccountProfileRequest request, CancellationToken cancellationToken)
     {
         var theme = NormalizeChoice(request.PreferredTheme, ["System", "Light", "Dark"], "System");
-        var accent = NormalizeChoice(request.AccentTheme, ["Blue", "Indigo", "Emerald", "Orange"], "Blue");
+        var accent = NormalizeChoice(request.AccentTheme, ["Blue", "Copper", "Indigo", "Emerald", "Orange"], "Copper");
         var background = NormalizeChoice(request.BackgroundTheme, ["None", "AnimeNeon", "AnimeSunset", "CarNeon", "CarTrack", "Custom", "CarHotel"], "None");
         var frame = NormalizeChoice(request.ProfileFrame, ["None", "Gold", "Neon", "Carbon"], "None");
         var user = await GetCurrentUserAsync(cancellationToken);

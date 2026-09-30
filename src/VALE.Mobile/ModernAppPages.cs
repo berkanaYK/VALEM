@@ -863,11 +863,15 @@ public static class ModernTicketTemplates
         time.SetBinding(Label.TextProperty, new Binding(nameof(TicketSummaryDto.EntryAt), stringFormat: "Giriş: {0:dd.MM HH:mm}"));
         var photo = UiKit.Label("Fotoğraflı kayıt", 10.5, true, true);
         photo.SetBinding(VisualElement.IsVisibleProperty, nameof(TicketSummaryDto.HasPhoto));
-        var right = new VerticalStackLayout { Spacing = 3, HorizontalOptions = LayoutOptions.End, Children = { status, photo } };
-        var grid = new Grid { ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }, ColumnSpacing = 8 };
-        grid.Add(new VerticalStackLayout { Spacing = 2, Children = { plate, description, time } }, 0, 0);
-        grid.Add(right, 1, 0);
-        return UiKit.Card(grid, new Thickness(13), 16);
+        status.SetDynamicResource(Label.TextColorProperty, "ValeAccent");
+        var grid = new Grid { ColumnDefinitions = { new ColumnDefinition(44), new ColumnDefinition(GridLength.Star), new ColumnDefinition(22) }, ColumnSpacing = 12 };
+        var badge = new Border { StrokeThickness = 0, WidthRequest = 44, HeightRequest = 44,
+            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 12 },
+            Content = new Image { Source = "tab_car.svg", WidthRequest = 25, HeightRequest = 25, Margin = 9 } };
+        badge.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeSoftCard");
+        grid.Add(badge, 0); grid.Add(new VerticalStackLayout { Spacing = 3, Children = { plate, description } }, 1);
+        grid.Add(UiKit.Label("›", 24, false, true), 2);
+        return UiKit.Card(new VerticalStackLayout { Spacing = 9, Children = { grid, UiKit.Divider(), status, time, photo } }, new Thickness(14), 18);
     });
 }
 

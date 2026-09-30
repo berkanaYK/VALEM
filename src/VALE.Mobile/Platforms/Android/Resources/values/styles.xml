@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <resources>
-  <style name="Maui.MainTheme" parent="Maui.MainTheme.Base" />
+  <style name="Maui.MainTheme" parent="Maui.MainTheme.Base">
+    <item name="colorPrimary">#172837</item>
+    <item name="colorPrimaryDark">#101D2A</item>
+    <item name="colorAccent">#D89C65</item>
+    <item name="android:statusBarColor">#101D2A</item>
+    <item name="android:windowLightStatusBar">false</item>
+  </style>
   <style name="Maui.SplashTheme" parent="Maui.MainTheme.NoActionBar">
     <item name="android:windowFullscreen">true</item>
     <item name="android:windowNoTitle">true</item>

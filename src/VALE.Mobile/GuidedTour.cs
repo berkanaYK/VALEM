@@ -106,7 +106,7 @@ internal sealed class CoachRunner(ContentPage page, CoachStep[] steps, Func<bool
             next.Clicked += async (_, _) => { if (_rendering) return; _index++; if (_index >= steps.Length) { complete(false); Hide(); } else await RenderAsync(); };
             var card = UiKit.Card(new ScrollView { Content = new VerticalStackLayout { Spacing = 9, Children = { UiKit.Label(steps[_index].Title, 19, true), UiKit.Label(steps[_index].Text, 13), UiKit.Label($"{_index + 1} / {steps.Length}", 11, false, true), next } } }, new Thickness(16), 18); card.AutomationId = "coach-bubble";
             Add(card, new Rect(16, bubbleY, width - 32, Math.Min(230, height - bubbleY - 10)));
-            var close = new Button { Text = "×", FontSize = 28, Padding = 0, TextColor = Colors.White, BackgroundColor = Color.FromArgb("#263244"), CornerRadius = 22, AutomationId = "coach-close" };
+            var close = new Button { Text = "×", FontSize = 28, Padding = 0, TextColor = Colors.White, BackgroundColor = Color.FromArgb("#172837"), CornerRadius = 22, AutomationId = "coach-close" };
             SemanticProperties.SetDescription(close, "Eğitimi kapat"); close.Clicked += (_, _) => { complete(true); Hide(); };
             Add(close, new Rect(width - 56, 8, 44, 44)); _root.Add(_overlay);
         }
@@ -162,7 +162,7 @@ internal sealed class CoachRunner(ContentPage page, CoachStep[] steps, Func<bool
         public void Draw(ICanvas canvas, RectF dirtyRect)
         {
             canvas.FillColor = Color.FromRgba(3, 8, 18, 185); foreach (var r in areas) canvas.FillRectangle((float)r.X, (float)r.Y, (float)r.Width, (float)r.Height);
-            canvas.StrokeColor = Color.FromArgb("#FBBF24"); canvas.StrokeSize = 3; canvas.DrawRoundedRectangle((float)target.X, (float)target.Y, (float)target.Width, (float)target.Height, 12);
+            canvas.StrokeColor = Color.FromArgb("#D89C65"); canvas.StrokeSize = 3; canvas.DrawRoundedRectangle((float)target.X, (float)target.Y, (float)target.Width, (float)target.Height, 12);
             var x = (float)target.Center.X; var end = (float)(bubbleY > target.Bottom ? target.Bottom + 3 : target.Top - 3); var start = (float)(bubbleY > target.Bottom ? bubbleY : bubbleY + 230); var direction = bubbleY > target.Bottom ? 1 : -1;
             canvas.DrawLine(x, start, x, end); canvas.DrawLine(x, end, x - 7, end + direction * 10); canvas.DrawLine(x, end, x + 7, end + direction * 10);
         }

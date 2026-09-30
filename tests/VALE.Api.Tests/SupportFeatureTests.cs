@@ -114,9 +114,10 @@ public sealed class SupportFeatureTests
         var response = await controller.UpdateAccountProfile(request, default);
         var profile = Assert.IsType<AccountProfileDto>(Assert.IsType<OkObjectResult>(response.Result).Value);
         Assert.Equal(request.BirthDate, profile.BirthDate); Assert.Equal(request.About, profile.About); Assert.Equal(request.City, profile.City);
-        var cleared = await controller.UpdateAccountProfile(request with { BirthDate = null, City = null, About = null, PhoneNumber = null }, default);
+        var cleared = await controller.UpdateAccountProfile(request with { AccentTheme = "Copper", BirthDate = null, City = null, About = null, PhoneNumber = null }, default);
         profile = Assert.IsType<AccountProfileDto>(Assert.IsType<OkObjectResult>(cleared.Result).Value);
         Assert.Null(profile.BirthDate); Assert.Null(profile.City); Assert.Null(profile.About); Assert.Null(profile.PhoneNumber);
+        Assert.Equal("Copper", profile.AccentTheme);
     }
 
     [Fact]
