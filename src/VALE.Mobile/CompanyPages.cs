@@ -139,6 +139,10 @@ public sealed class CompanyDashboardPage : ContentPage
             actions.Add(team);
         }
         var plan = UiKit.SecondaryButton("Sürüm Ayrıntıları");
+        var support = UiKit.SecondaryButton("İletişim ve Destek");
+        support.AutomationId = "home-support-open";
+        support.Clicked += async (_, _) => await Navigation.PushAsync(new SupportContactPage());
+        actions.Add(support);
         plan.Clicked += async (_, _) => await Navigation.PushAsync(new PremiumPage(_api, _user));
         actions.Add(UiKit.Card(new VerticalStackLayout { Spacing = 6, Children = { _planStatus, plan } }, new Thickness(12), 14));
 

@@ -18,6 +18,65 @@ namespace VALE.Api.Tests;
 public sealed class EmailLoginTests
 {
     [Fact]
+    public async Task Reset_code_expires_and_resend_replaces_the_previous_code()
+    {
+        await using var h = await Harness.CreateAsync();
+        var oldCode = await h.ResetCodes.CreateAsync(h.User);
+        var newCode = await h.ResetCodes.CreateAsync(h.User);
+        while (newCode == oldCode) newCode = await h.ResetCodes.CreateAsync(h.User);
+        Assert.False(await h.ResetCodes.ValidateAndConsumeAsync(h.User, oldCode));
+        Assert.True(await h.ResetCodes.ValidateAndConsumeAsync(h.User, newCode));
+        await h.ResetCodes.CreateAsync(h.User);
+        var stored = await h.Users.GetAuthenticationTokenAsync(h.User, "VALE", "PasswordResetCode");
+        var expires = long.Parse(stored!.Split('.')[0], System.Globalization.CultureInfo.InvariantCulture);
+        Assert.InRange(expires - DateTimeOffset.UtcNow.ToUnixTimeSeconds(), 895, 900);
+        await h.Users.SetAuthenticationTokenAsync(h.User, "VALE", "PasswordResetCode", $"{DateTimeOffset.UtcNow.AddMinutes(-1).ToUnixTimeSeconds()}.00");
+        Assert.False(await h.ResetCodes.ValidateAndConsumeAsync(h.User, newCode));
+    }
+
+    [Fact]
+    public async Task Reset_code_guessing_is_account_scoped_and_locks_after_five_wrong_codes()
+    {
+        await using var h = await Harness.CreateAsync();
+        var code = await h.ResetCodes.CreateAsync(h.User);
+        for (var i = 0; i < 5; i++)
+            await Assert.ThrowsAsync<ApiException>(() => h.Controller.ResetPassword(new(h.User.Email!, "000000", "New!123")));
+        var error = await Assert.ThrowsAsync<ApiException>(() => h.Controller.ResetPassword(new(h.User.Email!, code, "New!123")));
+        Assert.Equal(423, error.StatusCode);
+    }
+
+    [Fact]
+    public void Password_recovery_does_not_use_the_shared_ip_request_quota()
+    {
+        foreach (var name in new[] { nameof(AuthController.ForgotPassword), nameof(AuthController.ResetPassword) })
+        {
+            var method = typeof(AuthController).GetMethod(name)!;
+            Assert.Single(method.GetCustomAttributes(typeof(Microsoft.AspNetCore.RateLimiting.DisableRateLimitingAttribute), true));
+            Assert.Empty(method.GetCustomAttributes(typeof(Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute), true));
+        }
+    }
+
+    [Fact]
+    public async Task Rejected_password_does_not_consume_reset_code_and_success_blocks_replay()
+    {
+        await using var h = await Harness.CreateAsync();
+        var code = await h.ResetCodes.CreateAsync(h.User);
+        await Assert.ThrowsAsync<ApiException>(() => h.Controller.ResetPassword(new(h.User.Email!, code, "abcdef")));
+        Assert.IsType<OkObjectResult>(await h.Controller.ResetPassword(new(h.User.Email!, code, "New!123")));
+        Assert.True(await h.Users.CheckPasswordAsync(h.User, "New!123"));
+        await Assert.ThrowsAsync<ApiException>(() => h.Controller.ResetPassword(new(h.User.Email!, code, "Next!123")));
+    }
+
+    [Fact]
+    public async Task Wrong_reset_code_does_not_consume_valid_code()
+    {
+        await using var h = await Harness.CreateAsync();
+        var code = await h.ResetCodes.CreateAsync(h.User);
+        await Assert.ThrowsAsync<ApiException>(() => h.Controller.ResetPassword(new(h.User.Email!, "000000", "New!123")));
+        Assert.IsType<OkObjectResult>(await h.Controller.ResetPassword(new(h.User.Email!, code, "New!123")));
+    }
+
+    [Fact]
     public async Task Password_login_accepts_username_or_email()
     {
         await using var h = await Harness.CreateAsync();
@@ -94,6 +153,7 @@ public sealed class EmailLoginTests
         public AppUser User { get; } = user;
         public UserManager<AppUser> Users => provider.GetRequiredService<UserManager<AppUser>>();
         public OneTimeCodeService Codes => provider.GetRequiredService<OneTimeCodeService>();
+        public PasswordResetCodeService ResetCodes => provider.GetRequiredService<PasswordResetCodeService>();
         public AuthController Controller => ActivatorUtilities.CreateInstance<AuthController>(provider);
 
         public static async Task<Harness> CreateAsync()

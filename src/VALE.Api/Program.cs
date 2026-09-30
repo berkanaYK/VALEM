@@ -295,11 +295,11 @@ app.MapGet("/health/email", async (IValeEmailSender email, CancellationToken ct)
         : Results.Json(new { status = "not-ready", smtp = false, stage = probe.Stage }, statusCode: StatusCodes.Status503ServiceUnavailable);
 }).AllowAnonymous().RequireRateLimiting("diagnostic");
 
-// VALE 3.5.4: verified password registration and username login.
+// VALE 3.5.5: verified password registration and username login.
 app.MapGet("/api/status", (IValeEmailSender email, FirebasePushSender push) => Results.Ok(new
 {
     service = "VALE.Api",
-    version = "3.5.4",
+    version = "3.5.5",
     status = "ok",
     capabilities = new
     {

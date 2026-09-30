@@ -86,20 +86,47 @@ public sealed class ForgotPasswordPage : ContentPage
         UiKit.StylePage(this);
         var email = UiKit.Entry("E-posta", Keyboard.Email);
         var code = UiKit.Entry("6 haneli kod", Keyboard.Numeric);
+        email.AutomationId = "reset-email";
+        code.AutomationId = "reset-code";
         var newPassword = UiKit.Entry("Yeni parola", password: true);
+        var repeatPassword = UiKit.Entry("Yeni parola tekrar", password: true);
+        var passwordFields = new VerticalStackLayout
+        {
+            Spacing = 12, IsVisible = false,
+            Children = { code, UiKit.PasswordField(newPassword), UiKit.PasswordField(repeatPassword),
+                UiKit.Label("Parola 6-20 karakter olmalı; büyük/küçük harf, rakam ve özel karakter içermeli.", 12, false, true) }
+        };
         var send = UiKit.PrimaryButton("Kodu E-postama Gönder");
         var reset = UiKit.PrimaryButton("Yeni Parolayı Kaydet");
-        code.IsVisible = newPassword.IsVisible = reset.IsVisible = false;
+        send.AutomationId = "reset-send-code";
+        reset.AutomationId = "reset-submit";
+        reset.IsVisible = false;
+        string? sentEmail = null;
+        void SetBusy(bool busy)
+        {
+            send.IsEnabled = reset.IsEnabled = !busy;
+            email.IsEnabled = !busy && sentEmail is null;
+            code.IsEnabled = newPassword.IsEnabled = repeatPassword.IsEnabled = !busy;
+        }
 
         send.Clicked += async (_, _) =>
         {
             try
             {
-                send.IsEnabled = false;
+                var address = email.Text?.Trim() ?? "";
+                if (!System.Net.Mail.MailAddress.TryCreate(address, out _))
+                {
+                    await DisplayAlertAsync("E-posta", "Geçerli e-posta adresinizi yazın.", "Tamam");
+                    return;
+                }
+                SetBusy(true);
                 await api.EnsureServerReadyAsync();
-                await api.RequestPasswordResetAsync(email.Text ?? "");
-                code.IsVisible = newPassword.IsVisible = reset.IsVisible = true;
-                await DisplayAlertAsync("Kod gönderildi", "E-posta hesabınızı kontrol edin. Kod 15 dakika geçerlidir.", "Tamam");
+                await api.RequestPasswordResetAsync(address);
+                sentEmail = address;
+                passwordFields.IsVisible = reset.IsVisible = true;
+                send.Text = "Yeni Kod Gönder";
+                code.Text = "";
+                await DisplayAlertAsync("E-postanızı kontrol edin", "Adresiniz kayıtlıysa sıfırlama kodu gönderildi. Son gönderilen kod 15 dakika geçerlidir. Spam klasörünü de kontrol edin.", "Tamam");
             }
             catch (Exception ex)
             {
@@ -107,7 +134,7 @@ public sealed class ForgotPasswordPage : ContentPage
             }
             finally
             {
-                send.IsEnabled = true;
+                SetBusy(false);
             }
         };
 
@@ -115,8 +142,26 @@ public sealed class ForgotPasswordPage : ContentPage
         {
             try
             {
-                reset.IsEnabled = false;
-                await api.ResetPasswordAsync(email.Text ?? "", code.Text ?? "", newPassword.Text ?? "");
+                var password = newPassword.Text ?? "";
+                if (password.Length is < 6 or > 20 || !password.Any(char.IsUpper) || !password.Any(char.IsLower) ||
+                    !password.Any(char.IsDigit) || !password.Any(ch => !char.IsLetterOrDigit(ch)))
+                {
+                    await DisplayAlertAsync("Parola uygun değil", "6-20 karakter, büyük/küçük harf, rakam ve özel karakter kullanın.", "Tamam");
+                    return;
+                }
+                if (password != repeatPassword.Text)
+                {
+                    await DisplayAlertAsync("Parolalar farklı", "İki alana da aynı yeni parolayı yazın.", "Tamam");
+                    return;
+                }
+                var normalizedCode = string.Concat((code.Text ?? "").Where(ch => !char.IsWhiteSpace(ch)));
+                if (normalizedCode.Length != 6 || !normalizedCode.All(char.IsAsciiDigit))
+                {
+                    await DisplayAlertAsync("Sıfırlama kodu", "E-postanızdaki 6 haneli kodu yazın.", "Tamam");
+                    return;
+                }
+                SetBusy(true);
+                await api.ResetPasswordAsync(sentEmail ?? "", normalizedCode, password);
                 await DisplayAlertAsync("Parola değiştirildi", "Yeni parolanızla giriş yapabilirsiniz.", "Tamam");
                 await Navigation.PopAsync();
             }
@@ -126,7 +171,7 @@ public sealed class ForgotPasswordPage : ContentPage
             }
             finally
             {
-                reset.IsEnabled = true;
+                SetBusy(false);
             }
         };
 
@@ -140,7 +185,7 @@ public sealed class ForgotPasswordPage : ContentPage
                 {
                     UiKit.Label("Hesabınızı kurtarın", 28, true),
                     UiKit.Label("Kayıtlı e-postanıza tek kullanımlık kod gönderilir.", 13, false, true),
-                    UiKit.Card(new VerticalStackLayout { Spacing = 12, Children = { email, send, code, newPassword, reset } })
+                    UiKit.Card(new VerticalStackLayout { Spacing = 12, Children = { UiKit.Field(email), send, passwordFields, reset } })
                 }
             }
         };

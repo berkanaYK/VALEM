@@ -77,23 +77,21 @@ public static class UiKit
         entry.IsPassword = true;
         entry.BackgroundColor = Colors.Transparent;
         entry.Margin = Thickness.Zero;
-        var toggle = new Button
+        var toggle = new ImageButton
         {
-            Text = "👁",
-            FontSize = 18,
+            Source = "eye_closed.svg",
             WidthRequest = 46,
             HeightRequest = 46,
-            Padding = 0,
+            Padding = 11,
             BackgroundColor = Colors.Transparent,
             BorderWidth = 0,
             AutomationId = toggleAutomationId
         };
         SemanticProperties.SetDescription(toggle, "Parolayı göster");
-        toggle.SetDynamicResource(Button.TextColorProperty, "ValeSecondary");
         toggle.Clicked += (_, _) =>
         {
             entry.IsPassword = !entry.IsPassword;
-            toggle.Opacity = entry.IsPassword ? 0.72 : 1;
+            toggle.Source = entry.IsPassword ? "eye_closed.svg" : "eye_open.svg";
             SemanticProperties.SetDescription(toggle, entry.IsPassword ? "Parolayı göster" : "Parolayı gizle");
         };
 

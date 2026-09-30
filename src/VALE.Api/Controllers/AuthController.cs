@@ -123,7 +123,7 @@ public sealed class AuthController(
 
     [HttpPost("forgot-password")]
     [AllowAnonymous]
-    [EnableRateLimiting("password-reset")]
+    [DisableRateLimiting]
     public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest request, CancellationToken cancellationToken)
     {
         if (!emailSender.IsConfigured)
@@ -140,16 +140,33 @@ public sealed class AuthController(
 
     [HttpPost("reset-password")]
     [AllowAnonymous]
-    [EnableRateLimiting("password-reset")]
+    [DisableRateLimiting]
     public async Task<IActionResult> ResetPassword(ResetPasswordRequest request)
     {
         var user = await userManager.FindByEmailAsync(request.Email.Trim());
-        if (user is null || !await resetCodes.ValidateAndConsumeAsync(user, request.Code.Trim()))
+        if (user is null || !user.IsActive)
             throw new ApiException(StatusCodes.Status400BadRequest, "Kod geçersiz", "Sıfırlama kodu hatalı veya süresi dolmuş.");
+        if (await userManager.IsLockedOutAsync(user))
+            throw new ApiException(423, "Hesap geçici olarak kilitli", "Çok sayıda hatalı kod girildi. Bir süre sonra tekrar deneyin.");
+
+        // Validate the new password before consuming the one-time code.
+        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length is < 6 or > 20)
+            throw new ApiException(400, "Parola uygun değil", "Parola 6-20 karakter olmalı; büyük/küçük harf, rakam ve özel karakter içermelidir.");
+        foreach (var validator in userManager.PasswordValidators)
+        {
+            if (!(await validator.ValidateAsync(userManager, user, request.NewPassword)).Succeeded)
+                throw new ApiException(400, "Parola uygun değil", "Parola 6-20 karakter olmalı; büyük/küçük harf, rakam ve özel karakter içermelidir.");
+        }
+        if (!await resetCodes.ValidateAndConsumeAsync(user, request.Code.Trim()))
+        {
+            await userManager.AccessFailedAsync(user);
+            throw new ApiException(400, "Kod geçersiz", "Sıfırlama kodu hatalı veya süresi dolmuş. Son gönderilen kodu kontrol edin.");
+        }
         var identityToken = await userManager.GeneratePasswordResetTokenAsync(user);
         var result = await userManager.ResetPasswordAsync(user, identityToken, request.NewPassword);
         if (!result.Succeeded)
-            throw new ApiException(StatusCodes.Status400BadRequest, "Parola değiştirilemedi", string.Join(" ", result.Errors.Select(x => x.Description)));
+            throw new ApiException(StatusCodes.Status400BadRequest, "Parola değiştirilemedi", "Parola kaydedilemedi. Yeni kod isteyip tekrar deneyin.");
+        await userManager.ResetAccessFailedCountAsync(user);
         return Ok(new { message = "Parolanız güncellendi. Yeni parolanızla giriş yapabilirsiniz." });
     }
 

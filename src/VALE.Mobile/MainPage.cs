@@ -15,7 +15,7 @@ public sealed class MainPage : ContentPage
     private readonly Button _login;
     private readonly Label _status;
     private readonly ActivityIndicator _activity;
-    private readonly Switch _rememberDevice;
+    private readonly SmoothToggle _rememberDevice;
     private CancellationTokenSource? _loginCts;
     private bool _busy;
     private bool _warmupStarted;
@@ -34,14 +34,13 @@ public sealed class MainPage : ContentPage
         _password.ReturnType = ReturnType.Go;
         _password.AutomationId = "login-password";
         _password.Completed += async (_, _) => await LoginAsync();
-        _rememberDevice = new Switch
+        _rememberDevice = new SmoothToggle
         {
             IsToggled = Preferences.Default.Get(RememberPreference, false),
-            OnColor = ThemeService.Palette.Accent,
             AutomationId = "remember-device"
         };
 
-        _login = UiKit.PrimaryButton("Parola ile Giriş");
+        _login = UiKit.PrimaryButton("Giriş Yap");
         _login.AutomationId = "login-submit";
         _login.Clicked += async (_, _) => { if (_busy) _loginCts?.Cancel(); else await LoginAsync(); };
 
@@ -74,9 +73,6 @@ public sealed class MainPage : ContentPage
         };
         var forgot = UiKit.TextButton("Parolamı unuttum");
         forgot.Clicked += async (_, _) => await Navigation.PushAsync(new ForgotPasswordPage(_api));
-        var connection = UiKit.TextButton("Bağlantı ayarları");
-        connection.FontSize = 12;
-        connection.Clicked += async (_, _) => await Navigation.PushAsync(new ConnectionSettingsPage(_api));
         var support = UiKit.TextButton("İletişim ve Destek");
         support.FontSize = 12;
         support.AutomationId = "login-support-open";
@@ -127,7 +123,7 @@ public sealed class MainPage : ContentPage
                 UiKit.Label("Parola", 11, true, true), UiKit.PasswordField(_password, "login-password-visibility"),
                 forgot, rememberRow, _login, alternativesToggle, alternatives, statusRow,
                 UiKit.Divider(),
-                register, demo, connection, support
+                register, demo, support
             }
         }, new Thickness(18), 24);
         loginCard.MaximumWidthRequest = 520;
@@ -315,7 +311,7 @@ public sealed class MainPage : ContentPage
         _busy = busy;
         _email.IsEnabled = !busy; _password.IsEnabled = !busy; _rememberDevice.IsEnabled = !busy;
         _activity.IsVisible = busy; _activity.IsRunning = busy;
-        _login.Text = busy ? "İptal" : "Parola ile Giriş";
+        _login.Text = busy ? "İptal" : "Giriş Yap";
         _login.SetDynamicResource(VisualElement.BackgroundColorProperty, busy ? "ValeSoftCard" : "ValeAccent");
         if (busy)
             _login.SetDynamicResource(Button.TextColorProperty, "ValeText");
