@@ -326,15 +326,16 @@ public sealed class CompanyProfilePage : ContentPage
     private readonly Picker _headerTheme = UiKit.Picker("Sol menü arka planı");
     private AccountProfileDto? _profile;
     private EntitlementDto? _entitlement;
+    private bool _loadingAppearance;
 
     public CompanyProfilePage(ApiClient api, UserDto user)
     {
-        _api = api; _user = user; UiKit.StylePage(this);
+        _api = api; _user = user; Title = "Profilim"; UiKit.StylePage(this);
         _about.SetDynamicResource(Editor.TextColorProperty, "ValeText");
         _about.SetDynamicResource(Editor.PlaceholderColorProperty, "ValeSecondary");
         _theme.ItemsSource = new[] { "Sistem", "Açık", "Koyu" };
         _headerTheme.ItemsSource = new[] { "Profil rengi • Ücretsiz", "Otel Girişi • Ücretsiz", "Gece Garajı • Ömür Boyu", "Sahil Gün Batımı • Ömür Boyu", "Uygulama temasını kullan" };
-        _theme.SelectedIndexChanged += (_, _) => { if (_theme.SelectedIndex >= 0) ThemeService.Apply((ValeThemeMode)_theme.SelectedIndex); };
+        _theme.SelectedIndexChanged += (_, _) => { if (!_loadingAppearance && _theme.SelectedIndex >= 0) ThemeService.Apply((ValeThemeMode)_theme.SelectedIndex); };
         _accent.ItemsSource = new[] { "Mavi", "İndigo", "Zümrüt", "Turuncu" };
         _profileColor.ItemsSource = new[] { "Mavi", "İndigo", "Zümrüt", "Turuncu", "Kırmızı", "Mor" };
         _profileFrame.ItemsSource = new[] { "Çerçevesiz", "Altın • Ömür Boyu", "Neon • Ömür Boyu", "Karbon • Ömür Boyu" };
@@ -387,7 +388,14 @@ public sealed class CompanyProfilePage : ContentPage
             _email.Text = _profile.Email; _employee.Text = _profile.EmployeeCode ?? "—"; _job.Text = _profile.JobTitle ?? "—"; _branch.Text = _profile.BranchName ?? "—";
             _roles.Text = CompanyAccess.RolesText(_profile.Roles); SetAvatar(_profile);
             _headerTheme.SelectedIndex = Array.IndexOf(HeaderThemes, _profile.HeaderBackgroundTheme);
-            _theme.SelectedIndex = ThemeIndex(_profile.PreferredTheme); _accent.SelectedIndex = AccentIndex(_profile.AccentTheme); _profileColor.SelectedIndex = ProfileColorIndex(_profile.ProfileColor); _profileFrame.SelectedIndex = FrameIndex(_profile.ProfileFrame); _background.SelectedIndex = BackgroundIndex(_profile.BackgroundTheme);
+            _loadingAppearance = true;
+            try
+            {
+                _theme.SelectedIndex = (int)ThemeService.CurrentMode;
+                _accent.SelectedIndex = (int)ThemeService.CurrentAccent;
+                _profileColor.SelectedIndex = ProfileColorIndex(_profile.ProfileColor); _profileFrame.SelectedIndex = FrameIndex(_profile.ProfileFrame); _background.SelectedIndex = BackgroundIndex(_profile.BackgroundTheme);
+            }
+            finally { _loadingAppearance = false; }
             ApplyFrame(_profile.ProfileFrame);
         }
         catch (Exception ex) { await DisplayAlertAsync("Profil", UserMessages.For(ex), "Tamam"); }

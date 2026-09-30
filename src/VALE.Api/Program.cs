@@ -298,11 +298,11 @@ app.MapGet("/health/email", async (IValeEmailSender email, CancellationToken ct)
         : Results.Json(new { status = "not-ready", smtp = false, stage = probe.Stage }, statusCode: StatusCodes.Status503ServiceUnavailable);
 }).AllowAnonymous().RequireRateLimiting("diagnostic");
 
-// VALEM 3.6.0: profile customization, verified account access and page coaching.
+// VALEM 3.6.1: profile customization, verified account access and page coaching.
 app.MapGet("/api/status", (IValeEmailSender email, FirebasePushSender push, IValeSmsSender sms) => Results.Ok(new
 {
     service = "VALE.Api",
-    version = "3.6.0",
+    version = "3.6.1",
     status = "ok",
     capabilities = new
     {
