@@ -190,8 +190,8 @@ jobs:
           if ($manifest -notmatch 'android:icon="@mipmap/appicon"') { throw 'Launcher icon manifest referansı eksik.' }
           if ($manifest -notmatch 'android:roundIcon="@mipmap/appicon_round"') { throw 'Round launcher icon manifest referansı eksik.' }
           $project = Get-Content 'src/VALE.Mobile/VALE.Mobile.csproj' -Raw
-          if ($project -notmatch 'ForegroundFile="Resources\\AppIcon\\appiconfg.svg"') { throw 'Adaptive icon foreground eksik.' }
-          if ($project -notmatch 'MonochromeFile="Resources\\AppIcon\\appiconmono.svg"') { throw 'Android themed icon monochrome katmanı eksik.' }
+          if ($project -notmatch 'ForegroundFile="Resources[\\/]AppIcon[\\/]appiconfg\.svg"') { throw 'Adaptive icon foreground eksik.' }
+          if ($project -notmatch 'MonochromeFile="Resources[\\/]AppIcon[\\/]appiconmono\.svg"') { throw 'Android themed icon monochrome katmanı eksik.' }
           if ($project -notmatch 'ForegroundScale="0.72"') { throw 'Adaptive icon foreground ölçeği beklenen değerde değil.' }
           @('src/VALE.Mobile/Resources/AppIcon/appicon.svg','src/VALE.Mobile/Resources/AppIcon/appiconfg.svg','src/VALE.Mobile/Resources/AppIcon/appiconmono.svg','src/VALE.Mobile/Resources/Images/tab_home.svg','src/VALE.Mobile/Resources/Images/tab_car.svg','src/VALE.Mobile/Resources/Images/tab_report.svg','src/VALE.Mobile/Resources/Images/tab_bell.svg','src/VALE.Mobile/Resources/Images/tab_more.svg') | ForEach-Object {
             if (-not (Test-Path $_)) { throw "Icon dosyası eksik: $_" }
@@ -219,15 +219,15 @@ jobs:
           if ($client -notmatch 'DeleteTicketAsync' -or $client -notmatch 'UpdateTicketDetailsAsync') { throw 'Kayıt yönetimi istemci metotları eksik.' }
           if ($client -notmatch 'RegisterOwnerAsync' -or $client -notmatch 'RegisterStaffAsync') { throw 'Firma/personel kayıt istemcisi eksik.' }
           if ($client -notmatch 'RegisterPushTokenAsync' -or $client -notmatch 'SendPushTestAsync') { throw 'FCM cihaz kayıt/test istemcisi eksik.' }
-          if ($tenant -notmatch 'Kendi firmamı oluştur' -or $tenant -notmatch 'Kişisel hesap oluştur') { throw 'Self-service yönetici/personel kayıt ekranı eksik.' }
+          if ($tenant -notmatch 'Kendi firmanı oluştur' -or $tenant -notmatch 'Kişisel hesap oluştur') { throw 'Self-service yönetici/personel kayıt ekranı eksik.' }
           if ($tenant -notmatch 'Parola 6-20 karakter olmalı' -or $tenant -notmatch 'Firma kodu ve Merkez şubesi otomatik oluşturulur') { throw 'Parolalı sade kayıt varsayılanları eksik.' }
           if ($tenant -notmatch 'register-name' -or $tenant -notmatch 'register-username' -or $tenant -notmatch 'register-password' -or $tenant -notmatch 'register-company-name' -or $main -notmatch 'login-email' -or $main -notmatch 'login-password-visibility') { throw 'Gerçek cihaz UI testi AutomationId yüzeyi eksik.' }
           if ($shell -notmatch 'AuthenticatorSecurityPage' -or $shell -notmatch 'tab_home.svg' -or $shell -notmatch 'tab_more.svg') { throw 'Authenticator menüsü veya yeni alt navigasyon eksik.' }
-          if ($notifications -notmatch 'GetPendingRegistrationsAsync' -or $notifications -notmatch 'SendPushTestAsync') { throw 'Personel onay veya push test ekranı eksik.' }
+          if ($notifications -notmatch 'GetPendingRegistrationsAsync' -or $client -notmatch 'SendPushTestAsync') { throw 'Personel onay veya push test istemcisi eksik.' }
           if ($pushManager -notmatch 'RegisterPushTokenAsync' -or $pushManager -notmatch 'UnregisterPushTokenAsync') { throw 'Push token yaşam döngüsü eksik.' }
           if (-not (Test-Path 'tests/VALE.Mobile.UITests/GuestJourneyTests.cs') -or -not (Test-Path 'scripts/run-android-device-tests.ps1')) { throw 'Gerçek cihaz Appium test paketi eksik.' }
           if ($authenticator -match 'string\? password') { throw 'Authenticator giriş ekranında parola parametresi geri gelmiş.' }
-          if ($tenant -notmatch 'davet veya yönetici onayı gerekmez' -or $tenant -notmatch '_companyName\.Text\.Trim') { throw 'Bağımsız personel kayıt akışı eksik.' }
+          if ($tenant -notmatch 'Firma adı veya davet kodu gerekmez' -or $tenant -notmatch 'RegisterStaffAsync' -or $tenant -notmatch '_companyName\.Text\.Trim') { throw 'Bağımsız kişisel kayıt veya firma kayıt akışı eksik.' }
           Write-Host 'VALE parola kaydı, kullanıcı adı girişi, Authenticator ve self-service kayıt kaynak kontrolleri geçti.'
 
       - name: Production auth and security smoke tests
