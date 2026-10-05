@@ -92,7 +92,9 @@ public static class ThemeService
     public static void Apply(ValeThemeMode mode, ValeAccent accent)
     {
         if (Application.Current is { } application)
+        {
             Apply(application, mode, accent, save: true);
+        }
     }
 
     public static void ApplyServerPreferences(string theme, string accent, string? background = null)
@@ -105,7 +107,9 @@ public static class ThemeService
             : ValeAccent.Blue;
         if (Enum.TryParse<ValeBackgroundTheme>(background, true, out var parsedBackground))
             Preferences.Default.Set(BackgroundPreferenceKey, parsedBackground.ToString());
-        Apply(parsedTheme, parsedAccent);
+        // An older cloud preference must never undo a mode selected locally.
+        if (Application.Current is { } application)
+            Apply(application, Preferences.Default.ContainsKey(ThemePreferenceKey) ? CurrentMode : parsedTheme, parsedAccent, save: true);
     }
 
     public static void ApplyBackground(ValeBackgroundTheme background)
@@ -118,7 +122,7 @@ public static class ThemeService
     {
         Preferences.Default.Set(CustomBackgroundPathKey, path);
         Preferences.Default.Set(BackgroundPreferenceKey, nameof(ValeBackgroundTheme.Custom));
-        Apply(darkImage ? ValeThemeMode.Dark : ValeThemeMode.Light, suggestedAccent);
+        Apply(CurrentMode, suggestedAccent);
     }
 
     private static void Apply(Application application, ValeThemeMode mode, ValeAccent accent, bool save)

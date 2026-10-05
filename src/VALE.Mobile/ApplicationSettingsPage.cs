@@ -10,9 +10,17 @@ public sealed class ApplicationSettingsPage : ContentPage
         var body = new VerticalStackLayout { Padding = 18, Spacing = 14 };
         body.Add(UiKit.Label("Ayarlar", 27, true));
         var mode = UiKit.Picker("Görünüm modu");
+        mode.AutomationId = "settings-theme-mode";
+        var updatingMode = false;
         mode.ItemsSource = new[] { "Sistem ayarını kullan", "Açık / Beyaz", "Koyu" };
         mode.SelectedIndex = (int)ThemeService.CurrentMode;
-        mode.SelectedIndexChanged += (_, _) => ThemeService.Apply((ValeThemeMode)Math.Max(0, mode.SelectedIndex));
+        mode.SelectedIndexChanged += (_, _) => { if (!updatingMode && mode.SelectedIndex >= 0) ThemeService.Apply((ValeThemeMode)mode.SelectedIndex); };
+        Appearing += (_, _) =>
+        {
+            updatingMode = true;
+            try { mode.SelectedIndex = (int)ThemeService.CurrentMode; }
+            finally { updatingMode = false; }
+        };
         var saveMode = UiKit.SecondaryButton("Görünümü Hesabıma Kaydet");
         saveMode.Clicked += async (_, _) =>
         {
@@ -27,7 +35,7 @@ public sealed class ApplicationSettingsPage : ContentPage
             catch (Exception ex) { await DisplayAlertAsync("Kaydedilemedi", UserMessages.For(ex), "Tamam"); }
             finally { saveMode.IsEnabled = true; }
         };
-        body.Add(UiKit.Card(new VerticalStackLayout { Spacing = 8, Children = { UiKit.Label("Görünüm", 18, true), mode, UiKit.Label("Mod değişikliği bütün ekranlara hemen uygulanır. Sonraki girişlerinizde de kullanmak için hesabınıza kaydedin.", 12, false, true), saveMode } }));
+        body.Add(UiKit.Card(new VerticalStackLayout { Spacing = 8, Children = { UiKit.Label("Görünüm", 18, true), mode, UiKit.Label("Seçiminiz kaydetmeden bu cihazda korunur; demo ve menü geçişleri modu değiştirmez. Hesabınıza kaydetmek tercihinizi diğer cihazlara taşır.", 12, false, true), saveMode } }));
         void Link(string title, Func<Page> page)
         {
             var button = UiKit.SecondaryButton(title);
