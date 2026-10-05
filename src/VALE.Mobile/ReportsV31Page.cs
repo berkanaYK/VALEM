@@ -38,9 +38,14 @@ public sealed class ReportsV31Page : ContentPage
         excel.Clicked += async (_, _) => await ExportAsync("xlsx");
         var csv = UiKit.SecondaryButton("CSV Paylaş");
         csv.Clicked += async (_, _) => await ExportAsync("csv");
+        var excelView = UiKit.SecondaryButton("Excel Görüntüle");
+        excelView.Clicked += async (_, _) => await ExportAsync("xlsx-view");
+        var csvView = UiKit.SecondaryButton("CSV Görüntüle");
+        csvView.Clicked += async (_, _) => await ExportAsync("csv-view");
 
         var dates = new Grid
         {
+            AutomationId = "report-filters",
             ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star) },
             ColumnSpacing = 8
         };
@@ -61,13 +66,15 @@ public sealed class ReportsV31Page : ContentPage
 
         var exports = new Grid
         {
+            AutomationId = "report-exports",
             ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star) },
-            RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto) },
+            RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto) },
             ColumnSpacing = 8,
             RowSpacing = 8
         };
         exports.Add(pdfView, 0, 0); exports.Add(pdfShare, 1, 0);
-        exports.Add(excel, 0, 1); exports.Add(csv, 1, 1);
+        exports.Add(excelView, 0, 1); exports.Add(excel, 1, 1);
+        exports.Add(csvView, 0, 2); exports.Add(csv, 1, 2);
 
         Content = new ScrollView
         {
@@ -180,6 +187,11 @@ public sealed class ReportsV31Page : ContentPage
                     return;
                 case "pdf-share": path = await ReportExportService.WritePdfAsync(_report); break;
                 case "xlsx": path = await ReportExportService.WriteXlsxAsync(_report); break;
+                case "xlsx-view":
+                case "csv-view":
+                    path = format == "xlsx-view" ? await ReportExportService.WriteXlsxAsync(_report) : await ReportExportService.WriteCsvAsync(_report);
+                    await Navigation.PushAsync(new ReportPreviewPage(_report, path, format));
+                    return;
                 default: path = await ReportExportService.WriteCsvAsync(_report); break;
             }
             await Share.Default.RequestAsync(new ShareFileRequest

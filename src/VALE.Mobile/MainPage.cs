@@ -51,8 +51,8 @@ public sealed class MainPage : ContentPage
         var emailCode = UiKit.SecondaryButton("E-posta Koduyla Giriş");
         emailCode.AutomationId = "email-code-login-open";
         emailCode.Clicked += async (_, _) => await Navigation.PushAsync(new EmailCodeLoginPage(_api, _rememberDevice.IsToggled));
-        var resendConfirmation = UiKit.TextButton("E-posta doğrulama linkini tekrar gönder");
-        resendConfirmation.Clicked += async (_, _) => await ResendEmailConfirmationAsync(resendConfirmation);
+        var sms = UiKit.SecondaryButton("OTP / SMS ile Giriş");
+        sms.Clicked += async (_, _) => await Navigation.PushAsync(new SmsLoginPage(_api, _rememberDevice.IsToggled));
         var register = UiKit.SecondaryButton("Yeni Hesap Oluştur");
         register.AutomationId = "register-open";
         register.Clicked += async (_, _) => await Navigation.PushAsync(new TenantRegisterPage(_api));
@@ -78,7 +78,7 @@ public sealed class MainPage : ContentPage
         support.AutomationId = "login-support-open";
         support.Clicked += async (_, _) => await Navigation.PushAsync(new SupportContactPage());
 
-        _status = UiKit.Label("Size uygun tek bir giriş yöntemini kullanmanız yeterli.", 11.5, false, true);
+        _status = UiKit.Label("", 11.5, false, true);
         _status.AutomationId = "login-status";
         _status.MaxLines = 4;
         _activity = UiKit.Activity();
@@ -86,6 +86,8 @@ public sealed class MainPage : ContentPage
 
         var statusRow = new Grid { ColumnSpacing = 8, ColumnDefinitions = { new ColumnDefinition(GridLength.Auto), new ColumnDefinition(GridLength.Star) } };
         statusRow.Add(_activity, 0, 0); statusRow.Add(_status, 1, 0);
+        statusRow.IsVisible = false;
+        _status.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(Label.Text)) statusRow.IsVisible = !string.IsNullOrWhiteSpace(_status.Text); };
 
         var rememberRow = new HorizontalStackLayout
         {
@@ -100,7 +102,7 @@ public sealed class MainPage : ContentPage
         {
             Spacing = 9,
             IsVisible = false,
-            Children = { authenticator, resendConfirmation }
+            Children = { authenticator, sms }
         };
         var alternativesToggle = UiKit.SecondaryButton("Diğer giriş seçenekleri");
         alternativesToggle.AutomationId = "login-options-toggle";
@@ -183,7 +185,7 @@ public sealed class MainPage : ContentPage
                 App.ShowAuthenticated(_api, restored.User);
                 return;
             }
-            _status.Text = "Giriş yapmaya hazır.";
+            _status.Text = "";
         }
         try
         {
@@ -202,12 +204,12 @@ public sealed class MainPage : ContentPage
             await _api.TestConnectionAsync();
             MainThread.BeginInvokeOnMainThread(() =>
             {
-                if (!_busy) _status.Text = "Sunucu hazır • giriş yönteminizi seçebilirsiniz.";
+                if (!_busy) _status.Text = "";
             });
         }
-        catch
+        catch (Exception)
         {
-            // Render/free-tier cold starts can outlive the short warm-up request.
+            MainThread.BeginInvokeOnMainThread(() => { if (!_busy) _status.Text = "Bağlantı şu anda kurulamadı. İnternetinizi kontrol edin; sunucu bakımda olabilir."; });
             // The direct login request below is still allowed to continue normally.
         }
     }

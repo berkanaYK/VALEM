@@ -41,7 +41,7 @@ public sealed class UserGuidePage : ContentPage
         {
             ItemsSource = _chapters,
             Loop = false,
-            PeekAreaInsets = 10,
+            PeekAreaInsets = 0,
             IsBounceEnabled = true,
             IndicatorView = indicator,
             ItemTemplate = new DataTemplate(CreateChapterView)
@@ -92,7 +92,7 @@ public sealed class UserGuidePage : ContentPage
         {
             var entitlement = await _api.GetEntitlementAsync();
             _plan.Text = entitlement.IsPremium
-                ? "✓ VALEM Sınırsız hesabı • Kayıt ve tema sınırı yok"
+                ? "✓ VALEM Ömür Boyu hesabı • Kayıt ve tema sınırı yok"
                 : $"Ücretsiz Deneme • {entitlement.RemainingVehicleRecords}/{entitlement.DemoVehicleLimit} araç hakkı kaldı";
         }
         catch { _plan.Text = "Kılavuzu çevrimdışı okuyabilirsiniz."; }
@@ -104,7 +104,7 @@ public sealed class UserGuidePage : ContentPage
         section.SetBinding(Label.TextProperty, nameof(GuideChapter.Section));
         var title = UiKit.Label(string.Empty, 23, true);
         title.SetBinding(Label.TextProperty, nameof(GuideChapter.Title));
-        var visual = new Image { HeightRequest = 190, Aspect = Aspect.AspectFill };
+        var visual = new Image { HeightRequest = 300, Aspect = Aspect.AspectFill };
         visual.SetBinding(Image.SourceProperty, nameof(GuideChapter.Visual));
         var summary = UiKit.Label(string.Empty, 13, false, true);
         summary.SetBinding(Label.TextProperty, nameof(GuideChapter.Summary));
@@ -149,34 +149,34 @@ public sealed class UserGuidePage : ContentPage
     [
         new("1 • BAŞLANGIÇ", "Hesap türü ve giriş", "theme_anime_sunset.jpg",
             "Kendi firmanızı oluşturabilir, kişisel hesapla deneyebilir veya firma ve şube koduyla mevcut ekibe katılabilirsiniz.",
-            "1. Hesap türünü seçin.\n2. Adınızı ve e-posta adresinizi yazın.\n3. E-posta kodu veya parola yöntemini belirleyin.\n4. Personelseniz yöneticinizin verdiği firma ve şube kodlarını kullanın.",
+            "1. Hesap türünü seçin.\n2. Adınızı ve e-posta adresinizi yazın.\n3. Kullanıcı adınızı ve güçlü parolanızı oluşturun.\n4. Personelseniz yöneticinizin verdiği firma ve şube kodlarını kullanın.",
             "Davet kodu zorunlu değildir. Firma ve şube kodları yalnızca doğru işletmenin verilerine bağlanmanızı sağlar."),
-        new("2 • ANA SAYFA", "Günlük durumu izleyin", "theme_car_track.jpg",
+        new("2 • ANA SAYFA", "Günlük durumu izleyin", "theme_car_coast.png",
             $"Ana sayfa {user.BranchName ?? "seçili şube"} için içerideki araçları, teslim bekleyenleri, tamamlananları ve yetkiniz varsa ciroyu gösterir.",
             "• Üst bölümden aktif şubeyi kontrol edin.\n• Özet kartlarından günün durumunu görün.\n• Son araçlardan birine dokunarak ayrıntıyı açın.\n• Yeni Araç Kabulü düğmesiyle hızlı kayıt başlatın.",
             "Birden fazla şubeye yetkiniz varsa işlem yapmadan önce seçili şubeyi kontrol edin."),
-        new("3 • ARAÇ KABUL", "Yeni araç kaydı oluşturun", "theme_car_neon.jpg",
+        new("3 • ARAÇ KABUL", "Yeni araç kaydı oluşturun", "theme_car_garage.png",
             "Hızlı kabulde yalnız plaka zorunludur. Diğer bilgileri hemen girebilir veya daha sonra araç ayrıntısından tamamlayabilirsiniz.",
             "1. Plakayı yazın.\n2. İsterseniz marka seçin; model listesi seçilen markaya göre açılır.\n3. Anahtar etiketi ve park yerini ekleyin.\n4. Mevcut hasarı not veya fotoğrafla kaydedin.\n5. Araç Kabulünü Kaydet düğmesine dokunun.",
             "Marka ve model listeleri alfabetiktir. Marka seçmeden model seçilemez."),
-        new("4 • ARAÇ İŞLEMLERİ", "Teslim sürecini yönetin", "theme_car_track.jpg",
+        new("4 • ARAÇ İŞLEMLERİ", "Teslim sürecini yönetin", "theme_car_coast.png",
             "Araç ayrıntısı, kabulden teslime kadar yapılan işlemleri tek yerde toplar.",
             "• Araç istendiğinde durumunu Teslim İstendi yapın.\n• Araç hazır olduğunda ilgili durum adımını seçin.\n• Teslim sırasında ödeme yöntemini kontrol edin.\n• Yanlış bilgileri Düzenle bölümünden düzeltin.\n• Ödemeli veya teslim edilmiş mali kayıtlar silinemez.",
             "Ücret, giriş ve teslim zamanları üzerinden sunucuda hesaplanır; cihaz saatine güvenilmez."),
         new("5 • PROFİL VE TEMALAR", "Uygulamayı kişiselleştirin", "theme_anime_neon.jpg",
             "Profil fotoğrafınızı ve isteğe bağlı kişisel bilgilerinizi ekleyebilir; tema, vurgu rengi ve arka planı değiştirebilirsiniz.",
-            "1. Ayarlar > Profilim ve Fotoğrafım bölümünü açın.\n2. Fotoğrafınızı kamera veya galeriden seçin.\n3. Telefon, doğum tarihi, şehir ve hakkımda alanlarını isteğinize göre doldurun.\n4. Görünüm seçeneklerinden temayı seçip kaydedin.",
-            "Resimli temalarda yazı ve kart kontrastı otomatik ayarlanır. Galeriden arka plan ve premium çerçeveler Sınırsız pakete dahildir."),
-        new("6 • DENEME VE SINIRSIZ", "Paket haklarınızı takip edin", "theme_car_neon.jpg",
-            "Ücretsiz sürüm kullanıcı başına 50 araç kaydı sunar. VALEM Sınırsız, kayıt sınırını ve premium görünüm kilitlerini kaldırır.",
-            "• Ana sayfadan kalan araç hakkınızı görün.\n• Ayarlar > Sürüm ve Satın Alma bölümünde paketleri karşılaştırın.\n• Satın alma Google Play tarafından tamamlanır.\n• Aynı Play ve VALEM hesabıyla Satın Almayı Geri Yükle seçeneğini kullanabilirsiniz.",
+            "1. Daha Fazla > Profilim ve Fotoğrafım bölümünü açın.\n2. Fotoğrafınızı kamera veya galeriden seçin.\n3. Telefon, doğum tarihi, şehir ve hakkımda alanlarını isteğinize göre doldurun.\n4. Görünüm seçeneklerinden temayı seçip kaydedin.",
+            "Resimli temalarda yazı ve kart kontrastı otomatik ayarlanır. Galeriden arka plan ve premium çerçeveler Ömür Boyu pakete dahildir."),
+        new("6 • DENEME VE ÖMÜR BOYU", "Paket haklarınızı takip edin", "theme_car_garage.png",
+            "Ücretsiz sürüm kullanıcı başına 50 araç kaydı sunar. VALEM Ömür Boyu, kayıt sınırını ve premium görünüm kilitlerini kaldırır.",
+            "• Satın Al / Paketim menüsünden kalan araç hakkınızı görün.\n• Sol menü > Satın Al / Paketim bölümünde paketleri karşılaştırın.\n• Satın alma Google Play tarafından tamamlanır.\n• Aynı Play ve VALEM hesabıyla Satın Almayı Geri Yükle seçeneğini kullanabilirsiniz.",
             "Ödeme veya teslim içermeyen eski bir demo kaydını silmek kotada yeniden yer açar."),
         new("7 • GÜVENLİK", "Hesabınızı koruyun", "theme_anime_sunset.jpg",
             "E-posta koduyla giriş yapabilir, güçlü parola kullanabilir ve Authenticator ile iki adımlı doğrulamayı açabilirsiniz.",
             "• Kurtarma kodlarını güvenli ve çevrimdışı bir yerde saklayın.\n• Kodları veya parolanızı personelle paylaşmayın.\n• Ortak telefonda cihazı hatırla seçeneğini kullanmayın.\n• Şüpheli durumda parolanızı değiştirip aktif oturumları kapatın.",
             "VALEM destek ekibi sizden hiçbir zaman parolanızı, giriş kodunuzu veya ödeme kartı bilginizi istemez."),
         new("8 • DESTEK", "Yardım isteyin", "theme_anime_neon.jpg",
-            "Ayarlar > İletişim ve Destek bölümünden hata, kullanım sorusu veya geliştirme önerisi gönderebilirsiniz.",
+            "Daha Fazla > İletişim ve Destek bölümünden hata, kullanım sorusu veya geliştirme önerisi gönderebilirsiniz.",
             $"Destek adresi: {SupportContactPage.SupportEmail}\n\nHata bildirirken ekranı, işlemi ve yaklaşık zamanı yazın. Varsa kişisel bilgi içermeyen bir ekran görüntüsü ekleyin.",
             "Teknik hata ayrıntıları kullanıcı ekranında gösterilmez; sunucu logları destek incelemesi için ayrı tutulur.")
     ];

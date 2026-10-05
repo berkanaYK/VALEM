@@ -109,7 +109,9 @@ public sealed class AdminController(ValeDbContext db, UserManager<AppUser> userM
             throw new ApiException(StatusCodes.Status409Conflict, "Personel kodu kullanımda", "Bu personel kodu başka bir kullanıcıya ait.");
 
         user.FullName = request.FullName.Trim();
-        user.PhoneNumber = Clean(request.PhoneNumber);
+        var updatedPhone = Clean(request.PhoneNumber);
+        if (!string.Equals(user.PhoneNumber, updatedPhone, StringComparison.Ordinal)) user.PhoneNumberConfirmed = false;
+        user.PhoneNumber = updatedPhone;
         user.EmployeeCode = employeeCode;
         user.JobTitle = Clean(request.JobTitle);
         user.CompanyId = currentUser.CompanyId;

@@ -219,6 +219,9 @@ builder.Services.AddScoped<PremiumEntitlementService>();
 builder.Services.AddScoped<IGooglePlayPurchaseVerifier, GooglePlayPurchaseVerifier>();
 builder.Services.AddScoped<PasswordResetCodeService>();
 builder.Services.AddScoped<OneTimeCodeService>();
+builder.Services.Configure<SmsOptions>(builder.Configuration.GetSection("Sms"));
+builder.Services.AddHttpClient("ValemSms", client => client.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddScoped<IValeSmsSender, ValeSmsSender>();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<IValeEmailSender, SmtpValeEmailSender>();
 builder.Services.AddSingleton<FirebaseAppProvider>();
@@ -295,15 +298,17 @@ app.MapGet("/health/email", async (IValeEmailSender email, CancellationToken ct)
         : Results.Json(new { status = "not-ready", smtp = false, stage = probe.Stage }, statusCode: StatusCodes.Status503ServiceUnavailable);
 }).AllowAnonymous().RequireRateLimiting("diagnostic");
 
-// VALE 3.5.5: verified password registration and username login.
-app.MapGet("/api/status", (IValeEmailSender email, FirebasePushSender push) => Results.Ok(new
+// VALEM 3.6.0: profile customization, verified account access and page coaching.
+app.MapGet("/api/status", (IValeEmailSender email, FirebasePushSender push, IValeSmsSender sms) => Results.Ok(new
 {
     service = "VALE.Api",
-    version = "3.5.5",
+    version = "3.6.0",
     status = "ok",
     capabilities = new
     {
         smtp = email.IsConfigured,
+        sms = sms.IsConfigured,
+        emailChange = true,
         fcm = push.IsConfigured,
         multiTenant = true,
         rememberedDevices = true,

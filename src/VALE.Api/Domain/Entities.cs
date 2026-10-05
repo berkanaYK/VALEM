@@ -44,6 +44,7 @@ public sealed class AppUser : IdentityUser<Guid>
     public string ProfileColor { get; set; } = "#2563EB";
     public string ProfileFrame { get; set; } = "None";
     public string BackgroundTheme { get; set; } = "None";
+    public string HeaderBackgroundTheme { get; set; } = "Profile";
     public byte[]? ProfilePhoto { get; set; }
     public string? ProfilePhotoContentType { get; set; }
     public DateOnly? BirthDate { get; set; }

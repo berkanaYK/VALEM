@@ -83,7 +83,7 @@ public sealed class GooglePlayPurchaseVerifier(IOptions<BillingOptions> options)
         if (!_options.GooglePlayEnabled || string.IsNullOrWhiteSpace(_options.ServiceAccountJson))
             throw new ApiException(StatusCodes.Status503ServiceUnavailable, "Satın alma yakında açılacak", "Google Play satın alma bağlantısı henüz etkinleştirilmedi.");
         if (!string.Equals(productId, _options.ProductId, StringComparison.Ordinal))
-            throw new ApiException(StatusCodes.Status400BadRequest, "Paket tanınmadı", "Güncel VALEM Sınırsız paketini seçin.");
+            throw new ApiException(StatusCodes.Status400BadRequest, "Paket tanınmadı", "Güncel VALEM Ömür Boyu paketini seçin.");
     }
 }
 
@@ -153,7 +153,7 @@ public sealed class PremiumEntitlementService(
         var used = await UsedRecordCountAsync(cancellationToken);
         if (used >= _options.DemoVehicleLimit)
             throw new ApiException(StatusCodes.Status402PaymentRequired, "Deneme sınırına ulaştınız",
-                $"Ücretsiz kullanımda {_options.DemoVehicleLimit} araç kaydı oluşturabilirsiniz. Eski ve ödeme almamış bir kaydı silerek yer açabilir veya VALEM Sınırsız paketini satın alabilirsiniz.");
+                $"Ücretsiz kullanımda {_options.DemoVehicleLimit} araç kaydı oluşturabilirsiniz. Eski ve ödeme almamış bir kaydı silerek yer açabilir veya VALEM Ömür Boyu paketini satın alabilirsiniz.");
     }
 
     public async Task<PurchaseVerificationDto> VerifyAndGrantAsync(
@@ -209,7 +209,7 @@ public sealed class PremiumEntitlementService(
             catch { /* Client also acknowledges; the persisted entitlement prevents loss after payment. */ }
         }
 
-        await audit.RecordAsync(currentUser.UserId, currentUser.BranchId, "billing.premium.granted", "UserEntitlement", entitlement.Id.ToString(), "VALEM Sınırsız erişimi Google Play doğrulamasıyla etkinleştirildi.", cancellationToken: cancellationToken);
+        await audit.RecordAsync(currentUser.UserId, currentUser.BranchId, "billing.premium.granted", "UserEntitlement", entitlement.Id.ToString(), "VALEM Ömür Boyu erişimi Google Play doğrulamasıyla etkinleştirildi.", cancellationToken: cancellationToken);
         return new PurchaseVerificationDto(await GetAsync(cancellationToken), !verification.Acknowledged);
     }
 
@@ -229,7 +229,7 @@ public sealed class PremiumEntitlementService(
         var remaining = premium ? int.MaxValue : Math.Max(0, _options.DemoVehicleLimit - used);
         return new EntitlementDto(
             premium,
-            premium ? "VALEM Sınırsız" : "Ücretsiz Deneme",
+            premium ? "VALEM Ömür Boyu" : "Ücretsiz Deneme",
             _options.ProductId,
             _options.FallbackDisplayPrice,
             _options.DemoVehicleLimit,

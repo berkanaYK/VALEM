@@ -11,7 +11,7 @@ public sealed class PremiumPage : ContentPage
     private readonly UserDto _user;
     private readonly Label _status = UiKit.Label("Paket bilgisi alınıyor…", 14, true);
     private readonly Label _usage = UiKit.Label(string.Empty, 12.5, false, true);
-    private readonly Button _purchase = UiKit.PrimaryButton("VALEM Sınırsız'ı satın al • $5.99");
+    private readonly Button _purchase = UiKit.PrimaryButton("VALEM Ömür Boyu satın al • $5.99");
     private readonly Button _restore = UiKit.SecondaryButton("Satın almayı geri yükle");
     private EntitlementDto? _entitlement;
 
@@ -19,18 +19,20 @@ public sealed class PremiumPage : ContentPage
     {
         _api = api;
         _user = user;
-        Title = "VALEM Sınırsız";
+        Title = "VALEM Ömür Boyu";
         UiKit.StylePage(this);
         _purchase.Clicked += async (_, _) => await PurchaseAsync();
         _restore.Clicked += async (_, _) => await RestoreAsync();
+        _restore.AutomationId = "plan-restore";
 
         var comparison = new Grid
         {
+            AutomationId = "plan-comparison",
             ColumnDefinitions = [new(GridLength.Star), new(GridLength.Star)],
             ColumnSpacing = 10
         };
         comparison.Add(PlanCard("Ücretsiz Deneme", ["50 araç kaydı", "Temel görünüm", "Standart profil"]), 0);
-        comparison.Add(PlanCard("VALEM Sınırsız", ["Sınırsız araç kaydı", "Tüm resimli temalar", "Kişisel arka plan", "Premium profil görünümü", "Yeni premium özellikler"]), 1);
+        comparison.Add(PlanCard("VALEM Ömür Boyu", ["Sınırsız araç kaydı", "Tüm resimli temalar", "Kişisel arka plan", "Premium profil görünümü", "Yeni premium özellikler"]), 1);
 
         Content = new ScrollView
         {
@@ -41,7 +43,7 @@ public sealed class PremiumPage : ContentPage
                 Children =
                 {
                     UiKit.Label("İşiniz büyürken VALEM de sizinle büyüsün", 26, true),
-                    UiKit.Label("Ücretsiz sürümü 50 araç kaydına kadar kullanın. Sınırsız paket tek seferlik satın almadır ve VALEM hesabınıza bağlanır.", 12.5, false, true),
+                    UiKit.Label("Ücretsiz sürümü 50 araç kaydına kadar kullanın. Ömür Boyu paket tek seferlik satın almadır ve VALEM hesabınıza bağlanır.", 12.5, false, true),
                     UiKit.Card(new VerticalStackLayout { Spacing = 5, Children = { _status, _usage } }),
                     comparison,
                     _purchase,
@@ -64,7 +66,7 @@ public sealed class PremiumPage : ContentPage
         {
             _entitlement = await _api.GetEntitlementAsync();
             var storePrice = await TryGetStorePriceAsync();
-            _purchase.Text = $"VALEM Sınırsız'ı satın al • {storePrice ?? _entitlement.DisplayPrice}";
+            _purchase.Text = $"VALEM Ömür Boyu satın al • {storePrice ?? _entitlement.DisplayPrice}";
             ApplyState();
         }
         catch (Exception ex)
@@ -119,7 +121,7 @@ public sealed class PremiumPage : ContentPage
                 var purchase = purchases?.FirstOrDefault(x => x.ProductId == PremiumProduct.Id && x.State == PurchaseState.Purchased);
                 if (purchase is null)
                 {
-                    await DisplayAlertAsync("Satın alma bulunamadı", "Bu Google Play hesabında VALEM Sınırsız satın alması bulunamadı.", "Tamam");
+                    await DisplayAlertAsync("Satın alma bulunamadı", "Bu Google Play hesabında VALEM Ömür Boyu satın alması bulunamadı.", "Tamam");
                     return;
                 }
                 await VerifyAsync(purchase);
@@ -138,7 +140,7 @@ public sealed class PremiumPage : ContentPage
         if (result.ShouldAcknowledge) await CrossInAppBilling.Current.FinalizePurchaseAsync([token]);
         _entitlement = result.Entitlement;
         ApplyState();
-        await DisplayAlertAsync("VALEM Sınırsız açıldı", "Tüm araç kayıtları, temalar ve premium profil seçenekleri bu hesabınızda açıldı.", "Harika");
+        await DisplayAlertAsync("VALEM Ömür Boyu açıldı", "Tüm araç kayıtları, temalar ve premium profil seçenekleri bu hesabınızda açıldı.", "Harika");
         await GuidedTour.ShowPremiumAsync(this, _user, true);
     }
 

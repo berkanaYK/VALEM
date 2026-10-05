@@ -15,6 +15,10 @@ public static class MauiProgram
         Microsoft.Maui.Handlers.PickerHandler.Mapper.AppendToMapping("ValeField", (handler, _) =>
             handler.PlatformView.BackgroundTintList = Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.Transparent));
 #endif
-        return MauiApp.CreateBuilder().UseMauiApp<App>().Build();
+        return MauiApp.CreateBuilder().UseMauiApp<App>()
+#if ANDROID
+            .ConfigureMauiHandlers(handlers => handlers.AddHandler(typeof(Shell), typeof(ValeShellRenderer)))
+#endif
+            .Build();
     }
 }

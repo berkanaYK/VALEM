@@ -46,7 +46,8 @@ public sealed record AccountProfileDto(
     DateOnly? BirthDate = null,
     string? City = null,
     string? About = null,
-    string ProfileFrame = "None");
+    string ProfileFrame = "None",
+    string HeaderBackgroundTheme = "Profile");
 
 public sealed record UpdateAccountProfileRequest(
     [param: Required, MinLength(2), MaxLength(120)] string FullName,
@@ -58,7 +59,8 @@ public sealed record UpdateAccountProfileRequest(
     DateOnly? BirthDate = null,
     [param: MaxLength(80)] string? City = null,
     [param: MaxLength(300)] string? About = null,
-    [param: Required, MaxLength(20)] string ProfileFrame = "None");
+    [param: Required, MaxLength(20)] string ProfileFrame = "None",
+    [param: MaxLength(30)] string? HeaderBackgroundTheme = null);
 
 public sealed record ProfilePhotoUploadRequest(
     [param: Required, MaxLength(30)] string ContentType,
