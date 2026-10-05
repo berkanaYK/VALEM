@@ -71,6 +71,7 @@ public sealed class ValeAppShellV31 : Shell
         if (CompanyAccess.CanAudit(user)) Items.Add(CreateFlyout("Denetim Kayıtları", "menu_audit.svg", new AuditPage(api)));
         Items.Add(CreateFlyout("Ayarlar", "menu_settings.svg", new MoreHubPage(api, user)));
         Items.Add(CreateFlyout("Yardım", "menu_help.svg", new ValeHelpPage(api, user)));
+        Items.Add(CreateFlyout("İletişim ve Destek", "menu_help.svg", new SupportContactPage()));
         Items.Add(CreateFlyout("Çıkış", "menu_logout.svg", new LogoutPage(api)));
 
         _observedItem = tabs;

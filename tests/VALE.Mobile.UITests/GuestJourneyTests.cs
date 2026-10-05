@@ -25,7 +25,7 @@ public sealed class GuestJourneyTests : DeviceTestBase
         });
 
         rememberDevice.Click();
-        Assert.That(rememberDevice.GetDomAttribute("checked"), Is.EqualTo("true").IgnoreCase,
+        Assert.That(rememberDevice.GetDomAttribute("content-desc"), Does.Contain("Açık"),
             "Bu cihazı hatırla seçeneği dokunarak etkinleşmelidir.");
 
         WaitForElement("login-options-toggle").Click();

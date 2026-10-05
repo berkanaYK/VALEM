@@ -19,6 +19,10 @@ public sealed class SupportContactPage : ContentPage
         send.AutomationId = "support-send-email";
         send.Clicked += async (_, _) => await ComposeEmailAsync(send);
 
+        var webMail = UiKit.SecondaryButton("Tarayıcıdan E-posta Gönder");
+        webMail.AutomationId = "support-web-email";
+        webMail.Clicked += async (_, _) => await ComposeEmailAsync(webMail, browserOnly: true);
+
         var copy = UiKit.SecondaryButton("E-posta Adresini Kopyala");
         copy.AutomationId = "support-copy-email";
         copy.Clicked += async (_, _) =>
@@ -46,6 +50,8 @@ public sealed class SupportContactPage : ContentPage
                             UiKit.Label("Destek e-postası", 12, true, true),
                             email,
                             send,
+                            webMail,
+                            UiKit.Label("E-posta uygulamanızda hesap kurulu değilse tarayıcı seçeneğini kullanabilirsiniz.", 11.5, false, true),
                             copy
                         }
                     }),
@@ -73,27 +79,54 @@ public sealed class SupportContactPage : ContentPage
         };
     }
 
-    private async Task ComposeEmailAsync(Button button)
+    private async Task ComposeEmailAsync(Button button, bool browserOnly = false)
     {
         try
         {
             button.IsEnabled = false;
-            await Email.Default.ComposeAsync(new EmailMessage
+            var message = new EmailMessage
             {
                 Subject = "VALEM Destek Talebi",
                 Body = $"Merhaba,\n\nTalebim: \n\nKarşılaştığım ekran: \nTarih ve saat: \n\nUygulama sürümü: {AppInfo.Current.VersionString}\nAndroid sürümü: {DeviceInfo.Current.VersionString}",
                 To = [SupportEmail]
-            });
-        }
-        catch (FeatureNotSupportedException)
-        {
-            await Clipboard.Default.SetTextAsync(SupportEmail);
-            await DisplayAlertAsync("E-posta uygulaması bulunamadı", "Destek adresi panoya kopyalandı. Kullandığınız e-posta uygulamasından yeni ileti oluşturabilirsiniz.", "Tamam");
+            };
+            if (browserOnly)
+            {
+                await OpenWebMailAsync(message);
+                return;
+            }
+            try
+            {
+#if ANDROID
+                // SENDTO restricts the resolver to mail apps; Android owns default/one-time selection.
+                var uri = Android.Net.Uri.Parse($"mailto:{SupportEmail}?subject={Uri.EscapeDataString(message.Subject)}&body={Uri.EscapeDataString(message.Body)}");
+                var intent = new Android.Content.Intent(Android.Content.Intent.ActionSendto, uri);
+                var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
+                if (activity is null) throw new FeatureNotSupportedException();
+                activity.StartActivity(intent);
+#else
+                await Email.Default.ComposeAsync(message);
+#endif
+            }
+            catch (Exception ex) when (ex is FeatureNotSupportedException
+#if ANDROID
+                or Android.Content.ActivityNotFoundException
+#endif
+            )
+            {
+                await OpenWebMailAsync(message);
+            }
         }
         catch (Exception ex)
         {
             await DisplayAlertAsync("E-posta açılamadı", UserMessages.For(ex), "Tamam");
         }
         finally { button.IsEnabled = true; }
+    }
+
+    private static Task OpenWebMailAsync(EmailMessage message)
+    {
+        var url = $"https://mail.google.com/mail/?view=cm&fs=1&to={Uri.EscapeDataString(SupportEmail)}&su={Uri.EscapeDataString(message.Subject ?? "")}&body={Uri.EscapeDataString(message.Body ?? "")}";
+        return Browser.Default.OpenAsync(url, BrowserLaunchMode.External);
     }
 }
