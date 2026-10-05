@@ -167,7 +167,6 @@ public static class UiKit
             MinimumHeightRequest = 52,
             Padding = new Thickness(16, 11),
             CornerRadius = 14,
-            TextColor = Colors.White,
             FontAttributes = FontAttributes.Bold,
             FontSize = 14.5,
             FontAutoScalingEnabled = true,
@@ -175,6 +174,7 @@ public static class UiKit
             HorizontalOptions = LayoutOptions.Fill
         };
         button.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeAccent");
+        button.SetDynamicResource(Button.TextColorProperty, "ValeOnAccent");
         return button;
     }
 
@@ -236,18 +236,11 @@ public static class UiKit
     {
         var border = new Border
         {
-            StrokeThickness = 1,
+            StrokeThickness = 0.7,
             StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = radius },
             Padding = padding ?? new Thickness(16),
             HorizontalOptions = LayoutOptions.Fill,
             Content = content,
-            Shadow = new Shadow
-            {
-                Brush = new SolidColorBrush(Color.FromArgb("#120F172A")),
-                Offset = new Point(0, 2),
-                Radius = 8,
-                Opacity = 0.18f
-            }
         };
         border.SetDynamicResource(Border.StrokeProperty, "ValeBorderBrush");
         border.SetDynamicResource(VisualElement.BackgroundColorProperty, "ValeCard");
@@ -297,6 +290,29 @@ public static class UiKit
         activity.SetDynamicResource(ActivityIndicator.ColorProperty, "ValeAccent");
         return activity;
     }
+
+    public static View BrandHero(string title, string subtitle, double height = 230)
+    {
+        var heading = new Label { Text = title, FontSize = 28, FontAttributes = FontAttributes.Bold,
+            TextColor = Colors.White, FontAutoScalingEnabled = true, LineBreakMode = LineBreakMode.WordWrap };
+        var caption = new Label { Text = subtitle, FontSize = 13, TextColor = Color.FromArgb("#F6E3CF"),
+            FontAutoScalingEnabled = true, LineBreakMode = LineBreakMode.WordWrap };
+        var grid = new Grid { HeightRequest = height, BackgroundColor = Color.FromArgb("#101D2A") };
+        grid.Add(new Image { Source = "valem_hotel_hero.png", Aspect = Aspect.AspectFill });
+        grid.Add(new BoxView { Background = new LinearGradientBrush(new GradientStopCollection
+            { new(Color.FromArgb("#30101D2A"), 0), new(Color.FromArgb("#F5101D2A"), 1) }, new Point(0, 0), new Point(0, 1)) });
+        grid.Add(new VerticalStackLayout { Padding = 20, Spacing = 5, VerticalOptions = LayoutOptions.End,
+            Children = { heading, caption } });
+        return new Border { StrokeThickness = 0, StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 20 }, Content = grid };
+    }
+
+    public static (View Content, Label Value) OperationMetric(string title, string icon)
+    {
+        var symbol = new Image { Source = icon, HeightRequest = 23, WidthRequest = 23, HorizontalOptions = LayoutOptions.Start };
+        var label = Label(title, 11, false, true);
+        var value = Label("—", 29, true);
+        return (new VerticalStackLayout { Spacing = 7, Children = { symbol, label, value } }, value);
+    }
 }
 
 public sealed class ThemeBackgroundHost : Grid
@@ -337,6 +353,7 @@ public sealed class ThemeBackgroundHost : Grid
             _ => null
         };
         _background.Source = source;
+        _overlay.Color = ThemeService.IsDark ? Color.FromRgba(16, 29, 42, 210) : Color.FromRgba(250, 247, 242, 225);
         _background.IsVisible = source is not null;
         _overlay.IsVisible = source is not null;
     }

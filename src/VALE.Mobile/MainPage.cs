@@ -130,16 +130,6 @@ public sealed class MainPage : ContentPage
         }, new Thickness(18), 24);
         loginCard.MaximumWidthRequest = 520;
 
-        var title = new Label
-        {
-            Text = "VALE",
-            FontSize = 38,
-            FontAttributes = FontAttributes.Bold,
-            HorizontalTextAlignment = TextAlignment.Center,
-            CharacterSpacing = 2.4
-        };
-        title.SetDynamicResource(Label.TextColorProperty, "ValeText");
-
         var footer = new Label
         {
             Text = "Araç operasyonu • Tahsilat • Raporlama • Ekip yönetimi",
@@ -156,9 +146,7 @@ public sealed class MainPage : ContentPage
                 Padding = new Thickness(16, 34, 16, 24), Spacing = 16,
                 Children =
                 {
-                    new Image { Source = "vale_logo.svg", HeightRequest = 82, WidthRequest = 82, HorizontalOptions = LayoutOptions.Center },
-                    title,
-                    UiKit.Label("Vale operasyon ve yönetim platformu", 13.5, false, true),
+                    UiKit.BrandHero("VALEM", "Vale operasyon ve yönetim platformu", 190),
                     loginCard,
                     footer
                 }
@@ -318,6 +306,6 @@ public sealed class MainPage : ContentPage
         if (busy)
             _login.SetDynamicResource(Button.TextColorProperty, "ValeText");
         else
-            _login.TextColor = Colors.White;
+            _login.SetDynamicResource(Button.TextColorProperty, "ValeOnAccent");
     }
 }

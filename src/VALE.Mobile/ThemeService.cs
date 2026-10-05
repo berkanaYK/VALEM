@@ -12,7 +12,7 @@ public enum ValeThemeMode
 
 public enum ValeAccent
 {
-    Blue,
+    Copper,
     Indigo,
     Emerald,
     Orange
@@ -58,11 +58,11 @@ public static class ThemeService
             : ValeThemeMode.System;
 
     public static ValeAccent CurrentAccent => Enum.TryParse<ValeAccent>(
-        Preferences.Default.Get(AccentPreferenceKey, nameof(ValeAccent.Blue)),
+        Preferences.Default.Get(AccentPreferenceKey, nameof(ValeAccent.Copper)),
         true,
         out var accent)
             ? accent
-            : ValeAccent.Blue;
+            : ValeAccent.Copper;
 
     public static ValeBackgroundTheme CurrentBackground => Enum.TryParse<ValeBackgroundTheme>(
         Preferences.Default.Get(BackgroundPreferenceKey, nameof(ValeBackgroundTheme.None)), true, out var background)
@@ -78,7 +78,7 @@ public static class ThemeService
     }
     public static bool HasVisualBackground => CurrentBackground != ValeBackgroundTheme.None;
 
-    private static bool IsDark =>
+    public static bool IsDark =>
         CurrentMode == ValeThemeMode.Dark ||
         (CurrentMode == ValeThemeMode.System && Application.Current?.RequestedTheme == AppTheme.Dark);
 
@@ -104,7 +104,7 @@ public static class ThemeService
             : ValeThemeMode.System;
         var parsedAccent = Enum.TryParse<ValeAccent>(accent, true, out var selectedAccent)
             ? selectedAccent
-            : ValeAccent.Blue;
+            : ValeAccent.Copper;
         if (Enum.TryParse<ValeBackgroundTheme>(background, true, out var parsedBackground))
             Preferences.Default.Set(BackgroundPreferenceKey, parsedBackground.ToString());
         // An older cloud preference must never undo a mode selected locally.
@@ -154,6 +154,7 @@ public static class ThemeService
         application.Resources["ValeBorder"] = p.Border;
         application.Resources["ValeBorderBrush"] = new SolidColorBrush(p.Border);
         application.Resources["ValeAccent"] = p.Accent;
+        application.Resources["ValeOnAccent"] = dark ? Color.FromArgb("#101D2A") : Colors.White;
         application.Resources["ValeSuccess"] = p.Success;
         application.Resources["ValeWarning"] = p.Warning;
         application.Resources["ValeDanger"] = p.Danger;
@@ -260,67 +261,18 @@ public static class ThemeService
     {
         var accentColor = accent switch
         {
-            ValeAccent.Indigo => Color.FromArgb(dark ? "#818CF8" : "#4F46E5"),
-            ValeAccent.Emerald => Color.FromArgb(dark ? "#34D399" : "#059669"),
-            ValeAccent.Orange => Color.FromArgb(dark ? "#FB923C" : "#EA580C"),
-            _ => Color.FromArgb(dark ? "#60A5FA" : "#2563EB")
+            ValeAccent.Indigo => Color.FromArgb(dark ? "#B7A3FF" : "#6344B8"),
+            ValeAccent.Emerald => Color.FromArgb(dark ? "#63D2B4" : "#087765"),
+            ValeAccent.Orange => Color.FromArgb(dark ? "#FFAD70" : "#A34B16"),
+            _ => Color.FromArgb(dark ? "#D89C65" : "#92552F")
         };
-
-        if (CurrentBackground != ValeBackgroundTheme.None)
-        {
-            return dark ? new ValePalette(
-                Color.FromArgb("#101827"), Color.FromRgba(12, 22, 38, 220), Color.FromRgba(21, 34, 54, 225),
-                Colors.White, Color.FromArgb("#D4E2F3"), Color.FromRgba(255, 255, 255, 55), accentColor,
-                Color.FromArgb("#4ADE80"), Color.FromArgb("#FBBF24"), Color.FromArgb("#FB7185"))
-                : new ValePalette(Color.FromArgb("#EEF3FA"), Color.FromRgba(255, 255, 255, 242), Color.FromRgba(235, 242, 251, 245),
-                    Color.FromArgb("#14243B"), Color.FromArgb("#465B75"), Color.FromArgb("#BCCBDD"), accentColor,
-                    Color.FromArgb("#166534"), Color.FromArgb("#854D0E"), Color.FromArgb("#B91C1C"));
-        }
-
-        var tintedPage = accent switch
-        {
-            ValeAccent.Emerald => dark ? "#071A16" : "#ECFDF5",
-            ValeAccent.Indigo => dark ? "#11102A" : "#EEF2FF",
-            ValeAccent.Orange => dark ? "#211208" : "#FFF7ED",
-            _ => dark ? "#0B1220" : "#EFF6FF"
-        };
-        var tintedCard = accent switch
-        {
-            ValeAccent.Emerald => dark ? "#0D241E" : "#F7FFFB",
-            ValeAccent.Indigo => dark ? "#19183A" : "#FAFAFF",
-            ValeAccent.Orange => dark ? "#2A190D" : "#FFFCF8",
-            _ => dark ? "#111827" : "#FFFFFF"
-        };
-        var tintedSoft = accent switch
-        {
-            ValeAccent.Emerald => dark ? "#123128" : "#DDFBEF",
-            ValeAccent.Indigo => dark ? "#23214A" : "#E0E7FF",
-            ValeAccent.Orange => dark ? "#382314" : "#FFEDD5",
-            _ => dark ? "#172033" : "#DBEAFE"
-        };
-
+        // Opaque surfaces keep data readable with every optional photograph.
         return dark
-            ? new ValePalette(
-                Color.FromArgb(tintedPage),
-                Color.FromArgb(tintedCard),
-                Color.FromArgb(tintedSoft),
-                Color.FromArgb("#F8FAFC"),
-                Color.FromArgb("#94A3B8"),
-                Color.FromArgb("#273449"),
-                accentColor,
-                Color.FromArgb("#22C55E"),
-                Color.FromArgb("#F59E0B"),
-                Color.FromArgb("#EF4444"))
-            : new ValePalette(
-                Color.FromArgb(tintedPage),
-                Color.FromArgb(tintedCard),
-                Color.FromArgb(tintedSoft),
-                Color.FromArgb("#0F172A"),
-                Color.FromArgb("#64748B"),
-                Color.FromArgb("#E5E7EB"),
-                accentColor,
-                Color.FromArgb("#16A34A"),
-                Color.FromArgb("#D97706"),
-                Color.FromArgb("#DC2626"));
+            ? new ValePalette(Color.FromArgb("#101D2A"), Color.FromArgb("#172837"), Color.FromArgb("#203546"),
+                Color.FromArgb("#F6F2EC"), Color.FromArgb("#BAC7D0"), Color.FromArgb("#3D5567"), accentColor,
+                Color.FromArgb("#64D6AE"), Color.FromArgb("#F4BC69"), Color.FromArgb("#FF9299"))
+            : new ValePalette(Color.FromArgb("#FAF7F2"), Color.FromArgb("#FFFFFF"), Color.FromArgb("#F1EAE1"),
+                Color.FromArgb("#142A3B"), Color.FromArgb("#536575"), Color.FromArgb("#B9ADA0"), accentColor,
+                Color.FromArgb("#147457"), Color.FromArgb("#885B12"), Color.FromArgb("#B52E40"));
     }
 }

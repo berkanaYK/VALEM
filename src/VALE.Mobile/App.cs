@@ -18,7 +18,15 @@ public sealed class App : Application
     }
 
     protected override Window CreateWindow(IActivationState? activationState) =>
-        new(new NavigationPage(new MainPage()));
+        new(LoginNavigation());
+
+    private static NavigationPage LoginNavigation()
+    {
+        var navigation = new NavigationPage(new MainPage());
+        navigation.SetDynamicResource(NavigationPage.BarBackgroundColorProperty, "ValeCard");
+        navigation.SetDynamicResource(NavigationPage.BarTextColorProperty, "ValeText");
+        return navigation;
+    }
 
     public static void ShowAuthenticated(ApiClient api, UserDto user)
     {
@@ -37,7 +45,7 @@ public sealed class App : Application
     {
         _accountSession++;
         if (Current?.Windows.FirstOrDefault() is { } window)
-            window.Page = new NavigationPage(new MainPage());
+            window.Page = LoginNavigation();
     }
 
     private static async Task SyncAccountAsync(ApiClient api, UserDto user, long session)

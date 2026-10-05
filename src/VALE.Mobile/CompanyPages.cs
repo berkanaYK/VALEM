@@ -106,43 +106,48 @@ public sealed class CompanyDashboardPage : ContentPage
         _branchInfo = UiKit.Label(string.Empty, 12.5, false, true);
         _branchSelector = new BranchContextSelector(_api, BranchChangedAsync);
         UpdateBranchInfo();
-        var active = UiKit.Metric("İÇERİDE", "—", "Aktif araç"); _active = active.Value;
-        var waiting = UiKit.Metric("İSTENEN", "—", "Teslim bekliyor"); _waiting = waiting.Value;
-        var delivered = UiKit.Metric("TESLİM", "—", "Bugün tamamlanan"); _delivered = delivered.Value;
-        var cards = new List<View> { active.Card, waiting.Card, delivered.Card };
+        var active = UiKit.OperationMetric("İçeride", "tab_car.svg"); _active = active.Value;
+        var waiting = UiKit.OperationMetric("Teslim bekliyor", "metric_clock.svg"); _waiting = waiting.Value;
+        var delivered = UiKit.OperationMetric("Bugün teslim", "metric_check.svg"); _delivered = delivered.Value;
+        var metrics = new Grid { ColumnSpacing = 14, ColumnDefinitions =
+            { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star) }, AutomationId = "home-metrics" };
+        metrics.Add(active.Content, 0); metrics.Add(waiting.Content, 1); metrics.Add(delivered.Content, 2);
+        var operations = new VerticalStackLayout { Spacing = 12, Children = { metrics } };
         if (CompanyAccess.CanFinance(user) || CompanyAccess.CanReport(user))
         {
-            var revenue = UiKit.Metric("CİRO", "—", "Bugünkü tahsilat");
-            _revenue = revenue.Value; cards.Add(revenue.Card);
+            _revenue = UiKit.Label("—", 22, true);
+            _revenue.SetDynamicResource(Label.TextColorProperty, "ValeAccent");
+            var revenueRow = new Grid { ColumnSpacing = 12, ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) } };
+            revenueRow.Add(UiKit.Label("Günlük ciro", 13, false, true), 0); revenueRow.Add(_revenue, 1);
+            operations.Add(UiKit.Divider()); operations.Add(revenueRow);
         }
-
-        var metrics = new Grid { ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star) }, ColumnSpacing = 10, RowSpacing = 10 };
-        for (var i = 0; i < cards.Count; i++) metrics.Add(cards[i], i % 2, i / 2);
-        metrics.AutomationId = "home-metrics";
         _planStatus.AutomationId = "home-plan-status";
-
-        var actions = new VerticalStackLayout { Spacing = 9 };
+        var actions = new VerticalStackLayout { Spacing = 10 };
         if (CompanyAccess.CanOperate(user))
         {
-            var add = UiKit.PrimaryButton("Yeni Araç Kabulü");
+            var add = UiKit.PrimaryButton("＋  Yeni araç ekle");
+            add.AutomationId = "home-new-ticket";
             add.Clicked += async (_, _) => await Navigation.PushAsync(new ModernNewTicketPage(_api, _user));
             actions.Add(add);
         }
+        var quickActions = new Grid { ColumnSpacing = 10, ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star) } };
         if (CompanyAccess.CanReport(user))
         {
-            var report = UiKit.SecondaryButton("Raporları Aç");
+            var report = UiKit.SecondaryButton("Raporları aç");
             report.Clicked += async (_, _) => await Navigation.PushAsync(new ModernReportsPage(_api));
-            actions.Add(report);
+            quickActions.Add(report, 0);
         }
         if (CompanyAccess.CanManageUsers(user))
         {
-            var team = UiKit.SecondaryButton("Ekip Yönetimi");
+            var team = UiKit.SecondaryButton("Ekip yönetimi");
             team.Clicked += async (_, _) => await Navigation.PushAsync(new TeamManagementPage(_api, _user));
-            actions.Add(team);
+            quickActions.Add(team, 1);
         }
-        actions.Add(UiKit.Card(_planStatus, new Thickness(12), 14));
-
-        var list = new CollectionView { ItemsSource = _recent, SelectionMode = SelectionMode.Single, ItemTemplate = ModernTicketTemplates.Card(), HeightRequest = 330, EmptyView = UiKit.Label("Şu anda açık araç kaydı yok.", 13, false, true) };
+        if (quickActions.Children.Count > 0) actions.Add(quickActions);
+        actions.Add(_planStatus);
+        var list = new CollectionView { ItemsSource = _recent, SelectionMode = SelectionMode.Single,
+            ItemTemplate = ModernTicketTemplates.Card(), HeightRequest = 360,
+            EmptyView = UiKit.Label("Şu anda açık araç kaydı yok.", 13, false, true), AutomationId = "home-recent" };
         list.SelectionChanged += async (_, e) =>
         {
             if (e.CurrentSelection.FirstOrDefault() is TicketSummaryDto ticket)
@@ -151,25 +156,13 @@ public sealed class CompanyDashboardPage : ContentPage
                 await Navigation.PushAsync(new CompanyTicketDetailPage(_api, _user, ticket.Id));
             }
         };
-
-        list.AutomationId = "home-recent";
-
-        Content = new ScrollView
+        Content = new ScrollView { Content = new VerticalStackLayout
         {
-            Content = new VerticalStackLayout
-            {
-                Padding = 16, Spacing = 16,
-                Children =
-                {
-                    UiKit.Label($"Merhaba, {FirstName(user.FullName)}", 27, true),
-                    _branchInfo,
-                    _branchSelector,
-                    metrics, actions, UiKit.Label("Son araçlar", 19, true), list
-                }
-            }
-        };
+            Padding = new Thickness(16, 12, 16, 24), Spacing = 16,
+            Children = { UiKit.BrandHero($"Merhaba, {FirstName(user.FullName)}", user.BranchName ?? "VALEM • Araç yönetimi"),
+                _branchInfo, _branchSelector, UiKit.Card(operations), actions, UiKit.Label("Son araçlar", 21, true), list }
+        } };
     }
-
     protected override async void OnAppearing()
     {
         base.OnAppearing();
@@ -336,13 +329,13 @@ public sealed class CompanyProfilePage : ContentPage
         _theme.ItemsSource = new[] { "Sistem", "Açık", "Koyu" };
         _headerTheme.ItemsSource = new[] { "Profil rengi • Ücretsiz", "Otel Girişi • Ücretsiz", "Gece Garajı • Ömür Boyu", "Sahil Gün Batımı • Ömür Boyu", "Uygulama temasını kullan" };
         _theme.SelectedIndexChanged += (_, _) => { if (!_loadingAppearance && _theme.SelectedIndex >= 0) ThemeService.Apply((ValeThemeMode)_theme.SelectedIndex); };
-        _accent.ItemsSource = new[] { "Mavi", "İndigo", "Zümrüt", "Turuncu" };
-        _profileColor.ItemsSource = new[] { "Mavi", "İndigo", "Zümrüt", "Turuncu", "Kırmızı", "Mor" };
+        _accent.ItemsSource = new[] { "Bakır", "İndigo", "Zümrüt", "Turuncu" };
+        _profileColor.ItemsSource = new[] { "Bakır", "İndigo", "Zümrüt", "Turuncu", "Kırmızı", "Mor" };
         _profileFrame.ItemsSource = new[] { "Çerçevesiz", "Altın • Ömür Boyu", "Neon • Ömür Boyu", "Karbon • Ömür Boyu" };
         _background.ItemsSource = new[] { "Sade • Ücretsiz", "Anime • Neon Şehir • Ömür Boyu", "Anime • Gün Batımı • Ücretsiz", "Araba • Gece Garajı • Ömür Boyu", "Araba • Sahil Gün Batımı • Ömür Boyu", "Galerimden Özel • Ömür Boyu", "Araba • Otel Girişi • Ücretsiz" };
 
         var avatarLayer = new Grid(); avatarLayer.Add(_avatar); avatarLayer.Add(_avatarImage);
-        _avatarBox = new Border { StrokeThickness = 2, Stroke = new SolidColorBrush(Colors.White), BackgroundColor = ThemeService.Palette.Accent, StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 48 }, WidthRequest = 96, HeightRequest = 96, HorizontalOptions = LayoutOptions.Center, Content = avatarLayer };
+        _avatarBox = new Border { StrokeThickness = 2, Stroke = new SolidColorBrush(Colors.White), BackgroundColor = Color.FromArgb("#101D2A"), StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 48 }, WidthRequest = 96, HeightRequest = 96, HorizontalOptions = LayoutOptions.Center, Content = avatarLayer };
         _avatar.HorizontalTextAlignment = TextAlignment.Center; _avatar.VerticalTextAlignment = TextAlignment.Center; _avatar.TextColor = Colors.White;
 
         var photo = UiKit.SecondaryButton("Fotoğraf Ekle / Değiştir"); photo.Clicked += async (_, _) => await ChoosePhotoAsync(photo);
@@ -506,7 +499,7 @@ public sealed class CompanyProfilePage : ContentPage
     private static int ThemeIndex(string value) => value.Equals("Dark", StringComparison.OrdinalIgnoreCase) ? 2 : value.Equals("Light", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
     private static string ThemeValue(int index) => index == 2 ? "Dark" : index == 1 ? "Light" : "System";
     private static int AccentIndex(string value) => value.Equals("Indigo", StringComparison.OrdinalIgnoreCase) ? 1 : value.Equals("Emerald", StringComparison.OrdinalIgnoreCase) ? 2 : value.Equals("Orange", StringComparison.OrdinalIgnoreCase) ? 3 : 0;
-    private static string AccentValue(int index) => index == 1 ? "Indigo" : index == 2 ? "Emerald" : index == 3 ? "Orange" : "Blue";
+    private static string AccentValue(int index) => index == 1 ? "Indigo" : index == 2 ? "Emerald" : index == 3 ? "Orange" : "Copper";
     private static readonly string[] ProfileColors = ["#2563EB", "#4F46E5", "#059669", "#EA580C", "#DC2626", "#9333EA"];
     private static readonly string[] HeaderThemes = ["Profile", "CarHotel", "CarNeon", "CarTrack", "Theme"];
     private static int ProfileColorIndex(string value) { var i = Array.FindIndex(ProfileColors, x => x.Equals(value, StringComparison.OrdinalIgnoreCase)); return i < 0 ? 0 : i; }
@@ -616,7 +609,7 @@ public sealed class CompanySettingsPage : ContentPage
     {
         UiKit.StylePage(this);
         var theme = UiKit.Picker("Tema"); theme.ItemsSource = new[] { "Sistem", "Açık", "Koyu" }; theme.SelectedIndex = ThemeService.CurrentMode == ValeThemeMode.Dark ? 2 : ThemeService.CurrentMode == ValeThemeMode.Light ? 1 : 0;
-        var accent = UiKit.Picker("Vurgu rengi"); accent.ItemsSource = new[] { "Mavi", "İndigo", "Zümrüt", "Turuncu" }; accent.SelectedIndex = (int)ThemeService.CurrentAccent;
+        var accent = UiKit.Picker("Vurgu rengi"); accent.ItemsSource = new[] { "Bakır", "İndigo", "Zümrüt", "Turuncu" }; accent.SelectedIndex = (int)ThemeService.CurrentAccent;
         var apply = UiKit.PrimaryButton("Görünümü Kaydet"); apply.Clicked += async (_, _) =>
         {
             try
@@ -625,7 +618,7 @@ public sealed class CompanySettingsPage : ContentPage
                 var current = await api.GetAccountProfileAsync();
                 var saved = await api.UpdateAccountProfileAsync(new UpdateAccountProfileRequest(current.FullName, current.PhoneNumber,
                     theme.SelectedIndex == 2 ? "Dark" : theme.SelectedIndex == 1 ? "Light" : "System",
-                    new[] { "Blue", "Indigo", "Emerald", "Orange" }[Math.Clamp(accent.SelectedIndex, 0, 3)], current.ProfileColor,
+                    new[] { "Copper", "Indigo", "Emerald", "Orange" }[Math.Clamp(accent.SelectedIndex, 0, 3)], current.ProfileColor,
                     current.BackgroundTheme, current.BirthDate, current.City, current.About, current.ProfileFrame));
                 ThemeService.ApplyServerPreferences(saved.PreferredTheme, saved.AccentTheme, saved.BackgroundTheme);
                 await DisplayAlertAsync("Kaydedildi", "Görünüm tercihleriniz hesabınıza kaydedildi.", "Tamam");
