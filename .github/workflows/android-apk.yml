@@ -190,8 +190,8 @@ jobs:
           if ($manifest -notmatch 'android:icon="@mipmap/appicon"') { throw 'Launcher icon manifest referansı eksik.' }
           if ($manifest -notmatch 'android:roundIcon="@mipmap/appicon_round"') { throw 'Round launcher icon manifest referansı eksik.' }
           $project = Get-Content 'src/VALE.Mobile/VALE.Mobile.csproj' -Raw
-          if ($project -notmatch 'ForegroundFile="Resources\\AppIcon\\appiconfg.svg"') { throw 'Adaptive icon foreground eksik.' }
-          if ($project -notmatch 'MonochromeFile="Resources\\AppIcon\\appiconmono.svg"') { throw 'Android themed icon monochrome katmanı eksik.' }
+          if ($project -notmatch 'ForegroundFile="Resources[\\/]AppIcon[\\/]appiconfg\.svg"') { throw 'Adaptive icon foreground eksik.' }
+          if ($project -notmatch 'MonochromeFile="Resources[\\/]AppIcon[\\/]appiconmono\.svg"') { throw 'Android themed icon monochrome katmanı eksik.' }
           if ($project -notmatch 'ForegroundScale="0.72"') { throw 'Adaptive icon foreground ölçeği beklenen değerde değil.' }
           @('src/VALE.Mobile/Resources/AppIcon/appicon.svg','src/VALE.Mobile/Resources/AppIcon/appiconfg.svg','src/VALE.Mobile/Resources/AppIcon/appiconmono.svg','src/VALE.Mobile/Resources/Images/tab_home.svg','src/VALE.Mobile/Resources/Images/tab_car.svg','src/VALE.Mobile/Resources/Images/tab_report.svg','src/VALE.Mobile/Resources/Images/tab_bell.svg','src/VALE.Mobile/Resources/Images/tab_more.svg') | ForEach-Object {
             if (-not (Test-Path $_)) { throw "Icon dosyası eksik: $_" }
